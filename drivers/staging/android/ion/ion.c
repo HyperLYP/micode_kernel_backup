@@ -2218,6 +2218,14 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 				   map_mva_heap->id,
 				   map_mva_heap->free_list_size);
 	}
+
+	seq_puts(s, "----------------------------------------------------\n");
+	seq_printf(s, "%16.s %16zu\n", "num_of_alloc_bytes ",
+		   heap->num_of_alloc_bytes);
+	seq_printf(s, "%16.s %16zu\n", "num_of_buffers ",
+		   heap->num_of_buffers);
+	seq_printf(s, "%16.s %16zu\n", "alloc_bytes_wm ",
+		   heap->alloc_bytes_wm);
 	seq_puts(s, "----------------------------------------------------\n");
 
 	if (heap->debug_show)
