@@ -1395,6 +1395,11 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 		compatible = "mediatek,pmic-accdet";
 	};
 
+	swtp: swtp {
+		compatible = "mediatek, swtp-eint";
+		ant_sw_gpios = <&pio 72 0>;
+	};
+
 	mt6358_gauge {
 		compatible = "mediatek,mt6358_gauge";
 		gauge_name = "gauge";
