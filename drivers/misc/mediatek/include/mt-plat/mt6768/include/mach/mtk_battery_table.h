@@ -31,16 +31,21 @@
 #define Q_MAX_H_CURRENT 10000
 
 /* multiple battery profile compile options */
-/*#define MTK_GET_BATTERY_ID_BY_AUXADC*/
+#define MTK_GET_BATTERY_ID_BY_AUXADC
 
 
 /* if ACTIVE_TABLE == 0 && MULTI_BATTERY == 0
  * load g_FG_PSEUDO100_Tx from dtsi
  */
 #define MULTI_BATTERY 0
-#define BATTERY_ID_CHANNEL_NUM 1
+#define BATTERY_ID_CHANNEL_NUM 2
 #define BATTERY_PROFILE_ID 0
 #define TOTAL_BATTERY_NUMBER 4
+
+#define NVT_MIN_VOLTAGE		492000
+#define NVT_MAX_VOLTAGE		544500
+#define COSMX_MIN_VOLTAGE	570000
+#define COSMX_MAX_VOLTAGE	630000
 
 /*
  * if ACTIVE_TABLE == 0 , use DTSI table
@@ -196,8 +201,13 @@ int g_temperature[MAX_TABLE] = {
 };
 
 
-#define BAT_NTC_10 1
+#define BAT_NTC_10 0
 #define BAT_NTC_47 0
+#define BAT_NTC_100 1
+
+#if (BAT_NTC_100 == 1)
+#define RBAT_PULL_UP_R             100000
+#endif
 
 #if (BAT_NTC_10 == 1)
 #define RBAT_PULL_UP_R             24000
@@ -210,6 +220,38 @@ int g_temperature[MAX_TABLE] = {
 #define RBAT_PULL_UP_VOLT          2800
 
 #define BIF_NTC_R 16000
+
+#if (BAT_NTC_100 == 1)
+struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[27] = {
+		{-40, 4251000},
+		{-35, 3005000},
+		{-30, 2149000},
+		{-25, 1554000},
+		{-20, 1135000},
+		{-15, 837800},
+		{-10, 624100},
+		{-5, 469100},
+		{0, 355600},
+		{5, 271800},
+		{10, 209400},
+		{15, 162500},
+		{20, 127000},
+		{25, 100000},
+		{30, 79230},
+		{35, 63180},
+		{40, 50680},
+		{45, 40900},
+		{50, 33190},
+		{55, 27090},
+		{60, 22220},
+		{65, 18320},
+		{70, 15180},
+		{75, 12640},
+		{80, 10508},
+		{85, 8887},
+		{90, 7500}
+};
+#endif
 
 #if (BAT_NTC_10 == 1)
 struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {

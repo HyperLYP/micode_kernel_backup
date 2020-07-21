@@ -51,7 +51,8 @@
 #define SHUTDOWN_TIME 40
 #define AVGVBAT_ARRAY_SIZE 30
 #define INIT_VOLTAGE 3450
-#define BATTERY_SHUTDOWN_TEMPERATURE 60
+
+#define BATTERY_SHUTDOWN_TEMPERATURE 61
 
 /* ============================================================ */
 /* typedef and Struct*/
@@ -605,6 +606,12 @@ struct battery_data {
 	/* Add for Battery Service */
 	int BAT_batt_vol;
 	int BAT_batt_temp;
+};
+
+struct bms_data {
+	struct power_supply_desc psd;
+	struct power_supply *psy;
+	struct power_supply_config cfg;
 };
 
 struct BAT_EC_Struct {

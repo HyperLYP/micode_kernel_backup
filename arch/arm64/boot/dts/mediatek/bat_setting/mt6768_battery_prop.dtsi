@@ -12,6 +12,8 @@
  */
 bat_gm30: battery{
 	compatible = "mediatek,bat_gm30";
+	io-channels = <&auxadc 2>;
+	io-channel-names = "batteryID-channel";
 	DIFFERENCE_FULLOCV_ITH = <(200)>;
 /*	Charging termination current*/
 	SHUTDOWN_1_TIME = <(30)>;
