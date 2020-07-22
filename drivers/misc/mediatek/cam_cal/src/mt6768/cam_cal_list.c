@@ -31,6 +31,23 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{IMX386_MONO_SENSOR_ID, 0xA0, Common_read_region},
 	/*B+B. No Cal data for main2 OV8856*/
 	{S5K2P7_SENSOR_ID, 0xA0, Common_read_region},
+#ifdef CONFIG_TARGET_PRODUCT_MERLINCOMMON
+	{S5KGM1SP_SENSOR_ID, 0xA0, Common_read_region},
+	{S5KGM1SP_SUNNY_SENSOR_ID, 0xA0, Common_read_region},
+	{OV13B10_SENSOR_ID, 0xA2, Common_read_region},
+	{OV13B10_SUNNY_SENSOR_ID, 0xA2, Common_read_region},
+	{S5K4H7YX_SENSOR_ID, 0xA2, Common_read_region},
+	{S5K4H7YX_SUNNY_SENSOR_ID, 0xA2, Common_read_region},
+	{OV2680_SUNNY_SENSOR_ID, 0xA0, Common_read_region},
+	{OV2180_SENSOR_ID, 0xA4, Common_read_region},
+	{OV2180_SUNNY_SENSOR_ID, 0xA4, Common_read_region},
+#ifdef GC02M1_MIPI_RAW
+	{GC02M1_SENSOR_ID, 0x6E, gc02m1_read_otp_info},
+#endif
+#ifdef GC02M1_SUNNY_MIPI_RAW
+	{GC02M1_SUNNY_SENSOR_ID, 0x6E, gc02m1_sunny_read_otp_info},
+#endif
+#endif
 	/*  ADD before this line */
 	{0, 0, 0}       /*end of list */
 };
