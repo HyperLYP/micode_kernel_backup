@@ -113,6 +113,75 @@ static const struct snd_kcontrol_new mt6768_mt6358_controls[] = {
 		     mt6768_spk_i2s_in_type_get, NULL),
 };
 
+static int cs35l41_dailink_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_codec *spk_cdc = rtd->codec_dais[0]->codec;
+	struct snd_soc_dapm_context *cs35l41_dapm = snd_soc_codec_get_dapm(spk_cdc);
+	//dev_info(card->dev, "%s: found codec[%s]\n", __func__, dev_name(spk_cdc->dev));
+	snd_soc_dapm_ignore_suspend(cs35l41_dapm, "AMP Playback");
+	snd_soc_dapm_ignore_suspend(cs35l41_dapm, "AMP Capture");
+	snd_soc_dapm_ignore_suspend(cs35l41_dapm, "DSP1");
+	snd_soc_dapm_ignore_suspend(cs35l41_dapm, "Main AMP");
+	snd_soc_dapm_ignore_suspend(cs35l41_dapm, "ASPRX1");
+	snd_soc_dapm_ignore_suspend(cs35l41_dapm, "ASPRX2");
+	snd_soc_dapm_ignore_suspend(cs35l41_dapm, "ASPTX1");
+	snd_soc_dapm_ignore_suspend(cs35l41_dapm, "ASPTX2");
+	snd_soc_dapm_ignore_suspend(cs35l41_dapm, "SPK");
+	snd_soc_dapm_sync(cs35l41_dapm);
+	dev_info(card->dev, "%s: dapm ignore suspend[%s]\n", __func__, dev_name(spk_cdc->dev));
+	return 0;
+}
+
+static int msm_mi2s_cs35l41_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+//	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_codec *codec = codec_dai->codec;
+	int ret;
+
+	dev_info(card->dev, "------%s begin\n", __func__);
+	// Set cpu_dai as master
+	/*
+	 * ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
+	 * if (ret < 0) {
+	 *	dev_err(card->dev, "%s: Failed to set fmt cpu dai: %d\n", __func__, ret);
+	 *	return ret;
+	 *}
+	 */
+	// Set codec_dai as slave
+	ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_CBS_CFS | SND_SOC_DAIFMT_I2S);
+	if (ret < 0) {
+		dev_err(card->dev, "%s: Failed to set fmt codec dai: %d\n", __func__, ret);
+		return ret;
+	}
+
+	// Set bclk to 3072000 as reference clk for device
+	ret = snd_soc_codec_set_sysclk(codec, 0, 0,
+					3072000,
+					SND_SOC_CLOCK_IN);
+	if (ret < 0) {
+		dev_err(card->dev, "%s: Failed to set reference clk: %d\n", __func__, ret);
+		return ret;
+	}
+
+dev_info(card->dev, "------%s end\n", __func__);
+return 0;
+}
+
+void msm_mi2s_cs35l41_shutdown(struct snd_pcm_substream *substream)
+{
+	pr_debug("------%s()\n", __func__);
+
+}
+
+static struct snd_soc_ops msm_mi2s_cs35l41_be_ops = {
+	.startup = msm_mi2s_cs35l41_startup,
+	.shutdown = msm_mi2s_cs35l41_shutdown,
+};
+
 /*
  * define mtk_spk_i2s_mck node in dts when need mclk,
  * BE i2s need assign snd_soc_ops = mt6768_mt6358_i2s_ops
@@ -548,24 +617,34 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 	{
 		.name = "I2S3",
 		.cpu_dai_name = "I2S3",
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "cs35l41-pcm",
+		.codec_name = "spi3.0",
+		.dai_fmt = SND_SOC_DAIFMT_I2S |
+			SND_SOC_DAIFMT_CBS_CFS |
+			SND_SOC_DAIFMT_NB_NF,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.ignore_suspend = 1,
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
+		.init = &cs35l41_dailink_init,
+		.ops = &msm_mi2s_cs35l41_be_ops,
+	.init = &cs35l41_dailink_init,
 	},
 	{
 		.name = "I2S0",
 		.cpu_dai_name = "I2S0",
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "cs35l41-pcm",
+		.codec_name = "spi3.0",
+		.dai_fmt = SND_SOC_DAIFMT_I2S |
+			SND_SOC_DAIFMT_CBS_CFS |
+			SND_SOC_DAIFMT_NB_NF,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.ignore_suspend = 1,
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
+		.ops = &msm_mi2s_cs35l41_be_ops,
 	},
-	{
+		{
 		.name = "I2S1",
 		.cpu_dai_name = "I2S1",
 		.codec_dai_name = "snd-soc-dummy-dai",

@@ -488,6 +488,25 @@
 	status = "okay";
 };
 
+&spi3 {
+    status = "okay";
+    smart_pa:cs35l41@0 {
+	       compatible = "cirrus,cs35l41";
+		spi-max-frequency = <5000000>;
+		reg = <0>;
+		reset-gpio = <&pio 79 0>;
+		interrupt-parent = <&gpio>;
+		interrupts = <80 8>;
+		irq-gpio = <&pio 80 0>;
+		cirrus,boost-peak-milliamp = <4500>;
+		cirrus,boost-ind-nanohenry = <1000>;
+		cirrus,boost-cap-microfarad = <15>;
+		cirrus,gpio-config2 {
+		    cirrus,gpio-src-select = <0x4>;
+		    cirrus,gpio-output-enable;
+		    };
+	   };
+};
 
 &spi0 {
 	status = "ok";
