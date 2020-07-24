@@ -866,6 +866,12 @@ static int AF_i2c_probe(struct i2c_client *client,
 
 	spin_lock_init(&g_AF_SpinLock);
 
+#if !defined(CONFIG_MTK_LEGACY)
+	AFRegulatorCtrl(0);
+#endif
+#ifdef CONFIG_MTK_LENS_DW9800WAF_SUPPORT
+	DW9800WAF_SetI2Cclient_first(g_pstAF_I2Cclient, &g_AF_SpinLock);
+#endif
 	LOG_INF("Attached!!\n");
 
 	return 0;
