@@ -127,6 +127,52 @@
 	temp_t1_threshold = <0>;
 };
 
+/* flashlight start */
+&flashlights_led191 {
+	pinctrl-names = "default", "hw_ch0_high",
+		"hw_ch0_low", "hw_ch1_high",
+		"hw_ch1_low";
+	pinctrl-0 = <&flashlight_pins_default>;
+	pinctrl-1 = <&flashlight_pins_en_output1>;
+	pinctrl-2 = <&flashlight_pins_en_output0>;
+	pinctrl-3 = <&flashlight_pins_sel_output1>;
+	pinctrl-4 = <&flashlight_pins_sel_output0>;
+	status = "okay";
+};
+&pio {
+	flashlight_pins_default: flashlightdefault {
+	};
+	flashlight_pins_en_output1: flashlightenoutput1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO152__FUNC_GPIO152>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	flashlight_pins_en_output0: flashlightenoutput0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO152__FUNC_GPIO152>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	flashlight_pins_sel_output1: flashlightseloutput1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO153__FUNC_GPIO153>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	flashlight_pins_sel_output0: flashlightseloutput0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO153__FUNC_GPIO153>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+};
+/* flashlight end*/
+
 &charger {
 	algorithm_name = "SwitchCharging";
 
