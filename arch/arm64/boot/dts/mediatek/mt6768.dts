@@ -3542,6 +3542,11 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 	touch: touch {
 		compatible = "mediatek,touch";
 	};
+	xiaomi_touch{
+		compatible = "xiaomi-touch";
+		status = "ok";
+		touch,name = "xiaomi-touch";
+    };
 
 	nfc:nfc {
 		compatible = "mediatek,nfc-gpio-v2";

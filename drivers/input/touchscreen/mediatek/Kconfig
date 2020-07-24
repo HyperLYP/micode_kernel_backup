@@ -157,4 +157,5 @@ config TOUCHSCREEN_MTK_FOCALTECH_FHD
 
 source "drivers/input/touchscreen/mediatek/NT36xxx_HOSTDL_SPI/Kconfig"
 source "drivers/input/touchscreen/mediatek/focaltech_touch/Kconfig"
+source "drivers/input/touchscreen/mediatek/xiaomi/Kconfig"
 endif
