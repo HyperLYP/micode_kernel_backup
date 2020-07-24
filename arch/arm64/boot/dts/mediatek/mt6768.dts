@@ -3572,10 +3572,7 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 
 &i2c7 {
 	speaker_amp: speaker_amp@34 {
-		compatible = "mediatek,speaker_amp";
-		#sound-dai-cells = <0>;
-		reg = <0x34>;
-		status = "okay";
+		status = "disable";
 	};
 };
 
