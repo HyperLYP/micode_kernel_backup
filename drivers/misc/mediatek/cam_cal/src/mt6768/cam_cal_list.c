@@ -15,6 +15,19 @@
 #include "eeprom_i2c_common_driver.h"
 #include "eeprom_i2c_custom_driver.h"
 #include "kd_imgsensor.h"
+#ifdef GC02M1_MIPI_RAW
+//extern gc02m1_read_otp_info();
+extern unsigned int gc02m1_read_otp_info(struct i2c_client *client,
+	unsigned int addr,
+	unsigned char *data,
+	unsigned int size);
+#endif
+#ifdef GC02M1_SUNNY_MIPI_RAW
+extern unsigned int gc02m1_sunny_read_otp_info(struct i2c_client *client,
+	unsigned int addr,
+	unsigned char *data,
+	unsigned int size);
+#endif
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	/*Below is commom sensor */
