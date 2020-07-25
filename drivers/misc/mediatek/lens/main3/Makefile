@@ -38,6 +38,8 @@ obj-y += main3_lens.o
 #obj-y += common/ak7371af/
 obj-y += common/bu24253af/
 obj-y += common/gt9772af/
-
+ifeq ($(CONFIG_MTK_LENS_CN3927AF_SUPPORT), y)
+obj-y += common/cn3927af/
+endif
 
 endif
