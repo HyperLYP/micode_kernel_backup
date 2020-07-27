@@ -311,6 +311,8 @@
 #define GC0312_SENSOR_ID                        0xb310
 #define GC02M1_SENSOR_ID			0x02E0
 #define GC02M1_SUNNY_SENSOR_ID			0x02E1
+#define GC02M1_MACRO_SENSOR_ID			0x02E2
+#define GC02M1_MACRO_SUNNY_SENSOR_ID		0x02E3
 /*SP*/
 #define SP0A19_YUV_SENSOR_ID                    0xA6
 #define SP2518_YUV_SENSOR_ID                    0x53
@@ -505,7 +507,8 @@
 /*GC*/
 #define SENSOR_DRVNAME_GC02M1_MIPI_RAW          "gc02m1_mipi_raw"
 #define SENSOR_DRVNAME_GC02M1_SUNNY_MIPI_RAW    "gc02m1_sunny_mipi_raw"
-#define SENSOR_DRVNAME_GC02M0_MIPI_RAW          "gc02m0_mipi_raw"
+#define SENSOR_DRVNAME_GC02M1_MACRO_MIPI_RAW          "gc02m1_macro_mipi_raw"
+#define SENSOR_DRVNAME_GC02M1_MACRO_SUNNY_MIPI_RAW    "gc02m1_macro_sunny_mipi_raw"
 #define SENSOR_DRVNAME_GC2375_MIPI_RAW          "gc2375_mipi_raw"
 #define SENSOR_DRVNAME_GC2375SUB_MIPI_RAW       "gc2375sub_mipi_raw"
 #define SENSOR_DRVNAME_GC2365_MIPI_RAW          "gc2365_mipi_raw"
