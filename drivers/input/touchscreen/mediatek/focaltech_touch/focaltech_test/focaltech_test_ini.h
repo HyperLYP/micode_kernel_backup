@@ -35,7 +35,7 @@ struct ini_ic_type {
 
 enum line_type {
     LINE_SECTION = 1,
-    LINE_KEYWORD = 2 ,
+    LINE_KEYWORD = 2,
     LINE_OTHER = 3,
 };
 
@@ -95,7 +95,7 @@ struct ini_data {
 #define BASIC_THRESHOLD_MC_SC       { \
     "RawDataTest_High_Min", "RawDataTest_High_Max", "RawDataTest_HighFreq", \
     "RawDataTest_Low_Min", "RawDataTest_Low_Max", "RawDataTest_LowFreq", \
-    "UniformityTest_Check_Tx", "UniformityTest_Check_Rx","UniformityTest_Check_MinMax", \
+    "UniformityTest_Check_Tx", "UniformityTest_Check_Rx", "UniformityTest_Check_MinMax", \
     "UniformityTest_Tx_Hole", "UniformityTest_Rx_Hole", "UniformityTest_MinMax_Hole", \
     "SCapCbTest_OFF_Min", "SCapCbTest_OFF_Max", "ScapCBTest_SetWaterproof_OFF", \
     "SCapCbTest_ON_Min", "SCapCbTest_ON_Max", "ScapCBTest_SetWaterproof_ON", \

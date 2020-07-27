@@ -40,9 +40,8 @@ typedef enum {
 	PCBA_J19P_INDIA,
 } PCBA_J19_CONFIG;
 #else
-typedef enum
-{
-	PCBA_UNKNOW=0,
+typedef enum {
+	PCBA_UNKNOW = 0,
 	PCBA_J15S_P0_CN = 0x10,
 	PCBA_J15S_P1_CN,
 	PCBA_J15S_P1_1_CN,
@@ -65,13 +64,12 @@ typedef enum
 	PCBA_J15N_MP_GLOBAL_NFC,
 	PCBA_J15S_GLOBAL_END = 0x6F,
 	PCBA_END,
-}PCBA_CONFIG;
+} PCBA_CONFIG;
 #endif
 
 extern PCBA_CONFIG huaqin_pcba_config;
 
-struct pcba_info
-{
+struct pcba_info {
 	PCBA_CONFIG pcba_config;
 	char pcba_name[32];
 };

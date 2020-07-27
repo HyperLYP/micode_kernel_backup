@@ -896,12 +896,12 @@
 	};
 
 	/*
-    focaltech_spi@1 {
-        compatible = "focaltech,fts";
-        reg = <1>;
-        spi-max-frequency = <8000000>;//ft8719 max limit 8M
-	    status = "ok";
-    };*/
+	focaltech_spi@1 {
+				compatible = "focaltech,fts";
+				reg = <1>;
+				spi-max-frequency = <8000000>;//ft8719 max limit 8M
+				status = "ok";
+	};*/
 
 };
 

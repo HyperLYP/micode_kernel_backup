@@ -43,8 +43,8 @@
 #endif
 
 #ifdef BUILD_LK
-#define GPIO_LCM_ID0    GPIO171
-#define GPIO_LCM_ID1    GPIO172
+#define GPIO_LCM_ID0	GPIO171
+#define GPIO_LCM_ID1	GPIO172
 #endif
 
 static unsigned ENP = 494; //gpio169
@@ -54,8 +54,8 @@ static unsigned RST = 370; //gpio45
 
 #define GPIO_LCD_BIAS_ENP   ENP
 #define GPIO_LCD_BIAS_ENN   ENN
-#define GPIO_LCD_RST        RST
-#define GPIO_BKL_EN         BKL
+#define GPIO_LCD_RST		RST
+#define GPIO_BKL_EN		 BKL
 
 #define IC_id_addr			0xF7
 #define IC_id				0x46
@@ -185,7 +185,7 @@ static void lcm_set_gpio_output(unsigned GPIO, unsigned int output)
 }
 
 static void push_table(void *cmdq, struct LCM_setting_table *table,
-		       unsigned int count, unsigned char force_update)
+			   unsigned int count, unsigned char force_update)
 {
 	unsigned int i;
 	unsigned int cmd;
@@ -274,17 +274,17 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	printk("[%s]: --lyd_mipi, ssc_disable = %d\n", __func__, params->dsi.ssc_disable);
 
 #if 0  /*non-continous clk*/
-    params->dsi.cont_clock = 0;
-    params->dsi.clk_lp_per_line_enable = 1;
+	params->dsi.cont_clock = 0;
+	params->dsi.clk_lp_per_line_enable = 1;
 #else /*continuous clk*/
-    params->dsi.cont_clock = 1;
+	params->dsi.cont_clock = 1;
 #endif
 
-    params->dsi.esd_check_enable = 1;
-    params->dsi.customization_esd_check_enable = 1;
-    params->dsi.lcm_esd_check_table[0].cmd = 0x0A;
-    params->dsi.lcm_esd_check_table[0].count = 1;
-    params->dsi.lcm_esd_check_table[0].para_list[0] = 0x9C;
+	params->dsi.esd_check_enable = 1;
+	params->dsi.customization_esd_check_enable = 1;
+	params->dsi.lcm_esd_check_table[0].cmd = 0x0A;
+	params->dsi.lcm_esd_check_table[0].count = 1;
+	params->dsi.lcm_esd_check_table[0].para_list[0] = 0x9C;
 }
 
 static void lcm_init_power(void)
@@ -310,7 +310,7 @@ static void lcm_suspend_power(void)
 	//lcm_set_gpio_output(GPIO_BKL_EN, 0);
 	//MDELAY(10);
 
-	if(!nvt_gesture_flag) {
+	if (!nvt_gesture_flag) {
 
 		lcm_set_gpio_output(GPIO_LCD_BIAS_ENN, 0);
 		MDELAY(2);
@@ -382,7 +382,7 @@ static void lcm_resume(void)
 }
 
 static void lcm_update(unsigned int x, unsigned int y, unsigned int width,
-		       unsigned int height)
+			   unsigned int height)
 {
 	unsigned int x0 = x;
 	unsigned int y0 = y;
@@ -418,52 +418,52 @@ static unsigned int lcm_compare_id(void)
 {
 	LCM_LOGI(" %s enter\n", __func__);
 #ifdef BUILD_LK
-    unsigned int id0 = 0;
-    unsigned int id1 = 0;
-    unsigned char buffer[4];
-    unsigned int array[16];
+	unsigned int id0 = 0;
+	unsigned int id1 = 0;
+	unsigned char buffer[4];
+	unsigned int array[16];
 
-    unsigned int lcm_id0 = 0;
-    unsigned int lcm_id1 = 0;
+	unsigned int lcm_id0 = 0;
+	unsigned int lcm_id1 = 0;
 
-    mt_set_gpio_mode(GPIO_LCM_ID0, GPIO_MODE_00);
-    mt_set_gpio_dir(GPIO_LCM_ID0, GPIO_DIR_IN);
-    mt_set_gpio_pull_enable(GPIO_LCM_ID0, GPIO_PULL_ENABLE);
+	mt_set_gpio_mode(GPIO_LCM_ID0, GPIO_MODE_00);
+	mt_set_gpio_dir(GPIO_LCM_ID0, GPIO_DIR_IN);
+	mt_set_gpio_pull_enable(GPIO_LCM_ID0, GPIO_PULL_ENABLE);
 
-    mt_set_gpio_mode(GPIO_LCM_ID1, GPIO_MODE_00);
-    mt_set_gpio_dir(GPIO_LCM_ID1, GPIO_DIR_IN);
-    mt_set_gpio_pull_enable(GPIO_LCM_ID1, GPIO_PULL_ENABLE);
+	mt_set_gpio_mode(GPIO_LCM_ID1, GPIO_MODE_00);
+	mt_set_gpio_dir(GPIO_LCM_ID1, GPIO_DIR_IN);
+	mt_set_gpio_pull_enable(GPIO_LCM_ID1, GPIO_PULL_ENABLE);
 
-    /*pull down ID0 ID1 PIN*/
-    mt_set_gpio_pull_select(GPIO_LCM_ID0, GPIO_PULL_DOWN);
-    mt_set_gpio_pull_select(GPIO_LCM_ID1, GPIO_PULL_DOWN);
+	/*pull down ID0 ID1 PIN*/
+	mt_set_gpio_pull_select(GPIO_LCM_ID0, GPIO_PULL_DOWN);
+	mt_set_gpio_pull_select(GPIO_LCM_ID1, GPIO_PULL_DOWN);
 
-    /* get ID0 ID1 status*/
-    lcm_id0 = mt_get_gpio_in(GPIO_LCM_ID0);
-    lcm_id1 = mt_get_gpio_in(GPIO_LCM_ID1);
-    LCM_LOGI("[LCM]%s,module lcm_id0 = %d,lcm_id1 = %d\n",__func__,lcm_id0,lcm_id1);
+	/* get ID0 ID1 status*/
+	lcm_id0 = mt_get_gpio_in(GPIO_LCM_ID0);
+	lcm_id1 = mt_get_gpio_in(GPIO_LCM_ID1);
+	LCM_LOGI("[LCM]%s,module lcm_id0 = %d, lcm_id1 = %d\n", __func__, lcm_id0, lcm_id1);
 
-    array[0] = 0x00043700;  /* read id return two byte,version and id */
-    dsi_set_cmdq(array, 1, 1);
+	array[0] = 0x00043700;  /* read id return two byte,version and id */
+	dsi_set_cmdq(array, 1, 1);
 
-    read_reg_v2(0xA1, buffer, 4);
-    id0 = buffer[2];
-    id1 = buffer[3];
-    LCM_LOGI("[LCM]%s,ic id0 = 0x%x,id1 = 0x%x\n",__func__,id0,id1);
-    if( id0 == 0x19 && id1 == 0x11 ){
-        LCM_LOGI("[LCM]%s,nt36672A ic id compare success\n",__func__);
-        return 1;
-     }
-     LCM_LOGI("[LCM]%s,nt36672A ic id compare fail\n",__func__);
+	read_reg_v2(0xA1, buffer, 4);
+	id0 = buffer[2];
+	id1 = buffer[3];
+	LCM_LOGI("[LCM]%s, ic id0 = 0x%x, id1 = 0x%x\n", __func__, id0, id1);
+	if (id0 == 0x19 && id1 == 0x11) {
+		LCM_LOGI("[LCM]%s, nt36672A ic id compare success\n", __func__);
+		return 1;
+	 }
+	 LCM_LOGI("[LCM]%s, nt36672A ic id compare fail\n", __func__);
 
-    if( lcm_id0 == 0 && lcm_id1 == 0 ){
-         LCM_LOGI("[LCM]%s,nt36672A moudle id compare success\n",__func__);
-         return 1;
-     }
-     LCM_LOGI("[LCM]%s,nt36672A moudle compare fail\n",__func__);
+	if (lcm_id0 == 0 && lcm_id1 == 0) {
+		 LCM_LOGI("[LCM]%s, nt36672A moudle id compare success\n", __func__);
+		 return 1;
+	 }
+	 LCM_LOGI("[LCM]%s, nt36672A moudle compare fail\n", __func__);
 #endif
-     LCM_LOGI(" %s exit\n", __func__);
-     return 0;
+	 LCM_LOGI(" %s exit\n", __func__);
+	 return 0;
 }
 
 /* return TRUE: need recovery */

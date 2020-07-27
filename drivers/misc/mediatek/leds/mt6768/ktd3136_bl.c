@@ -572,10 +572,13 @@ void ktd3137_brightness_set_workfunc(struct ktd3137_chip *chip, int brightness)
 	} else {
 		if (ktd_hbm_mode == 3) {
 			ktd3137_write_reg(bkl_chip->client, REG_MODE, 0xE1);//27.4mA
+			printk(KERN_INFO "[%s]: ktd_hbm_mode = %d\n", __func__, ktd_hbm_mode);
 		} else if (ktd_hbm_mode == 2) {
 			ktd3137_write_reg(bkl_chip->client, REG_MODE, 0xC9);//25mA
+			printk(KERN_INFO "[%s]: ktd_hbm_mode = %d\n", __func__, ktd_hbm_mode);
 		} else {
 			ktd3137_write_reg(chip->client, REG_MODE, 0xA9);//21.8mA
+			printk(KERN_INFO "[%s]: ktd_hbm_mode = %d\n", __func__, ktd_hbm_mode);
 		}
 	}
 
@@ -641,6 +644,7 @@ int ktd_hbm_set(enum backlight_hbm_mode hbm_mode)
 
 int ktd3137_brightness_set(int brightness)
 {
+	LOG_DBG("%s brightness = %d\n", __func__, brightness);
 
 	ktd3137_brightness_set_workfunc(bkl_chip, brightness);
 	return brightness;
@@ -839,8 +843,9 @@ static ssize_t ktd3137_bl_ramp_reg_store(struct device *dev,
 	return count;
 
 }
+
 static ssize_t ktd3137_bl_trans_ramp_reg_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
+			struct device_attribute *attr, char *buf)
 {
 	struct ktd3137_chip *chip = dev_get_drvdata(dev);
 	uint8_t reg_val = 0;
@@ -1013,8 +1018,8 @@ struct device *ktd3137_device_create(void *drvdata, const char *fmt)
 
 
 static int ktd3137_probe(struct i2c_client *client,
-			const struct i2c_device_id *id) {
-
+			const struct i2c_device_id *id)
+{
 	int err = 0;
 	u8 value;
 

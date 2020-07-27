@@ -23,7 +23,7 @@ struct board_id_information {
 };
 
 static struct board_id_information board_id;
-PCBA_CONFIG huaqin_pcba_config=PCBA_UNKNOW;
+PCBA_CONFIG huaqin_pcba_config = PCBA_UNKNOW;
 
 //extern char *saved_command_line;
 extern int IMM_GetOneChannelValue(int dwChannel, int data[4], int *rawdata);
@@ -33,7 +33,7 @@ typedef struct {
 	int voltage_min;
 	int voltage_max;
 	PCBA_CONFIG version;
-}board_id_map_t;
+} board_id_map_t;
 #if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
 
 static int pcba_config;
@@ -79,8 +79,7 @@ static board_id_map_t PCBA_DETECT_POCO_GLOBAL[] = {
 };
 
 #else
-static const board_id_map_t board_id_map[] =
-{
+static const board_id_map_t board_id_map[] = {
 	{130, 225, PCBA_J15S_P0_CN},
 	{226, 315, PCBA_J15S_P0_INDIA},
 	{316, 405, PCBA_J15S_P0_GLOBAL},
@@ -213,84 +212,77 @@ static bool read_pcba_config_j19(void)
 static bool read_pcba_config(void)
 {
 	int ret = 0;
-	int i=0,map_size=0;
-    int auxadc_voltage;
+	int i = 0, map_size = 0;
+	int auxadc_voltage;
 	int hw_id_gpio, board_id3_gpio;
 	int hw_id_gpio_value, board_id3_gpio_value;
 	struct iio_channel *channel;
 	struct device_node *board_id_node;
 	struct platform_device *board_id_dev;
 
-	board_id_node = of_find_node_by_name(NULL,"board_id");
-	if(board_id_node == NULL){
+	board_id_node = of_find_node_by_name(NULL, "board_id");
+	if (board_id_node == NULL) {
 		pr_err("[%s] find board_id node fail \n", __func__);
 		return false;
-	}
-	else
+	} else
 		pr_err("[%s] find board_id node success %s \n", __func__, board_id_node->name);
 
 	board_id_dev = of_find_device_by_node(board_id_node);
-	if(board_id_dev == NULL){
+	if (board_id_dev == NULL) {
 		pr_err("[%s] find board_id dev fail \n", __func__);
 		return false;
-	}
-	else
+	} else
 		pr_err("[%s] find board_id dev success %s \n", __func__, board_id_dev->name);
 
 	hw_id_gpio = of_get_named_gpio(board_id_node, "hw_id-gpios", 0);
-    if (gpio_is_valid(hw_id_gpio)) {
-        ret = devm_gpio_request_one(&board_id_dev->dev, hw_id_gpio, GPIOF_IN, "hw_id");
-        if (!ret) {
+	if (gpio_is_valid(hw_id_gpio)) {
+		ret = devm_gpio_request_one(&board_id_dev->dev, hw_id_gpio, GPIOF_IN, "hw_id");
+		if (!ret) {
 			hw_id_gpio_value = gpio_get_value(hw_id_gpio);
 			pr_err("[%s] get hw_id_gpio %d value: %d\n", __func__, hw_id_gpio, hw_id_gpio_value);
-        }
-		else
+		} else
 			pr_err("[%s] Can not request hw_id_gpio : %d\n", __func__, ret);
-    }
+	}
 #if 0
 	board_id2_gpio = of_get_named_gpio(board_id_node, "board_id2-gpios", 0);
-    if (gpio_is_valid(board_id2_gpio)) {
-        ret = devm_gpio_request_one(&board_id_dev->dev, board_id2_gpio, GPIOF_IN, "board_id2");
-        if (!ret) {
+	if (gpio_is_valid(board_id2_gpio)) {
+		ret = devm_gpio_request_one(&board_id_dev->dev, board_id2_gpio, GPIOF_IN, "board_id2");
+		if (!ret) {
 			ret = gpio_get_value(board_id2_gpio);
 			pr_err("[%s] get board_id2_gpio %d value: %d\n", __func__, board_id2_gpio, ret);
-        }
-		else
+		} else
 			pr_err("[%s] Can not request board_id2_gpio : %d\n", __func__, ret);
 	}
 #endif
 	board_id3_gpio = of_get_named_gpio(board_id_node, "board_id3-gpios", 0);
-    if (gpio_is_valid(board_id3_gpio)) {
-        ret = devm_gpio_request_one(&board_id_dev->dev, board_id3_gpio, GPIOF_IN, "board_id3");
-        if (!ret) {
+	if (gpio_is_valid(board_id3_gpio)) {
+		ret = devm_gpio_request_one(&board_id_dev->dev, board_id3_gpio, GPIOF_IN, "board_id3");
+		if (!ret) {
 			board_id3_gpio_value = gpio_get_value(board_id3_gpio);
 			pr_err("[%s] get board_id3_gpio %d value: %d\n", __func__, board_id3_gpio, board_id3_gpio_value);
-        }
-		else
+		} else
 			pr_err("[%s] Can not request board_id3_gpio : %d\n", __func__, ret);
-    }
+	}
 
-	channel = iio_channel_get(&(board_id_dev->dev),"board_id-channel");
-	if(IS_ERR(channel)){
+	channel = iio_channel_get(&(board_id_dev->dev), "board_id-channel");
+	if (IS_ERR(channel)) {
 		ret = PTR_ERR(channel);
 		pr_err("[%s] iio channel not found %d\n", __func__, ret);
 		return false;
-	}
-	else
+	} else
 		pr_err("[%s] get channel success\n", __func__);
 
-	if(channel != NULL)
-		ret = iio_read_channel_processed(channel,&auxadc_voltage);
+	if (channel != NULL)
+		ret = iio_read_channel_processed(channel, &auxadc_voltage);
 	else {
 		pr_err("[%s] no channel to processed \n", __func__);
 		return false;
 	}
 
-	if( ret < 0){
+	if (ret < 0) {
 		pr_err("[%s] IIO channel read failed %d \n", __func__, ret);
 		return false;
-	}
-	else {
+	} else {
 		pr_err("[%s] auxadc_voltage is %d\n", __func__, auxadc_voltage);
 		board_id.voltage = auxadc_voltage * 1500 / 4096;
 		pr_err("[%s] board_id_voltage is %d\n", __func__, board_id.voltage);
@@ -300,8 +292,7 @@ static bool read_pcba_config(void)
 	/*Cause we only have just one version,so its just one version */
 	if (0 == hw_id_gpio_value && 1 == board_id3_gpio_value) {
 		map_size = sizeof(board_id_map)/sizeof(board_id_map_t);
-		while (i < map_size)
-		{
+		while (i < map_size) {
 			if ((board_id.voltage >= board_id_map[i].voltage_min) && (board_id.voltage < board_id_map[i].voltage_max)) {
 				huaqin_pcba_config = board_id_map[i].version;
 				break;
@@ -387,7 +378,7 @@ static struct platform_driver boardId_driver = {
 	.probe = board_id_probe,
 	.remove = board_id_remove,
 	.driver = {
-        .name = "board_id",
+		.name = "board_id",
 		.owner = THIS_MODULE,
 #ifdef CONFIG_OF
 		.of_match_table = boardId_of_match,
@@ -408,7 +399,7 @@ static int __init huaqin_pcba_early_init(void)
 	pr_err("[%s]start to register boardId driver\n", __func__);
 
 	ret = platform_driver_register(&boardId_driver);
-    if (ret) {
+	if (ret) {
 		pr_err("[%s]Failed to register boardId driver\n", __func__);
 		return ret;
 	}

@@ -193,20 +193,20 @@
 			output-high;
 	};
 	};
-        ctp_pins_rst_output0: rstoutput0 {
-               pins_cmd_dat {
-                       pinmux = <PINMUX_GPIO92__FUNC_GPIO92>;
-                       slew-rate = <1>;
-                       output-low;
-               };
-       };
-       ctp_pins_rst_output1: rstoutput1 {
-               pins_cmd_dat {
-                       pinmux = <PINMUX_GPIO92__FUNC_GPIO92>;
-                       slew-rate = <1>;
-                       output-high;
-               };
-       };
+	ctp_pins_rst_output0: rstoutput0 {
+		pins_cmd_dat {
+				pinmux = <PINMUX_GPIO92__FUNC_GPIO92>;
+				slew-rate = <1>;
+				output-low;
+			};
+	};
+	ctp_pins_rst_output1: rstoutput1 {
+		pins_cmd_dat {
+				pinmux = <PINMUX_GPIO92__FUNC_GPIO92>;
+				slew-rate = <1>;
+				output-high;
+		};
+	};
 
 };
 /* TOUCH end */
@@ -374,24 +374,24 @@
 		};
 	};
 
-    ktd@37 {
-        compatible = "ktd,ktd3137";
-        reg = <0x37>;
-		status = "okay";
+	ktd@37 {
+	compatible = "ktd,ktd3137";
+	reg = <0x37>;
+	status = "okay";
         /*ktd,pwm-mode; */
-        ktd,using-lsb = <1>;
-        ktd,pwm-frequency = <100>;
-        ktd,bl-fscal-led = <0x98>;/*default 20.2mA*/
-        ktd,turn-on-ramp = <0>;
-        ktd,turn-off-ramp = <0>;
-        ktd,pwm-trans-dim = <0>;
-        ktd,i2c-trans-dim = <0>;
-        ktd,bl-channel = <2>;
-        ktd,ovp-level = <32>; /*default 32v*/
-        ktd,switching-frequency = <1000>; /*default 1000kHz*/
-        ktd,inductor-current = <2600>; //default 2600mA
-		ktd,linear_ramp = <1>; /*default is exponential*/
-		ktd,linear_backlight = <1>; /*default is exponential*/
+	ktd,using-lsb = <1>;
+	ktd,pwm-frequency = <100>;
+	ktd,bl-fscal-led = <0x98>;/*default 20.2mA*/
+	ktd,turn-on-ramp = <0>;
+	ktd,turn-off-ramp = <0>;
+	ktd,pwm-trans-dim = <0>;
+	ktd,i2c-trans-dim = <0>;
+	ktd,bl-channel = <2>;
+	ktd,ovp-level = <32>;/*default 32v*/
+	ktd,switching-frequency = <1000>; /*default 1000kHz*/
+	ktd,inductor-current = <2600>; //default 2600mA
+	ktd,linear_ramp = <1>; /*default is exponential*/
+	ktd,linear_backlight = <1>; /*default is exponential*/
     };
 
 	lcd_bias@3e {

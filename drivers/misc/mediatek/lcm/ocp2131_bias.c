@@ -95,9 +95,9 @@ static int ocp2131_bias_probe(struct i2c_client *client, const struct i2c_device
 
 	mutex_init(&ocp->i2c_rw_lock);
 
-	ocp2131_write_reg(ocp,OCP2131_Positive_Output,OCP2131_Set_voltage);
-	ocp2131_write_reg(ocp,OCP2131_Negative_Output,OCP2131_Set_voltage);
-	ocp2131_write_reg(ocp,OCP2131_Mtp_Reg,OCP2131_Mtp_save);
+	ocp2131_write_reg(ocp, OCP2131_Positive_Output, OCP2131_Set_voltage);
+	ocp2131_write_reg(ocp, OCP2131_Negative_Output, OCP2131_Set_voltage);
+	ocp2131_write_reg(ocp, OCP2131_Mtp_Reg, OCP2131_Mtp_save);
 	return 0;
 }
 

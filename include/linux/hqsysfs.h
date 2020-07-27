@@ -75,7 +75,7 @@ enum hardware_id{
 	HWID_PEDOMETER,
 	HWID_HUMIDITY,
 
-        HWID_PCBA = 0x80,
+	HWID_PCBA = 0x80,
 
 	HWID_BATERY = 0xA0,
 	HWID_FUEL_GAUGE_IC,
@@ -98,14 +98,14 @@ struct hw_info{
 	struct attribute attr;
 	unsigned int hw_exist;
 //	const char *hw_type_name;
-	char * hw_device_name;
+	char *hw_device_name;
 };
 
 
 #define __INFO(_id, _hw_type_name) {				\
 		.hw_id = _id,				\
 		.attr = {.name = __stringify(_hw_type_name),				\
-		 		.mode = VERIFY_OCTAL_PERMISSIONS(S_IWUSR|S_IRUGO) },		\
+		.mode = VERIFY_OCTAL_PERMISSIONS(S_IWUSR|S_IRUGO) },		\
 		.hw_exist	= 0,						\
 		.hw_device_name	= NULL,						\
 	}
@@ -123,8 +123,8 @@ struct hw_info{
 
 
 
-int hq_regiser_hw_info(enum hardware_id id,char *device_name);
-int hq_deregister_hw_info(enum hardware_id id,char *device_name);
+int hq_regiser_hw_info(enum hardware_id id, char *device_name);
+int hq_deregister_hw_info(enum hardware_id id, char *device_name);
 int register_kboj_under_hqsysfs(struct kobject *kobj, struct kobj_type *ktype, const char *fmt, ...);
 
 
