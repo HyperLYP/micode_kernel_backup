@@ -161,14 +161,12 @@ static int led191_pinctrl_set(int pin, int state)
 	}
 
 	PK_DBG("g_flash_channel_idx = %d\n", g_flash_channel_idx);
-	if (g_flash_channel_idx == 0) {
+	if (g_flash_duty != 1) {
 		led191_hw_chx_low = led191_hw_ch0_low;
 		led191_hw_chx_high = led191_hw_ch0_high;
-	} else if (g_flash_channel_idx == 1) {
+	} else {
 		led191_hw_chx_low = led191_hw_ch1_low;
 		led191_hw_chx_high = led191_hw_ch1_high;
-	} else {
-		PK_DBG("please check g_flash_channel_idx!!!\n");
 	}
 
 	switch (pin) {
@@ -201,12 +199,6 @@ static int led191_enable(void)
 {
 	int pin = LED191_PINCTRL_PIN_HWEN;
 
-	if (g_flash_duty == 1) {
-		led191_pinctrl_set(pin, 1);
-	} else {
-		led191_pinctrl_set(pin, 1);
-		led191_pinctrl_set(pin, 0);
-	}
 	led191_pinctrl_set(pin, 1);
 	flash_enable = 100;
 	PK_ERR("led191_FLASH led on.\n");
@@ -368,7 +360,7 @@ static ssize_t att_store(struct device *dev,
 					struct device_attribute *attr,
 					const char *buf, size_t count)
 {
-	printk("echo led191_FLASH debug buf, %s ", buf);
+	printk("echo led191_FLASH debug buf,   %s ", buf);
 	sprintf(node_one_buf, "%s", buf);
 
 	if ((strcmp ("0", buf) == 0) || (strcmp ("0\x0a", buf) == 0)) {
