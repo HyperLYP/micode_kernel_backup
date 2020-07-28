@@ -54,6 +54,10 @@ config ANDROID_BINDER_IPC_SELFTEST
 	  exhaustively with combinations of various buffer sizes and
 	  alignments.
 
+config TARGET_PRODUCT_MERLINCOMMON
+	bool "TARGET PRODUCT MERLINCOMMON"
+	---help---
+	  Enable support for TARGET PRODUCT MERLINCOMMON
 endif # if ANDROID
 
 endmenu
