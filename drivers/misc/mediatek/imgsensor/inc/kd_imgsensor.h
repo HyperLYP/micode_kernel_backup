@@ -210,7 +210,7 @@
 #define OV20880MIPI_SENSOR_ID                   0x20880
 #define OV13B10_SENSOR_ID                       0x560D42
 #define OV13B10_SUNNY_SENSOR_ID                 0x560D43
-#define OV13B10_OFILM_SENSOR_ID                 0x560D44
+#define OV13B10_OFILM_SENSOR_ID                 0x560D42
 #define OV2180_SENSOR_ID                        0x2682
 #define OV2180_SUNNY_SENSOR_ID                  0x2681
 /*S5K*/
@@ -218,8 +218,8 @@
 #define S5KGM1SP_SUNNY_SENSOR_ID		        0x08d2
 #define S5K2LQSX_SENSOR_ID                      0x2c1a
 #define S5K4H7YX_SENSOR_ID                      0x487B
-#define S5K4H7YX_OFILM_FRONT_SENSOR_ID          0x487D
-#define S5K4H7YX_OFILM_ULTRA_SENSOR_ID          0x487F
+#define S5K4H7YX_OFILM_FRONT_SENSOR_ID          0x487B
+#define S5K4H7YX_OFILM_ULTRA_SENSOR_ID          0x487B
 #define S5K3P8SP_SENSOR_ID                      0x3108
 #define S5K2T7SP_SENSOR_ID                      0x2147
 #define S5K3P8SX_SENSOR_ID                      0x3108
