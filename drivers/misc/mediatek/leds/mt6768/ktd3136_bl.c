@@ -646,6 +646,13 @@ int ktd3137_brightness_set(int brightness)
 {
 	LOG_DBG("%s brightness = %d\n", __func__, brightness);
 
+#ifdef CONFIG_TARGET_PRODUCT_MERLINCOMMON
+	if ((brightness < 5) && (brightness > 2)) {//HQ-61731
+		brightness = 5;
+		printk("%s: lyd_lowest_brightness, brightness = %d", __func__, brightness);
+	}
+#endif
+
 	ktd3137_brightness_set_workfunc(bkl_chip, brightness);
 	return brightness;
 }
