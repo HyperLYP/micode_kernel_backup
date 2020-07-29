@@ -54,6 +54,8 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{OV2680_SUNNY_SENSOR_ID, 0xA0, Common_read_region},
 	{OV2180_SENSOR_ID, 0xA4, Common_read_region},
 	{OV2180_SUNNY_SENSOR_ID, 0xA4, Common_read_region},
+	{GC02M1_MACRO_SENSOR_ID, 0xA0, Common_read_region},
+	{GC02M1_MACRO_SUNNY_SENSOR_ID, 0xA0, Common_read_region},
 #ifdef GC02M1_MIPI_RAW
 	{GC02M1_SENSOR_ID, 0x6E, gc02m1_read_otp_info},
 #endif
