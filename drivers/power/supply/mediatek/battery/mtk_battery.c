@@ -3784,7 +3784,7 @@ static int battery_callback(
 	case CHARGER_NOTIFY_EOC:
 		{
 /* CHARGING FULL */
-			if (force_get_tbat(true) < 45)
+			if (force_get_tbat(true) < 45 && (gm.ui_soc == 100))
 				notify_fg_chr_full();
 			battery_update(&battery_main);
 			pr_err("battery is full\n");
