@@ -799,7 +799,6 @@ static const char *wm_adsp_mem_region_name(unsigned int type)
 	}
 }
 static int wm_halo_apply_calibration(struct snd_soc_dapm_widget *w);
-static void wm_halo_check_calibration(struct snd_soc_dapm_widget *w);
 static int wm_adsp_k_ctl_put(struct wm_adsp *dsp, const char *name, int value);
 static int wm_adsp_k_ctl_get(struct wm_adsp *dsp, const char *name);
 
@@ -1124,16 +1123,16 @@ static int wm_adsp_block_bypass_put(struct snd_kcontrol *kcontrol,
 
 	switch (dsp->block_bypass) {
 	case 0:
-		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_IN_ENH", 0x00000000);
-		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_EQ", 0x00000000);
-		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_ACTI", 0x00000000);
-		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_MBL", 0x00000000);
+			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_IN_ENH", 0x00000000);
+			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_EQ", 0x00000000);
+			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_ACTI", 0x00000000);
+			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_MBL", 0x00000000);
 		break;
 	case 1:
-		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_IN_ENH", 0x00400001);
-		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_EQ", 0x00400001);
-		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_ACTI", 0x00400001);
-		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_MBL", 0x00400001);
+			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_IN_ENH", 0x00400001);
+			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_EQ", 0x00400001);
+			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_ACTI", 0x00400001);
+			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_MBL", 0x00400001);
 		break;
 	default:
 		break;
@@ -4282,7 +4281,6 @@ int wm_halo_event(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcontrol,
 			if (ret < 0)
 				goto err;
 		}
-		wm_halo_check_calibration(w);
 		dsp->running = true;
 
 		mutex_unlock(&dsp->pwr_lock);
@@ -4409,20 +4407,6 @@ static int wm_adsp_k_ctl_get(struct wm_adsp *dsp, const char *name)
 	return 0;
 }
 
-static void wm_halo_check_calibration(struct snd_soc_dapm_widget *w)
-{
-	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
-	struct wm_adsp *dsps = snd_soc_component_get_drvdata(component);
-	struct wm_adsp *dsp = &dsps[w->shift];
-	int cal_status = 0;
-
-	wm_adsp_read_ctl(dsp, "CAL_SET_STATUS", &cal_status, sizeof(cal_status));
-	adsp_info(dsp, "%s: Read CAL_SET_STATUS = %d\n", __func__, be32_to_cpu(cal_status));
-	if (be32_to_cpu(cal_status) != 2)
-		adsp_err(dsp, "%s: calib satus = %d, please check calib apply!\n",
-						__func__, be32_to_cpu(cal_status));
-	wm_adsp_k_ctl_get(dsp, "DSP1 Protection cd CAL_SET_STATUS");
-}
 static int wm_halo_apply_calibration(struct snd_soc_dapm_widget *w)
 {
 	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);

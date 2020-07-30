@@ -798,7 +798,7 @@ static irqreturn_t cs35l41_irq(int irq, void *data)
 	unsigned int status[4];
 	unsigned int masks[4];
 	unsigned int i;
-
+	dev_crit(cs35l41->dev, "cs35l41_irq enter...............\n");
 	for (i = 0; i < ARRAY_SIZE(status); i++) {
 		regmap_read(cs35l41->regmap,
 			    CS35L41_IRQ1_STATUS1 + (i * CS35L41_REGSTRIDE),
