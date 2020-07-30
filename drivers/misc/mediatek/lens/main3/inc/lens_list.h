@@ -55,4 +55,16 @@ extern int GT9772AF_PowerDown(struct i2c_client *pstAF_I2Cclient,
 extern int GT9772AF_GetFileName(unsigned char *pFileName);
 
 extern void AFRegulatorCtrl(int Stage);
+#define DW9714VAF_SetI2Cclient DW9714VAF_SetI2Cclient_Main3
+#define DW9714VAF_Ioctl DW9714VAF_Ioctl_Main3
+#define DW9714VAF_Release DW9714VAF_Release_Main3
+#define DW9714VAF_GetFileName DW9714VAF_GetFileName_Main3
+extern int DW9714VAF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long DW9714VAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int DW9714VAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int DW9714VAF_GetFileName(unsigned char *pFileName);
+extern void DW9714VAF_SwitchToPowerDown(struct i2c_client *pstAF_I2Cclient, bool disable);
+
 #endif
