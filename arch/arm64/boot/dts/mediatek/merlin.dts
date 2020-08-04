@@ -587,7 +587,7 @@
     status = "okay";
     smart_pa:cs35l41@0 {
 	       compatible = "cirrus,cs35l41";
-		spi-max-frequency = <5000000>;
+		spi-max-frequency = <4000000>;
 		reg = <0>;
 		reset-gpio = <&pio 79 0>;
 		interrupt-parent = <&gpio>;
