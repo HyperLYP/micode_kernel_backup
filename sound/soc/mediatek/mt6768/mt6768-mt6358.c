@@ -112,7 +112,7 @@ static const struct snd_kcontrol_new mt6768_mt6358_controls[] = {
 	SOC_ENUM_EXT("MTK_SPK_I2S_IN_TYPE_GET", mt6768_spk_type_enum[1],
 		     mt6768_spk_i2s_in_type_get, NULL),
 };
-
+#ifdef CONFIG_TARGET_PRODUCT_MERLINCOMMON
 static int cs35l41_dailink_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_card *card = rtd->card;
@@ -181,6 +181,7 @@ static struct snd_soc_ops msm_mi2s_cs35l41_be_ops = {
 	.startup = msm_mi2s_cs35l41_startup,
 	.shutdown = msm_mi2s_cs35l41_shutdown,
 };
+#endif
 
 /*
  * define mtk_spk_i2s_mck node in dts when need mclk,
@@ -614,6 +615,7 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		.ignore_suspend = 1,
 		.init = mt6768_mt6358_init,
 	},
+#ifdef CONFIG_TARGET_PRODUCT_MERLINCOMMON
 	{
 		.name = "I2S3",
 		.cpu_dai_name = "I2S3",
@@ -644,6 +646,28 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
 		.ops = &msm_mi2s_cs35l41_be_ops,
 	},
+#else
+	{
+		.name = "I2S3",
+		.cpu_dai_name = "I2S3",
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.ignore_suspend = 1,
+		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
+	},
+	{
+		.name = "I2S0",
+		.cpu_dai_name = "I2S0",
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.no_pcm = 1,
+		.dpcm_capture = 1,
+		.ignore_suspend = 1,
+		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
+	},
+#endif
 		{
 		.name = "I2S1",
 		.cpu_dai_name = "I2S1",
