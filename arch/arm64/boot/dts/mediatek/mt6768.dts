@@ -1388,7 +1388,8 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 	};
 
 	goodix_fp: fingerprint {
-		compatible = "mediatek,goodix-fp";
+		compatible = "mediatek,fpc1022_irq","mediatek,goodix-fp";
+		status = "okay";
 	};
 
 	accdet: accdet {
