@@ -151,21 +151,20 @@ static int cs35l41_dsp_power_ev(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
 	struct cs35l41_private *cs35l41 = snd_soc_codec_get_drvdata(codec);
-
+	pr_debug("++V1++>CSPL: %s, event = %d.\n", __func__, event);
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		if (cs35l41->halo_booted == false)
 			wm_halo_early_event(w, kcontrol, event);
 		else
 			cs35l41->dsp.booted = true;
-
+		pr_debug("--->CSPL: %s, event = %d.\n", __func__, event);
 		return 0;
 	case SND_SOC_DAPM_PRE_PMD:
 		if (cs35l41->halo_booted == false) {
 			wm_halo_early_event(w, kcontrol, event);
 			wm_halo_event(w, kcontrol, event);
 		}
-		return 0;		//added by HQ Zhangpeng
 	default:
 		return 0;
 	}
@@ -176,15 +175,15 @@ static int cs35l41_dsp_load_ev(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
 	struct cs35l41_private *cs35l41 = snd_soc_codec_get_drvdata(codec);
-
+	pr_debug("++++>CSPL: %s, event = %d.\n", __func__, event);
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		if (cs35l41->halo_booted == false) {
 			wm_halo_event(w, kcontrol, event);
 			cs35l41->halo_booted = true;
 		}
-		return 0;		//added by HQ Zhangpeng
 	default:
+	pr_debug("--->CSPL: %s, event = %d.\n", __func__, event);
 		return 0;
 	}
 }
