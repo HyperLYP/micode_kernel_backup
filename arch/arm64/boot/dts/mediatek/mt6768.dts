@@ -3579,6 +3579,16 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 	smart_pa: smart_pa {
 	};
 
+    board_id: board_id {
+		compatible = "mediatek,board_id";
+	};
+
+	blk_thermal: blk_thermal {
+		compatible = "mediatek,blk_thermal_ntc";
+		io-channels = <&auxadc 4>;
+		io-channel-names = "blk_thermal-channel";
+		status = "okay";
+	};
 	gpio_usage_mapping:gpio {
 		compatible = "mediatek,gpio_usage_mapping";
 	};
