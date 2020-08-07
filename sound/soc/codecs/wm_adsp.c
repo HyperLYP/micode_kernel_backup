@@ -799,6 +799,7 @@ static const char *wm_adsp_mem_region_name(unsigned int type)
 	}
 }
 static int wm_halo_apply_calibration(struct snd_soc_dapm_widget *w);
+static void wm_halo_check_calibration(struct snd_soc_dapm_widget *w);
 static int wm_adsp_k_ctl_put(struct wm_adsp *dsp, const char *name, int value);
 static int wm_adsp_k_ctl_get(struct wm_adsp *dsp, const char *name);
 
@@ -996,9 +997,13 @@ static int wm_adsp_fw_put(struct snd_kcontrol *kcontrol,
 
 	mutex_lock(&dsp[e->shift_l].pwr_lock);
 
-	if (dsp[e->shift_l].booted || dsp[e->shift_l].compr)
+	if (dsp[e->shift_l].booted) {
+		dev_info(codec->dev, "error happen, booted = %d\n", dsp[e->shift_l].booted);
 		ret = -EBUSY;
-	else
+	} else if (dsp[e->shift_l].compr)  {
+		dev_info(codec->dev, "error happen, compr is NOT NULL\n");
+		ret = -EBUSY;
+	} else
 		dsp[e->shift_l].fw = ucontrol->value.enumerated.item[0];
 
 	mutex_unlock(&dsp[e->shift_l].pwr_lock);
@@ -1123,16 +1128,16 @@ static int wm_adsp_block_bypass_put(struct snd_kcontrol *kcontrol,
 
 	switch (dsp->block_bypass) {
 	case 0:
-			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_IN_ENH", 0x00000000);
-			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_EQ", 0x00000000);
-			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_ACTI", 0x00000000);
-			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_MBL", 0x00000000);
+		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_IN_ENH", 0x00000000);
+		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_EQ", 0x00000000);
+		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_ACTI", 0x00000000);
+		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_MBL", 0x00000000);
 		break;
 	case 1:
-			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_IN_ENH", 0x00400001);
-			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_EQ", 0x00400001);
-			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_ACTI", 0x00400001);
-			wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd BYPASS_MBL", 0x00400001);
+		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_IN_ENH", 0x00400001);
+		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_EQ", 0x00400001);
+		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_ACTI", 0x00400001);
+		wm_adsp_k_ctl_put(dsp, "DSP1X Protection cd BYPASS_MBL", 0x00400001);
 		break;
 	default:
 		break;
@@ -1179,7 +1184,7 @@ const struct snd_kcontrol_new wm_adsp_cal_controls[] = {
 	SOC_SINGLE_EXT("DSP Set CAL_Z", SND_SOC_NOPM, 0, 0xFFFFFF, 0,
 		       wm_adsp_cal_z_get, wm_adsp_cal_z_put),
 	SOC_SINGLE_EXT("DSP Set AMBIENT", SND_SOC_NOPM, 0, 0xFFFFFF, 0,
-		wm_adsp_ambient_get, wm_adsp_ambient_put),
+			wm_adsp_ambient_get, wm_adsp_ambient_put),
 	SOC_SINGLE_EXT("DSP Set CAL_STATUS", SND_SOC_NOPM, 0, 0xFFFFFF, 0,
 		       wm_adsp_cal_status_get, wm_adsp_cal_status_put),
 	SOC_SINGLE_EXT("DSP Set CAL_CHKSUM", SND_SOC_NOPM, 0, 0xFFFFFF, 0,
@@ -1679,7 +1684,8 @@ static unsigned int wmfw_convert_flags(unsigned int in, unsigned int len)
 	}
 
 	if (in) {
-		out |= rd;
+		if (in & WMFW_CTL_FLAG_READABLE)
+			out |= rd;
 		if (in & WMFW_CTL_FLAG_WRITEABLE)
 			out |= wr;
 		if (in & WMFW_CTL_FLAG_VOLATILE)
@@ -3830,7 +3836,7 @@ static int wm_halo_configure_mpu(struct wm_adsp *dsp)
 	if (ret)
 		goto err;
 
-	len = ARRAY_SIZE(halo_mpu_access);
+	len = sizeof(halo_mpu_access) / sizeof(halo_mpu_access[0]);
 	/* configure all other banks */
 	lock_cfg = (dsp->unlock_all) ? 0xFFFFFFFF : 0;
 	for (i = 0; i < len; i++) { /* TODO: think if can be done without LUT */
@@ -3953,7 +3959,10 @@ int wm_adsp2_preloader_get(struct snd_kcontrol *kcontrol,
 			   struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct wm_adsp *dsp = snd_soc_codec_get_drvdata(codec);
+	struct wm_adsp *dsps = snd_soc_codec_get_drvdata(codec);
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	struct wm_adsp *dsp = &dsps[mc->shift - 1];
 
 	ucontrol->value.integer.value[0] = dsp->preloaded;
 
@@ -3965,10 +3974,11 @@ int wm_adsp2_preloader_put(struct snd_kcontrol *kcontrol,
 			   struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct wm_adsp *dsp = snd_soc_codec_get_drvdata(codec);
+	struct wm_adsp *dsps = snd_soc_codec_get_drvdata(codec);
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
+	struct wm_adsp *dsp = &dsps[mc->shift - 1];
 	char preload[32];
 
 	snprintf(preload, ARRAY_SIZE(preload), "DSP%u%s Preload", mc->shift,
@@ -4281,6 +4291,7 @@ int wm_halo_event(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcontrol,
 			if (ret < 0)
 				goto err;
 		}
+		wm_halo_check_calibration(w);
 		dsp->running = true;
 
 		mutex_unlock(&dsp->pwr_lock);
@@ -4335,9 +4346,9 @@ static int wm_coeff_k_put(struct snd_kcontrol *kctl,
 	char *p = ucontrol->value.bytes.data;
 	int ret = 0;
 
-	if (ctl->flags & WMFW_CTL_FLAG_VOLATILE)
+	if (ctl->flags & WMFW_CTL_FLAG_VOLATILE) {
 		ret = 0;
-	else
+	} else
 		memcpy(ctl->cache, p, ctl->len);
 
 	ctl->set = 1;
@@ -4407,6 +4418,18 @@ static int wm_adsp_k_ctl_get(struct wm_adsp *dsp, const char *name)
 	return 0;
 }
 
+static void wm_halo_check_calibration(struct snd_soc_dapm_widget *w)
+{
+	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
+	struct wm_adsp *dsps = snd_soc_component_get_drvdata(component);
+	struct wm_adsp *dsp = &dsps[w->shift];
+	int cal_status = 0;
+	wm_adsp_read_ctl(dsp, "CAL_SET_STATUS", &cal_status, sizeof(cal_status));
+	adsp_info(dsp, "%s: Read CAL_SET_STATUS = %d\n", __func__, be32_to_cpu(cal_status));
+	if (be32_to_cpu(cal_status) != 2)
+			adsp_err(dsp, "%s: calib satus = %d, please check calib apply!\n", __func__, be32_to_cpu(cal_status));
+	wm_adsp_k_ctl_get(dsp, "DSP1 Protection cd CAL_SET_STATUS");
+}
 static int wm_halo_apply_calibration(struct snd_soc_dapm_widget *w)
 {
 	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
@@ -4426,7 +4449,7 @@ static int wm_halo_apply_calibration(struct snd_soc_dapm_widget *w)
 		wm_adsp_k_ctl_get(dsp, "DSP1 Diag cd CAL_AMBIENT");
 		break;
 	case WM_ADSP_FW_SPK_PROT:
-		adsp_warn(dsp, "%s: Write CAL_R = %d\n", __func__, dsp->cal_z);
+		adsp_warn(dsp, "%s: Write CAL_R = %d \n", __func__, dsp->cal_z);
 		wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd CAL_R", dsp->cal_z);
 		wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd CAL_STATUS", dsp->cal_status);
 		wm_adsp_k_ctl_put(dsp, "DSP1 Protection cd CAL_CHECKSUM", dsp->cal_chksum);
