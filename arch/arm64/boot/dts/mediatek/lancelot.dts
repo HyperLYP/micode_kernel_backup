@@ -166,6 +166,18 @@
 };
 /* TOUCH end */
 
+
+/* AWINIC AW87519 Smart PA */
+&i2c7 {
+	aw87519@58 {
+			compatible = "awinic,aw87519_pa";
+			reg = <0x58>;
+			reset-gpio = <&pio 22 0>;
+			status = "okay";
+	};
+};
+/* AWINIC AW87519 Smart PA End */
+
 &i2c7 {
 	fusb303@21 {
 		status = "ok";
@@ -486,26 +498,6 @@
 	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
 	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
 	status = "okay";
-};
-
-&spi3 {
-    status = "okay";
-    smart_pa:cs35l41@0 {
-	       compatible = "cirrus,cs35l41";
-		spi-max-frequency = <5000000>;
-		reg = <0>;
-		reset-gpio = <&pio 79 0>;
-		interrupt-parent = <&gpio>;
-		interrupts = <80 8>;
-		irq-gpio = <&pio 80 0>;
-		cirrus,boost-peak-milliamp = <4500>;
-		cirrus,boost-ind-nanohenry = <1000>;
-		cirrus,boost-cap-microfarad = <15>;
-		cirrus,gpio-config2 {
-		    cirrus,gpio-src-select = <0x4>;
-		    cirrus,gpio-output-enable;
-		    };
-	   };
 };
 
 &spi0 {

@@ -69,6 +69,13 @@ static int mt6768_spk_i2s_in_type_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#ifdef CONFIG_SND_SOC_AW87519
+extern unsigned char aw87519_audio_kspk(void);
+extern unsigned char aw87519_audio_drcv(void);
+extern unsigned char aw87519_audio_hvload(void);
+extern unsigned char aw87519_audio_off(void);
+#endif
+
 static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
 				       struct snd_kcontrol *kcontrol,
 				       int event)
@@ -81,9 +88,15 @@ static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		/* spk amp on control */
+#ifdef CONFIG_SND_SOC_AW87519
+		aw87519_audio_kspk();
+#endif
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		/* spk amp off control */
+#ifdef CONFIG_SND_SOC_AW87519
+		aw87519_audio_off();
+#endif
 		break;
 	default:
 		break;
@@ -112,6 +125,9 @@ static const struct snd_kcontrol_new mt6768_mt6358_controls[] = {
 	SOC_ENUM_EXT("MTK_SPK_I2S_IN_TYPE_GET", mt6768_spk_type_enum[1],
 		     mt6768_spk_i2s_in_type_get, NULL),
 };
+
+
+
 #ifdef CONFIG_TARGET_PRODUCT_MERLINCOMMON
 static int cs35l41_dailink_init(struct snd_soc_pcm_runtime *rtd)
 {
@@ -132,55 +148,6 @@ static int cs35l41_dailink_init(struct snd_soc_pcm_runtime *rtd)
 	dev_info(card->dev, "%s: dapm ignore suspend[%s]\n", __func__, dev_name(spk_cdc->dev));
 	return 0;
 }
-
-static int msm_mi2s_cs35l41_startup(struct snd_pcm_substream *substream)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *card = rtd->card;
-//	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct snd_soc_codec *codec = codec_dai->codec;
-	int ret;
-
-	dev_info(card->dev, "------%s begin\n", __func__);
-	// Set cpu_dai as master
-	/*
-	 * ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
-	 * if (ret < 0) {
-	 *	dev_err(card->dev, "%s: Failed to set fmt cpu dai: %d\n", __func__, ret);
-	 *	return ret;
-	 *}
-	 */
-	// Set codec_dai as slave
-	ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_CBS_CFS | SND_SOC_DAIFMT_I2S);
-	if (ret < 0) {
-		dev_err(card->dev, "%s: Failed to set fmt codec dai: %d\n", __func__, ret);
-		return ret;
-	}
-
-	// Set bclk to 3072000 as reference clk for device
-	ret = snd_soc_codec_set_sysclk(codec, 0, 0,
-					3072000,
-					SND_SOC_CLOCK_IN);
-	if (ret < 0) {
-		dev_err(card->dev, "%s: Failed to set reference clk: %d\n", __func__, ret);
-		return ret;
-	}
-
-dev_info(card->dev, "------%s end\n", __func__);
-return 0;
-}
-
-void msm_mi2s_cs35l41_shutdown(struct snd_pcm_substream *substream)
-{
-	pr_debug("------%s()\n", __func__);
-
-}
-
-static struct snd_soc_ops msm_mi2s_cs35l41_be_ops = {
-	.startup = msm_mi2s_cs35l41_startup,
-	.shutdown = msm_mi2s_cs35l41_shutdown,
-};
 #endif
 
 /*
@@ -629,8 +596,6 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		.ignore_suspend = 1,
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
 		.init = &cs35l41_dailink_init,
-		.ops = &msm_mi2s_cs35l41_be_ops,
-	.init = &cs35l41_dailink_init,
 	},
 	{
 		.name = "I2S0",
@@ -644,7 +609,6 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		.dpcm_capture = 1,
 		.ignore_suspend = 1,
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
-		.ops = &msm_mi2s_cs35l41_be_ops,
 	},
 #else
 	{
@@ -668,7 +632,7 @@ static struct snd_soc_dai_link mt6768_mt6358_dai_links[] = {
 		.be_hw_params_fixup = mt6768_i2s_hw_params_fixup,
 	},
 #endif
-		{
+	{
 		.name = "I2S1",
 		.cpu_dai_name = "I2S1",
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -875,46 +839,15 @@ static struct snd_soc_card mt6768_mt6358_soc_card = {
 static int mt6768_mt6358_dev_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &mt6768_mt6358_soc_card;
-	struct device_node *platform_node, *codec_node, *spk_node;
-	struct snd_soc_dai_link *spk_out_dai_link, *spk_iv_dai_link;
+	struct device_node *platform_node, *codec_node;
 	int ret;
 	int i;
-	int spk_out_dai_link_idx, spk_iv_dai_link_idx;
 
-	ret = mtk_spk_update_info(card, pdev,
-				  &spk_out_dai_link_idx, &spk_iv_dai_link_idx,
-				  &mt6768_mt6358_i2s_ops);
+	ret = mtk_spk_update_dai_link(card, pdev, &mt6768_mt6358_i2s_ops);
 	if (ret) {
-		dev_err(&pdev->dev, "%s(), mtk_spk_update_info error\n",
+		dev_err(&pdev->dev, "%s(), mtk_spk_update_dai_link error\n",
 			__func__);
 		return -EINVAL;
-	}
-
-	spk_out_dai_link = &mt6768_mt6358_dai_links[spk_out_dai_link_idx];
-	spk_iv_dai_link = &mt6768_mt6358_dai_links[spk_iv_dai_link_idx];
-	if (!spk_out_dai_link->codec_dai_name &&
-	    !spk_iv_dai_link->codec_dai_name) {
-		spk_node = of_get_child_by_name(pdev->dev.of_node,
-					"mediatek,speaker-codec");
-		if (!spk_node) {
-			dev_err(&pdev->dev,
-				"spk_codec of_get_child_by_name fail\n");
-			return -EINVAL;
-		}
-		ret = snd_soc_of_get_dai_link_codecs(
-				&pdev->dev, spk_node, spk_out_dai_link);
-		if (ret < 0) {
-			dev_err(&pdev->dev,
-				"i2s out get_dai_link_codecs fail\n");
-			return -EINVAL;
-		}
-		ret = snd_soc_of_get_dai_link_codecs(
-				&pdev->dev, spk_node, spk_iv_dai_link);
-		if (ret < 0) {
-			dev_err(&pdev->dev,
-				"i2s in get_dai_link_codecs fail\n");
-			return -EINVAL;
-		}
 	}
 
 	platform_node = of_parse_phandle(pdev->dev.of_node,
@@ -937,9 +870,7 @@ static int mt6768_mt6358_dev_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	for (i = 0; i < card->num_links; i++) {
-		if (mt6768_mt6358_dai_links[i].codec_name ||
-		    i == spk_out_dai_link_idx ||
-		    i == spk_iv_dai_link_idx)
+		if (mt6768_mt6358_dai_links[i].codec_name)
 			continue;
 		mt6768_mt6358_dai_links[i].codec_of_node = codec_node;
 	}
