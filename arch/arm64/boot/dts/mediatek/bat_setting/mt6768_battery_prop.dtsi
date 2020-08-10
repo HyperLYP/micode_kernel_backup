@@ -58,13 +58,13 @@ bat_gm30: battery{
 /*	Pseudo 100% percentage at T3*/
 	g_FG_PSEUDO100_T4 = <(90)>;
 /*	Pseudo 100% percentage at T4*/
-	Q_MAX_SYS_VOLTAGE_BAT0 = <(3350)>;
+	Q_MAX_SYS_VOLTAGE_BAT0 = <(3550)>;			/*	Pseudo1 for hide percentage*/
 /*	Pseudo1 for hide percentage*/
-	Q_MAX_SYS_VOLTAGE_BAT1 = <(3350)>;
+	Q_MAX_SYS_VOLTAGE_BAT1 = <(3550)>;			/*	Pseudo1 for hide percentage*/
 /*	Pseudo1 for hide percentage*/
-	Q_MAX_SYS_VOLTAGE_BAT2 = <(3350)>;
+	Q_MAX_SYS_VOLTAGE_BAT2 = <(3550)>;			/*	Pseudo1 for hide percentage*/
 /*	Pseudo1 for hide percentage*/
-	Q_MAX_SYS_VOLTAGE_BAT3 = <(3350)>;
+	Q_MAX_SYS_VOLTAGE_BAT3 = <(3550)>;			/*	Pseudo1 for hide percentage*/
 /*	Pseudo1 for hide percentage*/
 	COM_FG_METER_RESISTANCE = <(100)>;
 /*	compensate The resistance of PCB*/
