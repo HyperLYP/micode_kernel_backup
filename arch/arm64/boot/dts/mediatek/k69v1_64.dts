@@ -438,6 +438,25 @@
 	status = "okay";
 };
 
+/* TOUCH end */
+&i2c3 {
+	status = "okay";
+	nxp@28 {
+		compatible = "nq-nci";
+		reg = <0x28>;
+		nq-irq = <&pio 9 0x00>;
+		interrupt-parent = <&pio>;
+		interrupts = <9 IRQ_TYPE_LEVEL_HIGH 9 0>;
+		nq-ven = <&pio 159 0x0>;
+		nq-firm = <&pio 17 0x0>;
+		nq-clkreq = <&pio 11 0x0>;
+		//nq-esepwr = <&tlmm 42 0x00>;
+		interrupt-names = "irq_nfc";
+	};
+
+};
+/* add goodix fingerprint start*/
+
 &spi3 {
 	status = "okay";
 	smart_pa:cs35l41@0 {

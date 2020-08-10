@@ -3562,14 +3562,14 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 		status = "ok";
 		touch,name = "xiaomi-touch";
     };
-
+/*
 	nfc:nfc {
 		compatible = "mediatek,nfc-gpio-v2";
 		gpio-rst = <159>;
 		gpio-rst-std = <&pio 159 0x0>;
 		gpio-irq = <9>;
 		gpio-irq-std = <&pio 9 0x0>;
-	};
+	};*/
 
 	irq_nfc: irq_nfc {
 		compatible = "mediatek,irq_nfc-eint";
