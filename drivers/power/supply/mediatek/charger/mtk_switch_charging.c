@@ -275,11 +275,11 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 	}
 
 	if (info->enable_sw_jeita) {
-		 if (pdata->input_current_limit > info->sw_jeita.cc)
-				pdata->input_current_limit = info->sw_jeita.cc;
+		// if (pdata->input_current_limit > info->sw_jeita.cc)
+		// 	pdata->input_current_limit = info->sw_jeita.cc;
 
-		//if (pdata->charging_current_limit > info->sw_jeita.cc)
-		//	pdata->charging_current_limit = info->sw_jeita.cc;
+		if (pdata->charging_current_limit > info->sw_jeita.cc)
+			pdata->charging_current_limit = info->sw_jeita.cc;
 		pr_err("dhx---jeita_cc : %d\n", info->sw_jeita.cc);
 	}
 
