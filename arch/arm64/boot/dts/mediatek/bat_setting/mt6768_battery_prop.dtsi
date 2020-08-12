@@ -24,18 +24,18 @@ bat_gm30: battery{
 /*	R_sense resistance*/
 	EMBEDDED_SEL = <(0)>;
 /*	Configures whether using embedded battery or not*/
-	PMIC_SHUTDOWN_CURRENT = <(20)>;
-/*	System shutdown current*/
-	FG_METER_RESISTANCE = <(100)>;
-/*	The resistance of PCB*/
-	CAR_TUNE_VALUE = <(100)>;
-/*	Tune value for current measurement*/
-	PMIC_MIN_VOL = <(33500)>;
-/*	vboot voltage for gauge 0%*/
-	POWERON_SYSTEM_IBOOT = <(500)>;
-/*	power on system iboot*/
-	SHUTDOWN_GAUGE0_VOLTAGE = <(34000)>;
-/*	shutdown gauge 0% voltage*/
+	PMIC_SHUTDOWN_CURRENT = <(20)>;				/*	System shutdown current*/
+
+	FG_METER_RESISTANCE = <(75)>;				/*	The resistance of PCB*/
+
+	CAR_TUNE_VALUE = <(99)>;					/*	Tune value for current measurement*/
+
+	PMIC_MIN_VOL = <(33500)>;					/*	vboot voltage for gauge 0%*/
+
+	POWERON_SYSTEM_IBOOT = <(500)>;				/*	power on system iboot*/
+
+	SHUTDOWN_GAUGE0_VOLTAGE = <(34000)>;		/*	shutdown gauge 0% voltage*/
+
 	TEMPERATURE_T0 = <(50)>;
 /*	Battery temperature T0*/
 	TEMPERATURE_T1 = <(25)>;
