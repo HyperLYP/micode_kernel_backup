@@ -98,6 +98,7 @@ static unsigned int limit_flag;
 static unsigned int last_level;
 static unsigned int current_level;
 static DEFINE_MUTEX(bl_level_limit_mutex);
+unsigned int thermal_current_brightness;
 
 /****************************************************************************
  * external functions for display
@@ -137,10 +138,20 @@ int setMaxbrightness(int max_level, int enable)
 
 		}
 	}
+	printk("[%s]:--lyd_thmal --------level = %d\n", __func__, max_level);
 #else
 	LEDS_DRV_DEBUG("%s go through AAL\n", __func__);
+	printk("[%s]: --lyd_thmal, set max_level = %d\n", __func__, max_level);
+	printk("[%s]: --lyd_thmal, set thermal_current_brightness  = %d\n", __func__, thermal_current_brightness);
 	disp_bls_set_max_backlight(((((1 << LED_INTERNAL_LEVEL_BIT_CNT) -
-				      1) * max_level + 127) / 255));
+				      1) * max_level + 127) / 2047));
+	if (thermal_current_brightness >= max_level) {
+		//disp_aal_notify_backlight_changed(thermal_current_brightness);
+		disp_aal_notify_backlight_changed(max_level);
+	} else if ((thermal_current_brightness > 0) && (thermal_current_brightness < max_level)) {
+		disp_aal_notify_backlight_changed(thermal_current_brightness);
+	}
+
 #endif
 	return 0;
 }
