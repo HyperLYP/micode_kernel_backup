@@ -3658,19 +3658,23 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 	aud_dat_mosi_on: aud_dat_mosi_on {
 		pins_cmd0_dat {
 			pinmux = <PINMUX_GPIO136__FUNC_AUD_CLK_MOSI>;
-			input-schmitt-enable;
+			//input-schmitt-enable;
+			drive-strength = <3>;
 		};
 		pins_cmd1_dat {
 			pinmux = <PINMUX_GPIO137__FUNC_AUD_SYNC_MOSI>;
-			input-schmitt-enable;
+			//input-schmitt-enable;
+			drive-strength = <3>;
 		};
 		pins_cmd2_dat {
 			pinmux = <PINMUX_GPIO138__FUNC_AUD_DAT_MOSI0>;
-			input-schmitt-enable;
+			//input-schmitt-enable;
+			drive-strength = <3>;
 		};
 		pins_cmd3_dat {
 			pinmux = <PINMUX_GPIO139__FUNC_AUD_DAT_MOSI1>;
-			input-schmitt-enable;
+			//input-schmitt-enable;
+			drive-strength = <3>;
 		};
 	};
 
@@ -3704,19 +3708,23 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 	aud_dat_miso_on: aud_dat_miso_on {
 		pins_cmd0_dat {
 			pinmux = <PINMUX_GPIO140__FUNC_AUD_CLK_MISO>;
-			input-schmitt-enable;
+			//input-schmitt-enable;
+			drive-strength = <3>;
 		};
 		pins_cmd1_dat {
 			pinmux = <PINMUX_GPIO141__FUNC_AUD_SYNC_MISO>;
-			input-schmitt-enable;
+			//input-schmitt-enable;
+			drive-strength = <3>;
 		};
 		pins_cmd2_dat {
 			pinmux = <PINMUX_GPIO142__FUNC_AUD_DAT_MISO0>;
-			input-schmitt-enable;
+			//input-schmitt-enable;
+			drive-strength = <3>;
 		};
 		pins_cmd3_dat {
 			pinmux = <PINMUX_GPIO143__FUNC_AUD_DAT_MISO1>;
-			input-schmitt-enable;
+			//input-schmitt-enable;
+			drive-strength = <3>;
 		};
 	};
 
