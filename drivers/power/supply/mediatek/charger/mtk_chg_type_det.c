@@ -329,6 +329,86 @@ static int mt_ac_get_property(struct power_supply *psy,
 static int mt_usb_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
 {
+	struct mt_charger *mtk_chg = power_supply_get_drvdata(psy);
+	struct tcpc_device *tcpc = tcpc_dev_get_by_name("type_c_port0");
+	int typec_mode = 0;
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		if ((mtk_chg->chg_type == STANDARD_HOST) ||
+			(mtk_chg->chg_type == CHARGING_HOST))
+			val->intval = 1;
+		else
+			val->intval = 0;
+		break;
+	case POWER_SUPPLY_PROP_PRESENT:
+		if ((mtk_chg->chg_type == STANDARD_HOST) ||
+			(mtk_chg->chg_type == CHARGING_HOST))
+			val->intval = 1;
+		else
+			val->intval = 0;
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		val->intval = 500000;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		val->intval = 5000000;
+		break;
+	case POWER_SUPPLY_PROP_USB_OTG:
+		if (usb_otg)
+			val->intval = 1;
+		else
+			val->intval = 0;
+		break;
+	case POWER_SUPPLY_PROP_TYPEC_MODE:
+		if (tcpc->ops->get_mode != NULL) {
+			tcpc->ops->get_mode(tcpc, &typec_mode);
+			if (typec_mode > 2 || typec_mode < 0)
+				typec_mode == 0;
+			val->intval = typec_mode;
+		}
+		break;
+	case POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION:
+		val->intval = typec_cc_orientation;
+		break;
+	case POWER_SUPPLY_PROP_REAL_TYPE:
+		pr_err("dhx--hvdcp:%d\n", hvdcp_type_tmp);
+		if (hvdcp_type_tmp == HVDCP_3) {
+			val->intval = POWER_SUPPLY_TYPE_USB_HVDCP_3;
+			break;
+		} else if (hvdcp_type_tmp == HVDCP) {
+			val->intval = POWER_SUPPLY_TYPE_USB_HVDCP;
+			break;
+		}
+		switch (mtk_chg->chg_type) {
+		case  STANDARD_HOST:
+			val->intval = POWER_SUPPLY_TYPE_USB;
+			break;
+		case  CHARGING_HOST:
+			val->intval = POWER_SUPPLY_TYPE_USB_CDP;
+			break;
+		case  STANDARD_CHARGER:
+			val->intval = POWER_SUPPLY_TYPE_USB_DCP;
+			break;
+		default:
+			val->intval = POWER_SUPPLY_TYPE_UNKNOWN;
+			break;
+	}
+		break;
+#ifdef CONFIG_MTK_REVERSE_CHG_ENABLE
+	case POWER_SUPPLY_PROP_REVERSE_CHG_OTG:
+		val->intval = dpdm_disshort;
+		break;
+	case POWER_SUPPLY_PROP_REVERSE_CHG_STATUS:
+		val->intval = gpio_get_value(reverse_gpio);
+		break;
+#endif
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		val->intval = battery_get_vbus();
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	return 0;
 }
