@@ -91,6 +91,17 @@
 	};
 };
 
+&spi5 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	p61@31 {
+		compatible = "nxp,p61";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
+		status = "okay";
+	};
+};
+
 
 &i2c7 {
 	smb1351-charger@55 {
