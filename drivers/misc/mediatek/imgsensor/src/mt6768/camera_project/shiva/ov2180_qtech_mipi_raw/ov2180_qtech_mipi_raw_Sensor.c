@@ -1270,7 +1270,7 @@ static kal_uint32 slim_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	return ERROR_NONE;
 }								/*  slim_video   */
 static kal_uint32 custom1(
-			MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
+			MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT * image_window,
 			MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
 	spin_lock(&imgsensor_drv_lock);
@@ -1606,7 +1606,7 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM
 		spin_unlock(&imgsensor_drv_lock);
 		//set_dummy();
 		break;
-	case MSDK_SCENARIO_ID_CUSTOM1:
+		case MSDK_SCENARIO_ID_CUSTOM1:
 	    frameHeight = imgsensor_info.custom1.pclk /
 			framerate * 10 / imgsensor_info.custom1.linelength;
 	    spin_lock(&imgsensor_drv_lock);
@@ -1620,7 +1620,7 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM
 	    spin_unlock(&imgsensor_drv_lock);
 		if (imgsensor.frame_length > imgsensor.shutter)
 			set_dummy();
-		break;
+	break;
 	default:					//coding with  preview scenario by default
 		frame_length =
 			imgsensor_info.pre.pclk / framerate * 10 /
