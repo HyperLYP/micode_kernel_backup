@@ -1848,7 +1848,6 @@ int force_get_tbat(bool update)
 		return bat_temperature_val;
 	}
 
-
 	bat_temperature_val = force_get_tbat_internal(update);
 
 	while (counts < 5 && bat_temperature_val >= 60) {
@@ -3784,7 +3783,7 @@ static int battery_callback(
 	case CHARGER_NOTIFY_EOC:
 		{
 /* CHARGING FULL */
-			if (force_get_tbat(true) < 45 && (gm.ui_soc == 100))
+			if (force_get_tbat(true) < 45)
 				notify_fg_chr_full();
 			battery_update(&battery_main);
 			pr_err("battery is full\n");
