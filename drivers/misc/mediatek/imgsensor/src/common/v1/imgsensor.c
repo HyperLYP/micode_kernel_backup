@@ -1269,11 +1269,11 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 			FeatureParaLen > FEATURE_CONTROL_MAX_DATA_SIZE)
 			return -EINVAL;
 
-		pFeaturePara = kmalloc(FeatureParaLen, GFP_KERNEL);
+		pFeaturePara = kmalloc(FeatureParaLen + 32, GFP_KERNEL);
 		if (pFeaturePara == NULL)
 			return -ENOMEM;
 
-		memset(pFeaturePara, 0x0, FeatureParaLen);
+		memset(pFeaturePara, 0x0, FeatureParaLen + 32);
 	}
 
 	/* copy from user */
