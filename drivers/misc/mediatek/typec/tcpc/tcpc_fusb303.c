@@ -32,31 +32,31 @@
 #endif /* HAVE_DR */
 #undef  __CONST_FFS
 #define __CONST_FFS(_x) \
-		((_x) & 0x0F ? ((_x) & 0x03 ? ((_x) & 0x01 ? 0 : 1) :\
-										((_x) & 0x04 ? 2 : 3)) :\
-						((_x) & 0x30 ? ((_x) & 0x10 ? 4 : 5) :\
-										((_x) & 0x40 ? 6 : 7)))
+	((_x) & 0x0F ? ((_x) & 0x03 ? ((_x) & 0x01 ? 0 : 1) :\
+		((_x) & 0x04 ? 2 : 3)) :\
+	 ((_x) & 0x30 ? ((_x) & 0x10 ? 4 : 5) :\
+	  ((_x) & 0x40 ? 6 : 7)))
 #undef  FFS
 #define FFS(_x) \
-		((_x) ? __CONST_FFS(_x) : 0)
+	((_x) ? __CONST_FFS(_x) : 0)
 #undef  BITS
 #define BITS(_end, _start) \
-		((BIT(_end) - BIT(_start)) + BIT(_end))
+	((BIT(_end) - BIT(_start)) + BIT(_end))
 #undef  __BITS_GET
 #define __BITS_GET(_byte, _mask, _shift) \
-		(((_byte) & (_mask)) >> (_shift))
+	(((_byte) & (_mask)) >> (_shift))
 #undef  BITS_GET
 #define BITS_GET(_byte, _bit) \
-		__BITS_GET(_byte, _bit, FFS(_bit))
+	__BITS_GET(_byte, _bit, FFS(_bit))
 #undef  __BITS_SET
 #define __BITS_SET(_byte, _mask, _shift, _val) \
-		(((_byte) & ~(_mask)) | (((_val) << (_shift)) & (_mask)))
+	(((_byte) & ~(_mask)) | (((_val) << (_shift)) & (_mask)))
 #undef  BITS_SET
 #define BITS_SET(_byte, _bit, _val) \
-		__BITS_SET(_byte, _bit, FFS(_bit), _val)
+	__BITS_SET(_byte, _bit, FFS(_bit), _val)
 #undef  BITS_MATCH
 #define BITS_MATCH(_byte, _bit) \
-		(((_byte) & (_bit)) == (_bit))
+	(((_byte) & (_bit)) == (_bit))
 /* Register Map */
 #define FUSB303_REG_DEVICEID            0x01
 #define FUSB303_REG_DEVICETYPE          0x02
@@ -86,11 +86,11 @@
 #define FUSB303_SNK                     BIT(1)
 #define FUSB303_SRC                     BIT(0)
 #define FUSB303_DRP_ACC                (FUSB303_DRP|\
-										FUSB303_AUD_ACC)
+		FUSB303_AUD_ACC)
 #define FUSB303_SNK_ACC                (FUSB303_SNK|\
-										FUSB303_AUD_ACC)
+		FUSB303_AUD_ACC)
 #define FUSB303_SRC_ACC                (FUSB303_SRC|\
-										FUSB303_AUD_ACC)
+		FUSB303_AUD_ACC)
 /*  CONTROL (04h)  */
 #define FUSB303_TDRP_60MS               0
 #define FUSB303_TDRP_70MS               1
