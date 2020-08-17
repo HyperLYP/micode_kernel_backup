@@ -1410,7 +1410,10 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 	gauge_timer {
 		compatible = "mediatek,gauge_timer_service";
 	};
-
+	simtray {
+		compatible = "xiaomi,simtray-status";
+		status-gpio = <&pio 46 0>;
+	};
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	#include "mediatek/bat_setting/mt6768_battery_prop.dtsi"
 #endif
