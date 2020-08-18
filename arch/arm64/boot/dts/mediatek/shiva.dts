@@ -1458,6 +1458,6 @@
 
 /* DISPSYS GPIO standardization end*/
 
-#include <shiva/cust.dtsi>
-#include "mediatek/cust_mt6768_camera.dtsi"
+#include <lancelot/cust.dtsi>
+#include "mediatek/cust_mt6768_lancelot_camera.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/
