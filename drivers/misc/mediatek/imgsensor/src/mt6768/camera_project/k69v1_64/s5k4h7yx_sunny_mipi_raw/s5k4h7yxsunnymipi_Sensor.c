@@ -1151,7 +1151,7 @@ static kal_uint32 open(void)
 		imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
 		spin_unlock(&imgsensor_drv_lock);
 		do {
-			sensor_id = return_sensor_id();
+			sensor_id = return_sensor_id() + 1;
 			LOG_INF("s5k4h7yxmipiraw open sensor_id = %x\r\n",
 				sensor_id);
 			if (sensor_id == imgsensor_info.sensor_id) {
