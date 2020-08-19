@@ -90,6 +90,13 @@
 		vib_vol= <10>;
 	};
 };
+
+&board_id {
+	io-channels = <&auxadc 3>;
+	io-channel-names = "board_id-channel";
+	status = "okay";
+};
+
 /* flashlight start */
 &flashlights_led191 {
 	pinctrl-names = "default", "hw_ch0_high",

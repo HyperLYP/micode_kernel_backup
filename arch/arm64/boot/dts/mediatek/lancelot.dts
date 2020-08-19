@@ -91,6 +91,15 @@
 	};
 };
 
+&board_id {
+	io-channels = <&auxadc 3>;
+	io-channel-names = "board_id-channel";
+	hw_id-gpios = <&pio 158 0>;
+	board_id2-gpios = <&pio 5 0>;
+	board_id3-gpios = <&pio 6 0>;
+	status = "okay";
+};
+
 &mt_charger {
 	interrupt-parent = <&pio>;
 	reverse-gpio = <&pio 91 0>;
