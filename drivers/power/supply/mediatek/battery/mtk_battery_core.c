@@ -418,6 +418,7 @@ void fgauge_get_profile_id(void)
 
 	pr_err("[%s]Battery id (%d) volt (%d)\n",
 		__func__, gm.battery_id, id_volt);
+
 }
 
 #elif defined(MTK_GET_BATTERY_ID_BY_GPIO)

@@ -19,6 +19,8 @@ struct alsps_context *alsps_context_obj /* = NULL*/;
 struct platform_device *pltfm_dev;
 int last_als_report_data = -1;
 
+uint16_t als_data_count;
+int als_data_temp = -1;
 /* AAL default delay timer(nano seconds)*/
 #define AAL_DELAY 200000000
 
@@ -43,14 +45,31 @@ int als_data_report_t(int value, int status, int64_t time_stamp)
 		err = sensor_input_event(cxt->als_mdev.minor, &event);
 		cxt->is_get_valid_als_data_after_enable = true;
 	}
-	if (value != last_als_report_data) {
+
+	als_data_temp = last_als_report_data;
+
+	if (value == last_als_report_data) {
+	    if (als_data_count == 65535) {
+		als_data_count = 0;
+	    } else {
+		als_data_count++;
+	    }
+	}
+
+	if ((value != last_als_report_data) || (als_data_count < 5)) {
 		event.handle = ID_LIGHT;
 		event.flush_action = DATA_ACTION;
 		event.word[0] = value;
 		event.status = status;
+		printk("%s: lyd_als, als_data_count = %d,als_date = %d\n", __func__, als_data_count, value);
 		err = sensor_input_event(cxt->als_mdev.minor, &event);
 		if (err >= 0)
 			last_als_report_data = value;
+	}
+
+	if (als_data_temp != value) {
+	    als_data_count = 0;
+	    printk("%s: lyd_als, reset als_data_count\n", __func__);
 	}
 	return err;
 }
@@ -70,6 +89,21 @@ int als_cali_report(int *value)
 	err = sensor_input_event(alsps_context_obj->als_mdev.minor, &event);
 	return err;
 }
+
+int als_0lux_cali_report(int *value)
+{
+	int err = 0;
+	struct sensor_event event;
+
+	memset(&event, 0, sizeof(struct sensor_event));
+	event.handle = ID_LIGHT;
+	event.flush_action = CALI_0LUX_ACTION;
+	event.word[0] = value[0];
+	err = sensor_input_event(alsps_context_obj->als_mdev.minor, &event);
+	return err;
+}
+
+
 
 int als_flush_report(void)
 {
@@ -450,6 +484,8 @@ static ssize_t als_store_active(struct device *dev,
 #if defined(CONFIG_NANOHUB) && defined(CONFIG_MTK_ALSPSHUB)
 		if (cxt->als_enable) {
 			err = cxt->als_ctl.enable_nodata(cxt->als_enable);
+			als_data_count = 0;
+			printk("%s: lyd_als, reset als_data_count\n", __func__);
 			if (err) {
 				pr_err("als turn on err = %d\n", err);
 				goto err_out;

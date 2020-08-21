@@ -102,6 +102,10 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	{1, AFDRV_DW9800WAF, DW9800WAF_SetI2Cclient_Main, DW9800WAF_Ioctl_Main,
 	 DW9800WAF_Release_Main, DW9800WAF_GetFileName_Main, NULL},
 #endif
+#ifdef CONFIG_MTK_LENS_CN3927AF_J19_SUPPORT
+	{1, AFDRV_CN3927AFJ19, CN3927AFJ19_SetI2Cclient, CN3927AFJ19_Ioctl,
+	 CN3927AFJ19_Release, CN3927AFJ19_GetFileName, NULL},
+#endif
 	{1, AFDRV_BU64253GWZAF, BU64253GWZAF_SetI2Cclient, BU64253GWZAF_Ioctl,
 	 BU64253GWZAF_Release, BU64253GWZAF_GetFileName, NULL},
 	{1,
@@ -874,6 +878,14 @@ static int AF_i2c_probe(struct i2c_client *client,
 #ifdef CONFIG_MTK_LENS_DW9800WAF_SUPPORT
 	DW9800WAF_SetI2Cclient_first(g_pstAF_I2Cclient, &g_AF_SpinLock);
 #endif
+
+#ifdef CONFIG_MTK_LENS_DW9714AF_SUPPORT
+	DW9714AF_SwitchToPowerDown(g_pstAF_I2Cclient, true); /* Power down mode */
+#endif
+#ifdef CONFIG_MTK_LENS_CN3927AF_J19_SUPPORT
+	CN3927AFJ19_SwitchToPowerDown(g_pstAF_I2Cclient, true); /* Power down mode */
+#endif
+
 	LOG_INF("Attached!!\n");
 
 	return 0;

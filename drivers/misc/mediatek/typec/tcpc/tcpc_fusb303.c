@@ -32,31 +32,31 @@
 #endif /* HAVE_DR */
 #undef  __CONST_FFS
 #define __CONST_FFS(_x) \
-		((_x) & 0x0F ? ((_x) & 0x03 ? ((_x) & 0x01 ? 0 : 1) :\
-										((_x) & 0x04 ? 2 : 3)) :\
-						((_x) & 0x30 ? ((_x) & 0x10 ? 4 : 5) :\
-										((_x) & 0x40 ? 6 : 7)))
+	((_x) & 0x0F ? ((_x) & 0x03 ? ((_x) & 0x01 ? 0 : 1) :\
+		((_x) & 0x04 ? 2 : 3)) :\
+	 ((_x) & 0x30 ? ((_x) & 0x10 ? 4 : 5) :\
+	  ((_x) & 0x40 ? 6 : 7)))
 #undef  FFS
 #define FFS(_x) \
-		((_x) ? __CONST_FFS(_x) : 0)
+	((_x) ? __CONST_FFS(_x) : 0)
 #undef  BITS
 #define BITS(_end, _start) \
-		((BIT(_end) - BIT(_start)) + BIT(_end))
+	((BIT(_end) - BIT(_start)) + BIT(_end))
 #undef  __BITS_GET
 #define __BITS_GET(_byte, _mask, _shift) \
-		(((_byte) & (_mask)) >> (_shift))
+	(((_byte) & (_mask)) >> (_shift))
 #undef  BITS_GET
 #define BITS_GET(_byte, _bit) \
-		__BITS_GET(_byte, _bit, FFS(_bit))
+	__BITS_GET(_byte, _bit, FFS(_bit))
 #undef  __BITS_SET
 #define __BITS_SET(_byte, _mask, _shift, _val) \
-		(((_byte) & ~(_mask)) | (((_val) << (_shift)) & (_mask)))
+	(((_byte) & ~(_mask)) | (((_val) << (_shift)) & (_mask)))
 #undef  BITS_SET
 #define BITS_SET(_byte, _bit, _val) \
-		__BITS_SET(_byte, _bit, FFS(_bit), _val)
+	__BITS_SET(_byte, _bit, FFS(_bit), _val)
 #undef  BITS_MATCH
 #define BITS_MATCH(_byte, _bit) \
-		(((_byte) & (_bit)) == (_bit))
+	(((_byte) & (_bit)) == (_bit))
 /* Register Map */
 #define FUSB303_REG_DEVICEID            0x01
 #define FUSB303_REG_DEVICETYPE          0x02
@@ -86,11 +86,11 @@
 #define FUSB303_SNK                     BIT(1)
 #define FUSB303_SRC                     BIT(0)
 #define FUSB303_DRP_ACC                (FUSB303_DRP|\
-										FUSB303_AUD_ACC)
+		FUSB303_AUD_ACC)
 #define FUSB303_SNK_ACC                (FUSB303_SNK|\
-										FUSB303_AUD_ACC)
+		FUSB303_AUD_ACC)
 #define FUSB303_SRC_ACC                (FUSB303_SRC|\
-										FUSB303_AUD_ACC)
+		FUSB303_AUD_ACC)
 /*  CONTROL (04h)  */
 #define FUSB303_TDRP_60MS               0
 #define FUSB303_TDRP_70MS               1
@@ -173,6 +173,8 @@
 #define FUSB303_TYPE_PWR_AUD_ACC        BIT(1)
 #define FUSB303_TYPE_AUD_ACC            BIT(0)
 #define FUSB303_TYPE_INVALID            0x00
+#define FUSB303_TYPE_SRC_ACC           (FUSB303_TYPE_SRC|\
+		FUSB303_TYPE_ACTV_CABLE)
 /*  INTERRUPT (14h)  */
 #define FUSB303_I_ORIENT                BIT(6)
 #define FUSB303_I_FAULT                 BIT(5)
@@ -189,16 +191,20 @@
 #define FUSB303_I_FRC_SUCC              BIT(1)
 #define FUSB303_I_REMEDY                BIT(0)
 /* Mask */
+#define FUSB303_ORIEN_DBG_ACC_MASK      0x40
 #define FUSB303_PORTROLE_MASK           0x3F
 #define FUSB303_TRY_MASK                0x30
 
 #define FUSB303_TDRP_MASK               0xC0
 #define FUSB303_TGL_MASK                0x30
+#define FUSB303_DCBL_EN_MASK            0x08
 #define FUSB303_HOST_CUR_MASK           0x06
 #define FUSB303_INT_MASK                0x01
-#define FUSB303_ENABLE_MASK             0x08
 
+#define FUSB303_REMDY_EN_MASK           0x80
 #define FUSB303_AUTO_SNK_TH_MASK        0x60
+#define FUSB303_AUTO_SNK_EN_MASK        0x10
+#define FUSB303_ENABLE_MASK             0x08
 #define FUSB303_TCCDEB_MASK             0x07
 
 #define FUSB303_ORIENT_MASK             0x30
@@ -207,7 +213,6 @@
 
 #define FUSB303_INT_STS_MASK            0x7F
 #define FUSB303_INT1_STS_MASK           0x6F
-#define FUSB303_MAX_TRY_COUNT           10
 /* FUSB STATES */
 #define FUSB_STATE_DISABLED             0x00
 #define FUSB_STATE_ERROR_RECOVERY       0x01
@@ -228,9 +233,16 @@
 /* wake lock timeout in ms */
 #define FUSB303_WAKE_LOCK_TIMEOUT       1000
 #define ROLE_SWITCH_TIMEOUT             1500
+#define REVERSE_CHG_SOURCE				0X01
+#define REVERSE_CHG_SINK				0X02
+#define REVERSE_CHG_DRP					0X03
+#define REVERSE_CHG_TEST				0X04
 
-extern	uint8_t     typec_cc_orientation;
+extern uint8_t     typec_cc_orientation;
+bool first_check = true;
 struct fusb303_chip *chip_chg;
+struct i2c_client *g_client;
+static bool fusb303_is_vbus_on(struct fusb303_chip *chip);
 struct fusb303_data {
 	int int_gpio;
 	u32 init_mode;
@@ -267,8 +279,10 @@ struct fusb303_chip {
 	int try_attcnt;
 	struct work_struct dwork;
 	struct delayed_work twork;
+	struct delayed_work first_check_typec_work;
 	struct mutex mlock;
-//	struct power_supply *usb_psy;
+	struct semaphore suspend_lock;
+	//	struct power_supply *usb_psy;
 #ifdef HAVE_DR
 	struct dual_role_phy_instance *dual_role;
 #endif /* HAVE_DR */
@@ -278,11 +292,13 @@ struct fusb303_chip {
 #endif /* HAVE_DR */
 };
 #define fusb_update_state(chip, st) \
-{	if (chip && st < FUSB_STATE_TRY_SRC) { \
+	do { \
+	if (chip && st < FUSB_STATE_FORCE_SNK) { \
 		chip->state = st; \
 		dev_info(&chip->client->dev, "%s: %s\n", __func__, #st); \
 		wake_up_interruptible(&mode_switch); \
-	} }
+	} \
+	} while (0)
 #define STR(s)    #s
 #define STRV(s)   STR(s)
 static void fusb303_detach(struct fusb303_chip *chip);
@@ -322,6 +338,7 @@ static int fusb303_update_status(struct fusb303_chip *chip)
 	int rc;
 	u16 control_now;
 	u16 control1_now;
+
 	/* read mode & control register */
 	rc = i2c_smbus_read_word_data(chip->client, FUSB303_REG_PORTROLE);
 	if (rc < 0) {
@@ -345,34 +362,55 @@ static int fusb303_update_status(struct fusb303_chip *chip)
 	chip->ccdebtime = BITS_GET(control1_now, FUSB303_TCCDEB_MASK);
 	return 0;
 }
-/*
- * spec lets transitioning to below states from any state
- *  FUSB_STATE_DISABLED
- *  FUSB_STATE_ERROR_RECOVERY
- *  FUSB_STATE_UNATTACHED_SNK
- *  FUSB_STATE_UNATTACHED_SRC
- */
-static int fusb303_set_chip_state(struct fusb303_chip *chip, u8 state)
+static int fusb303_set_manual_reg(struct fusb303_chip *chip, u8 state)
 {
-	return 0;
-#if 0
 	struct device *cdev = &chip->client->dev;
 	int rc = 0;
 
-	if (state > FUSB_STATE_UNATTACHED_SRC)
+	if (state > FUSB303_FORCE_SRC)
 		return -EINVAL;
-	rc = i2c_smbus_write_byte_data(chip->client, FUSB303_REG_MANUAL,
-			state == FUSB_STATE_DISABLED ? FUSB303_DISABLED :
-			state == FUSB_STATE_ERROR_RECOVERY ? FUSB303_ERR_REC :
-			state == FUSB_STATE_FORCE_SRC ? FUSB303_FORCE_SRC :
-			state == FUSB_STATE_FORCE_SNK ? FUSB303_FORCE_SNK :
-			state == FUSB_STATE_UNATTACHED_SNK ? FUSB303_UNATT_SNK :
-			FUSB303_UNATT_SRC) ;
-	if (rc < 0) {
-		dev_err(cdev, "%s: failed to write manual(%d)\n", __func__, rc);
+	if (state & FUSB303_DISABLED) {
+		dev_err(cdev,
+				"%s: return err if sw try to disable device state=%d\n",
+				__func__, state);
+		return -EINVAL;
 	}
+	if ((state & FUSB303_FORCE_SRC) && (chip->type == FUSB303_TYPE_SRC)) {
+		dev_err(cdev,
+				"%s: return err if chip already in src, state=%d\n",
+				__func__, state);
+		return -EINVAL;
+	}
+	if ((state & FUSB303_FORCE_SNK) && (chip->type == FUSB303_TYPE_SNK)) {
+		dev_err(cdev,
+				"%s: return err if chip already in snk, state=%d\n",
+				__func__, state);
+		return -EINVAL;
+	}
+	rc = i2c_smbus_write_byte_data(chip->client,
+			FUSB303_REG_MANUAL,
+			state);
+	if (rc < 0) {
+		dev_err(cdev, "%s: failed to write manual, errno=%d\n",
+				__func__, rc);
+		return rc;
+	}
+	dev_info(cdev, "%s: state=%d\n", __func__, state);
 	return rc;
-#endif
+}
+static int fusb303_set_chip_state(struct fusb303_chip *chip, u8 state)
+{
+	struct device *cdev = &chip->client->dev;
+	int rc = 0;
+
+	dev_info(cdev, "%s: update manual reg=%d\n", __func__, state);
+	rc = fusb303_set_manual_reg(chip, state);
+	if (rc < 0) {
+		dev_err(cdev, "%s: failed to write manual reg\n", __func__);
+		return rc;
+	}
+	chip->state = state;
+	return rc;
 }
 static int fusb303_set_mode(struct fusb303_chip *chip, u8 mode)
 {
@@ -559,55 +597,126 @@ static int fusb303_set_tccdebounce_time(struct fusb303_chip *chip,
 			chip->ccdebtime);
 	return rc;
 }
-
-#if 1
-/*Force source API*/
-int fusb303_set_manual_reg(u8 state)
+static int fusb303_dangling_cbl_en(struct fusb303_chip *chip,
+		bool enable)
 {
-	struct device *cdev = &chip_chg->client->dev;
+	struct device *cdev = &chip->client->dev;
 	int rc = 0;
-	if (state > FUSB303_FORCE_SRC)
-		return -EINVAL;
 
-	if (state & FUSB303_DISABLED) {
-		dev_err(cdev,
-			"%s: return err if sw try to disable state manual(%d)\n",
-			__func__, state);
-		return -EINVAL;
-	}
-
-	rc = i2c_smbus_write_byte_data(chip_chg->client,
-					FUSB303_REG_MANUAL,
-					state);
+	rc = fusb303_write_masked_byte(chip->client,
+			FUSB303_REG_CONTROL,
+			FUSB303_DCBL_EN_MASK,
+			enable);
 	if (rc < 0) {
-		dev_err(cdev, "%s: failed to write manual(%d)\n", __func__, rc);
+		dev_err(cdev,
+				"%s: failed to switch dangling cable func, errno=%d\n",
+				__func__, rc);
 		return rc;
 	}
-
+	dev_info(cdev, "%s: dangling cable enabled=%d\n", __func__, enable);
 	return rc;
 }
-#endif
+static int fusb303_remedy_en(struct fusb303_chip *chip,
+		bool enable)
+{
+	struct device *cdev = &chip->client->dev;
+	int rc = 0;
+
+	rc = fusb303_write_masked_byte(chip->client,
+			FUSB303_REG_CONTROL1,
+			FUSB303_REMDY_EN_MASK,
+			enable);
+	if (rc < 0) {
+		dev_err(cdev,
+				"%s: failed to switch remedy func, errno=%d\n",
+				__func__, rc);
+		return rc;
+	}
+	dev_info(cdev, "%s: remedy func enabled=%d\n", __func__, enable);
+	return rc;
+}
+static int fusb303_auto_snk_en(struct fusb303_chip *chip,
+		bool enable)
+{
+	struct device *cdev = &chip->client->dev;
+	int rc = 0;
+
+	rc = fusb303_write_masked_byte(chip->client,
+			FUSB303_REG_CONTROL1,
+			FUSB303_AUTO_SNK_EN_MASK,
+			enable);
+	if (rc < 0) {
+		dev_err(cdev,
+				"%s: failed to switch auto snk func, errno=%d\n",
+				__func__, rc);
+		return rc;
+	}
+	dev_info(cdev, "%s: auto snk func enabled=%d\n", __func__, enable);
+	return rc;
+}
+
+bool platform_get_device_irq_state(struct fusb303_chip *chip)
+{
+	struct device *cdev = &chip->client->dev;
+	int rc = 0;
+
+	dev_info(cdev, "%s enter\n", __func__);
+
+	if (!chip) {
+		pr_err("%s Error: Chip structure is NULL!\n", __func__);
+		return false;
+	} else {
+		if (gpio_cansleep(chip->pdata->int_gpio)) {
+			rc = !gpio_get_value_cansleep(chip->pdata->int_gpio);
+		} else {
+			rc = !gpio_get_value(chip->pdata->int_gpio);
+		}
+		dev_info(cdev, "%s finish, state=%d\n", __func__, rc);
+		return (rc != 0);
+	}
+}
+
 static int fusb303_enable(struct fusb303_chip *chip, bool enable)
 {
 	struct device *cdev = &chip->client->dev;
 	int rc = 0;
+	u8  count = 5;
+	u8 data[5] = {0xAB, 0x00, 0x00, 0x00, 0x08};
+
+	dev_info(cdev, "%s: state=%d\n", __func__, enable);
+	if (chip->ccdebtime != FUSB303_TCCDEB_150MS) {
+		data[0] = data[0] & (~FUSB303_TCCDEB_MASK);
+		data[0] = data[0] | chip->ccdebtime;
+		dev_err(cdev, "%s: Control1 reg=0x%02x\n", __func__, data[0]);
+	}
+	if (chip->autosnk_thres != FUSB303_AUTO_SNK_TH_3P1V) {
+		data[0] = data[0] & (~FUSB303_AUTO_SNK_TH_MASK);
+		data[0] = data[0] | chip->autosnk_thres;
+		dev_err(cdev, "%s: Control1 reg=0x%02x\n", __func__, data[0]);
+	}
+
 	if (enable == true) {
-		fusb303_set_chip_state(chip, FUSB_STATE_DISABLED);
-		rc = fusb303_write_masked_byte(chip->client,
-						FUSB303_REG_CONTROL1,
-						FUSB303_ENABLE_MASK,
-						FUSB303_ENABLE);
-		if (rc < 0) {
-			dev_err(cdev, "failed to enable fusb303\n");
-			return rc;
+		while (count) {
+			rc = i2c_smbus_write_i2c_block_data(chip->client,
+					FUSB303_REG_CONTROL1,
+					sizeof(data), data);
+			if (rc < 0) {
+				dev_err(cdev, "%s: Unable to write registers\n",
+						__func__);
+				count--;
+			} else {
+				return rc;
+			}
+			udelay(100);
 		}
-	}  else {
+	} else {
 		rc = fusb303_write_masked_byte(chip->client,
-						FUSB303_REG_CONTROL1,
-						FUSB303_ENABLE_MASK,
-						FUSB303_DISABLE);
+				FUSB303_REG_CONTROL1,
+				FUSB303_ENABLE_MASK,
+				FUSB303_DISABLE);
 		if (rc < 0) {
-			dev_err(cdev, "failed to disable fusb303\n");
+			dev_err(cdev, "%s: failed to disable fusb303\n",
+					__func__);
 			return rc;
 		}
 	}
@@ -645,14 +754,7 @@ static int fusb303_init_reg(struct fusb303_chip *chip)
 	/* change mode */
 	rc = fusb303_set_mode(chip, chip->pdata->init_mode);
 	if (rc < 0)
-		dev_err(cdev, "%s: failed to set mode\n",
-				__func__);
-	/* set error recovery state */
-	rc = fusb303_set_chip_state(chip,
-				FUSB_STATE_DISABLED);
-	if (rc < 0)
-		dev_err(cdev, "%s: failed to set error recovery state\n",
-				__func__);
+		dev_err(cdev, "%s: failed to set mode\n", __func__);
 	/* enable detection */
 	rc = fusb303_enable(chip, true);
 	if (rc < 0)
@@ -686,6 +788,16 @@ static int fusb303_reset_device(struct fusb303_chip *chip)
 	rc = fusb303_init_reg(chip);
 	if (rc < 0)
 		dev_err(cdev, "fail to init reg\n");
+	rc = fusb303_dangling_cbl_en(chip, false);
+	if (rc < 0)
+		dev_err(cdev,
+				"%s: fail to disable dangling cbl func\n", __func__);
+	rc = fusb303_remedy_en(chip, false);
+	if (rc < 0)
+		dev_err(cdev, "%s: fail to disable remedy func\n", __func__);
+	rc = fusb303_auto_snk_en(chip, false);
+	if (rc < 0)
+		dev_err(cdev, "%s: fail to disable auto snk func\n", __func__);
 	/* clear global interrupt mask */
 	rc = fusb303_write_masked_byte(chip->client,
 				FUSB303_REG_CONTROL,
@@ -695,11 +807,11 @@ static int fusb303_reset_device(struct fusb303_chip *chip)
 		dev_err(cdev, "%s: fail to init\n", __func__);
 		return rc;
 	}
-	pr_err(
-		"%s, mode[0x%02x], host_cur[0x%02x], tdrptime[0x%02x], dttime[0x%02x]\n",
-			__func__, chip->mode, chip->dfp_power, chip->tdrptime, chip->dttime);
-	pr_err(
-		"%s, autosnk_thres[0x%02x], ccdebtime[0x%02x]\n",
+	dev_err(cdev, "%s: mode=0x%02x, host_cur=0x%02x\n",
+			__func__, chip->mode, chip->dfp_power);
+	dev_err(cdev, "%s: tdrptime=0x%02x, dttime=0x%02x\n",
+			__func__, chip->tdrptime, chip->dttime);
+	dev_err(cdev, "%s: autosnk_thres=0x%02x, ccdebtime=0x%02x\n",
 			__func__, chip->autosnk_thres, chip->ccdebtime);
 	return rc;
 }
@@ -766,6 +878,10 @@ static ssize_t ftype_show(struct device *dev,
 	case FUSB303_TYPE_ACTV_CABLE:
 		ret = snprintf(buf, PAGE_SIZE, "ACTIVECABLE(%d)\n", chip->type);
 		break;
+	case FUSB303_TYPE_SRC_ACC:
+		ret = snprintf(buf, PAGE_SIZE, "SOURCE + ACTIVECABLE(%d)\n",
+				chip->type);
+		break;
 	default:
 		ret = snprintf(buf, PAGE_SIZE, "NOTYPE(%d)\n", chip->type);
 		break;
@@ -778,13 +894,51 @@ static ssize_t fchip_state_show(struct device *dev,
 			struct device_attribute *attr,
 			char *buf)
 {
-	return snprintf(buf, PAGE_SIZE,
-		STRV(FUSB_STATE_DISABLED) " - FUSB_STATE_DISABLED\n"
-		STRV(FUSB_STATE_ERROR_RECOVERY) " - FUSB_STATE_ERROR_RECOVERY\n"
-		STRV(FUSB_STATE_FORCE_SRC) " - FUSB_STATE_FORCE_SRC\n"
-		STRV(FUSB_STATE_FORCE_SNK) " - FUSB_STATE_FORCE_SNK\n"
-		STRV(FUSB_STATE_UNATTACHED_SNK) " - FUSB_STATE_UNATTACHED_SNK\n"
-		STRV(FUSB_STATE_UNATTACHED_SRC) " - FUSB_STATE_UNATTACHED_SRC\n");
+	struct i2c_client *client = to_i2c_client(dev);
+	struct fusb303_chip *chip = i2c_get_clientdata(client);
+	int ret;
+
+	mutex_lock(&chip->mlock);
+	switch (chip->state) {
+	case FUSB_STATE_DISABLED:
+		ret = snprintf(buf, PAGE_SIZE,
+				"FUSB_STATE_DISABLED(%d)\n", chip->state);
+		break;
+	case FUSB_STATE_ERROR_RECOVERY:
+		ret = snprintf(buf, PAGE_SIZE,
+				"FUSB_STATE_ERROR_RECOVERY(%d)\n", chip->state);
+		break;
+	case FUSB_STATE_FORCE_SRC:
+		ret = snprintf(buf, PAGE_SIZE,
+				"FUSB_STATE_FORCE_SRC(%d)\n", chip->state);
+		break;
+	case FUSB_STATE_FORCE_SNK:
+		ret = snprintf(buf, PAGE_SIZE,
+				"FUSB_STATE_FORCE_SNK(%d)\n", chip->state);
+		break;
+	case FUSB_STATE_UNATTACHED_SNK:
+		ret = snprintf(buf, PAGE_SIZE,
+				"FUSB_STATE_UNATTACHED_SNK(%d)\n", chip->state);
+		break;
+	case FUSB_STATE_UNATTACHED_SRC:
+		ret = snprintf(buf, PAGE_SIZE,
+				"FUSB_STATE_UNATTACHED_SRC(%d)\n", chip->state);
+		break;
+	case FUSB_STATE_ATTACHED_SNK:
+		ret = snprintf(buf, PAGE_SIZE,
+				"FUSB_STATE_ATTACHED_SNK(%d)\n", chip->state);
+		break;
+	case FUSB_STATE_ATTACHED_SRC:
+		ret = snprintf(buf, PAGE_SIZE,
+				"FUSB_STATE_ATTACHED_SRC(%d)\n", chip->state);
+		break;
+	default:
+		ret = snprintf(buf, PAGE_SIZE,
+				"UNKNOWN(%d)\n", chip->state);
+		break;
+	}
+	mutex_unlock(&chip->mlock);
+	return ret;
 }
 static ssize_t fchip_state_store(struct device *dev,
 				struct device_attribute *attr,
@@ -808,7 +962,6 @@ static ssize_t fchip_state_store(struct device *dev,
 			mutex_unlock(&chip->mlock);
 			return rc;
 		}
-		fusb303_detach(chip);
 		mutex_unlock(&chip->mlock);
 		return size;
 	}
@@ -876,7 +1029,6 @@ static ssize_t fmode_store(struct device *dev,
 			mutex_unlock(&chip->mlock);
 			return rc;
 		}
-		fusb303_detach(chip);
 		mutex_unlock(&chip->mlock);
 		return size;
 	}
@@ -1009,96 +1161,215 @@ static ssize_t freset_store(struct device *dev,
 	return -EINVAL;
 }
 DEVICE_ATTR(freset, S_IWUSR, NULL, freset_store);
-static ssize_t fsw_trysnk_show(struct device *dev,
-			struct device_attribute *attr,
-			char *buf)
+static ssize_t fauto_snk_th_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct fusb303_chip *chip = i2c_get_clientdata(client);
 	int ret;
 	mutex_lock(&chip->mlock);
-	ret = snprintf(buf, PAGE_SIZE, "%u\n", chip->pdata->try_snk_emulation);
+	ret = snprintf(buf, PAGE_SIZE, "%u\n", chip->autosnk_thres);
 	mutex_unlock(&chip->mlock);
 	return ret;
 }
-static ssize_t fsw_trysnk_store(struct device *dev,
+static ssize_t fauto_snk_th_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buff, size_t size)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct fusb303_chip *chip = i2c_get_clientdata(client);
+	int buf = 0;
+	int rc = 0;
+	if (sscanf(buff, "%d", &buf) == 1) {
+		mutex_lock(&chip->mlock);
+		rc = fusb303_set_autosink_threshold(chip, (u8)buf);
+		mutex_unlock(&chip->mlock);
+		if (rc < 0)
+			return rc;
+		return size;
+	}
+	return -EINVAL;
+}
+DEVICE_ATTR(fauto_snk_th, S_IRUGO | S_IWUSR, fauto_snk_th_show,
+		fauto_snk_th_store);
+static ssize_t fccdebounce_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct fusb303_chip *chip = i2c_get_clientdata(client);
+	int ret;
+	mutex_lock(&chip->mlock);
+	ret = snprintf(buf, PAGE_SIZE, "%u\n", chip->ccdebtime);
+	mutex_unlock(&chip->mlock);
+	return ret;
+}
+static ssize_t fccdebounce_store(struct device *dev,
 			struct device_attribute *attr,
 			const char *buff, size_t size)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct fusb303_chip *chip = i2c_get_clientdata(client);
 	int buf = 0;
-	if ((sscanf(buff, "%d", &buf) == 1) && (buf == 0 || buf == 1)) {
+	int rc = 0;
+	if (sscanf(buff, "%d", &buf) == 1) {
 		mutex_lock(&chip->mlock);
-		chip->pdata->try_snk_emulation = buf;
-		if (chip->state == FUSB_STATE_ERROR_RECOVERY)
-			chip->triedsnk = !chip->pdata->try_snk_emulation;
+		rc = fusb303_set_tccdebounce_time(chip, (u8)buf);
 		mutex_unlock(&chip->mlock);
+		if (rc < 0)
+			return rc;
 		return size;
 	}
 	return -EINVAL;
 }
-DEVICE_ATTR(fsw_trysnk, S_IRUGO | S_IWUSR,\
-			fsw_trysnk_show, fsw_trysnk_store);
-static ssize_t ftry_timeout_show(struct device *dev,
-				struct device_attribute *attr,
-				char *buf)
+DEVICE_ATTR(fccdebounce, S_IRUGO | S_IWUSR, fccdebounce_show,
+		fccdebounce_store);
+static ssize_t fdcable_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct fusb303_chip *chip = i2c_get_clientdata(client);
-	int ret;
+	int rc = 0;
+	int state = 0;
+
 	mutex_lock(&chip->mlock);
-	ret = snprintf(buf, PAGE_SIZE, "%u\n", chip->pdata->ttry_timeout);
+	rc = i2c_smbus_read_word_data(chip->client,
+			FUSB303_REG_CONTROL);
+	if (rc < 0) {
+		dev_err(dev, "%s: failed to read status\n", __func__);
+		return rc;
+	}
+	state = (rc & FUSB303_DCBL_EN_MASK) >> 3;
+	rc = snprintf(buf, PAGE_SIZE, "%u\n", state);
 	mutex_unlock(&chip->mlock);
-	return ret;
+	return rc;
 }
-static ssize_t ftry_timeout_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buff, size_t size)
+static ssize_t fdcable_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buff, size_t size)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct fusb303_chip *chip = i2c_get_clientdata(client);
-	int buf = 0;
-	if ((sscanf(buff, "%d", &buf) == 1) && (buf >= 0)) {
+	int state = 0;
+	int rc = 0;
+	if (sscanf(buff, "%d", &state) == 1) {
 		mutex_lock(&chip->mlock);
-		chip->pdata->ttry_timeout = buf;
+		rc = fusb303_write_masked_byte(chip->client,
+				FUSB303_REG_CONTROL,
+				FUSB303_DCBL_EN_MASK,
+				state);
+		if (rc < 0) {
+			dev_err(dev, "%s: failed to write 04h reg\n",
+					__func__);
+			return rc;
+		}
 		mutex_unlock(&chip->mlock);
+		if (rc < 0)
+			return rc;
 		return size;
 	}
 	return -EINVAL;
 }
-DEVICE_ATTR(ftry_timeout, S_IRUGO | S_IWUSR,\
-		ftry_timeout_show, ftry_timeout_store);
-static ssize_t fccdebounce_timeout_show(struct device *dev,
-				struct device_attribute *attr,
-				char *buf)
+DEVICE_ATTR(fdcable, S_IRUGO | S_IWUSR, fdcable_show, fdcable_store);
+static ssize_t fremedy_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct fusb303_chip *chip = i2c_get_clientdata(client);
-	int ret;
+	int rc = 0;
+	int state = 0;
+
 	mutex_lock(&chip->mlock);
-	ret = snprintf(buf, PAGE_SIZE, "%u\n",
-			chip->pdata->ccdebounce_timeout);
+	rc = i2c_smbus_read_word_data(chip->client,
+			FUSB303_REG_CONTROL1);
+	if (rc < 0) {
+		dev_err(dev, "%s: failed to read status\n", __func__);
+		return rc;
+	}
+	state = (rc & FUSB303_REMDY_EN_MASK) >> 7;
+	rc = snprintf(buf, PAGE_SIZE, "%u\n", state);
 	mutex_unlock(&chip->mlock);
-	return ret;
+	return rc;
 }
-static ssize_t fccdebounce_timeout_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buff, size_t size)
+static ssize_t fremedy_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buff, size_t size)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct fusb303_chip *chip = i2c_get_clientdata(client);
-	int buf = 0;
-	if ((sscanf(buff, "%d", &buf) == 1) && (buf >= 0)) {
+	int state = 0;
+	int rc = 0;
+	if (sscanf(buff, "%d", &state) == 1) {
 		mutex_lock(&chip->mlock);
-		chip->pdata->ccdebounce_timeout = buf;
+		rc = fusb303_write_masked_byte(chip->client,
+				FUSB303_REG_CONTROL1,
+				FUSB303_REMDY_EN_MASK,
+				state);
+		if (rc < 0) {
+			dev_err(dev, "%s: failed to write 04h reg\n",
+					__func__);
+			return rc;
+		}
 		mutex_unlock(&chip->mlock);
+		if (rc < 0)
+			return rc;
 		return size;
 	}
 	return -EINVAL;
 }
-DEVICE_ATTR(fccdebounce_timeout, S_IRUGO | S_IWUSR,\
-				fccdebounce_timeout_show, fccdebounce_timeout_store);
+DEVICE_ATTR(fremedy, S_IRUGO | S_IWUSR, fremedy_show, fremedy_store);
+static ssize_t fauto_snk_en_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct fusb303_chip *chip = i2c_get_clientdata(client);
+	int rc = 0;
+	int state = 0;
+
+	mutex_lock(&chip->mlock);
+	rc = i2c_smbus_read_word_data(chip->client,
+			FUSB303_REG_CONTROL1);
+	if (rc < 0) {
+		dev_err(dev, "%s: failed to read status\n", __func__);
+		return rc;
+	}
+	state = (rc & FUSB303_AUTO_SNK_EN_MASK) >> 4;
+	rc = snprintf(buf, PAGE_SIZE, "%u\n", state);
+	mutex_unlock(&chip->mlock);
+	return rc;
+}
+static ssize_t fauto_snk_en_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buff, size_t size)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct fusb303_chip *chip = i2c_get_clientdata(client);
+	int state = 0;
+	int rc = 0;
+	if (sscanf(buff, "%d", &state) == 1) {
+		mutex_lock(&chip->mlock);
+		rc = fusb303_write_masked_byte(chip->client,
+				FUSB303_REG_CONTROL1,
+				FUSB303_AUTO_SNK_EN_MASK,
+				state);
+		if (rc < 0) {
+			dev_err(dev, "%s: failed to write 04h reg\n",
+					__func__);
+			return rc;
+		}
+		mutex_unlock(&chip->mlock);
+		if (rc < 0)
+			return rc;
+		return size;
+	}
+	return -EINVAL;
+}
+DEVICE_ATTR(fauto_snk_en, S_IRUGO | S_IWUSR,
+		fauto_snk_en_show, fauto_snk_en_store);
 static int fusb303_create_devices(struct device *cdev)
 {
 	int ret = 0;
@@ -1156,30 +1427,49 @@ static int fusb303_create_devices(struct device *cdev)
 		ret = -ENODEV;
 		goto err8;
 	}
-	ret = device_create_file(cdev, &dev_attr_fsw_trysnk);
+	ret = device_create_file(cdev, &dev_attr_fauto_snk_th);
 	if (ret < 0) {
 		dev_err(cdev, "failed to create dev_attr_fsw_trysnk\n");
 		ret = -ENODEV;
 		goto err9;
 	}
-	ret = device_create_file(cdev, &dev_attr_ftry_timeout);
+	ret = device_create_file(cdev, &dev_attr_fccdebounce);
 	if (ret < 0) {
-		dev_err(cdev, "failed to create dev_attr_ftry_timeout\n");;
+		dev_err(cdev,
+				"failed to create dev_attr_fccdebounce\n");
 		ret = -ENODEV;
 		goto err10;
 	}
-	ret = device_create_file(cdev, &dev_attr_fccdebounce_timeout);
+	ret = device_create_file(cdev, &dev_attr_fdcable);
 	if (ret < 0) {
 		dev_err(cdev,
-			"failed to create dev_attr_fccdebounce_timeout\n");
+				"failed to create dev_attr_fdcable\n");
 		ret = -ENODEV;
 		goto err11;
 	}
+	ret = device_create_file(cdev, &dev_attr_fremedy);
+	if (ret < 0) {
+		dev_err(cdev,
+				"failed to create dev_attr_fremedy\n");
+		ret = -ENODEV;
+		goto err12;
+	}
+	ret = device_create_file(cdev, &dev_attr_fauto_snk_en);
+	if (ret < 0) {
+		dev_err(cdev,
+				"failed to create dev_attr_fauto_snk_en\n");
+		ret = -ENODEV;
+		goto err13;
+	}
 	return ret;
+err13:
+	device_remove_file(cdev, &dev_attr_fremedy);
+err12:
+	device_remove_file(cdev, &dev_attr_fdcable);
 err11:
-	device_remove_file(cdev, &dev_attr_ftry_timeout);
+	device_remove_file(cdev, &dev_attr_fccdebounce);
 err10:
-	device_remove_file(cdev, &dev_attr_fsw_trysnk);
+	device_remove_file(cdev, &dev_attr_fauto_snk_th);
 err9:
 	device_remove_file(cdev, &dev_attr_fregdump);
 err8:
@@ -1211,6 +1501,10 @@ static void fusb303_destory_device(struct device *cdev)
 	device_remove_file(cdev, &dev_attr_fhostcur);
 	device_remove_file(cdev, &dev_attr_fclientcur);
 	device_remove_file(cdev, &dev_attr_fregdump);
+	device_remove_file(cdev, &dev_attr_fauto_snk_th);
+	device_remove_file(cdev, &dev_attr_fccdebounce);
+	device_remove_file(cdev, &dev_attr_fdcable);
+	device_remove_file(cdev, &dev_attr_fremedy);
 }
 static int fusb303_power_set_icurrent_max(struct fusb303_chip *chip,
 						int icurrent)
@@ -1251,31 +1545,74 @@ static void fusb303_bclvl_changed(struct fusb303_chip *chip)
 	dev_info(cdev, "sts[0x%02x], type[0x%02x]\n", status, type);
 
 	// make sure all TYPEs are correct here
-	if (type == FUSB303_TYPE_SRC ||
-		type == FUSB303_TYPE_PWR_AUD_ACC ||
-		type == FUSB303_TYPE_DBG_ACC_SRC) {
+	if (type == FUSB303_TYPE_SNK ||
+			type == FUSB303_TYPE_PWR_AUD_ACC ||
+			type == FUSB303_TYPE_DBG_ACC_SNK) {
 		chip->bc_lvl = status & 0x06;
+		chip->ufp_power = status & 0x06 >> 1;
 		limit = (chip->bc_lvl == FUSB303_SNK_3000MA ? 3000 :
-			(chip->bc_lvl == FUSB303_SNK_1500MA ? 1500 : 0));
+				(chip->bc_lvl == FUSB303_SNK_1500MA ? 1500 : 0));
 		fusb303_power_set_icurrent_max(chip, limit);
+	}
+	dev_info(cdev, "%s: bc_lvl=%d\n", __func__, chip->bc_lvl);
+
+	if (!chip->bc_lvl && type == FUSB303_TYPE_SNK) {
+		fusb303_detach(chip);
 	}
 }
 static void fusb303_autosnk_changed(struct fusb303_chip *chip)
 {
 	/* TODO */
 	/* implement autosnk changed work */
+	pr_info("%s: enter \n", __func__);
 	return;
 }
 static void fusb303_vbus_changed(struct fusb303_chip *chip)
 {
-	/* TODO */
-	/* implement vbus changed work */
+	struct device *cdev = &chip->client->dev;
+	int rc;
+	u8 status, type;
+
+	/* get status and type */
+	rc = i2c_smbus_read_word_data(chip->client,
+			FUSB303_REG_STATUS);
+	if (rc < 0) {
+		dev_err(cdev, "%s: failed to read status\n", __func__);
+		return;
+	}
+	status = rc & 0xFF;
+
+	rc = i2c_smbus_read_byte_data(chip->client,
+			FUSB303_REG_TYPE);
+	if (rc < 0) {
+		dev_err(cdev, "%s: failed to read type\n", __func__);
+		return;
+	}
+	type = (status & FUSB303_ATTACH) ?
+		(rc & FUSB303_TYPE_MASK) : FUSB303_TYPE_INVALID;
+	dev_err(cdev,
+			"%s status=0x%02x, type=0x%02x\n", __func__, status, type);
+
+	if (type == FUSB303_TYPE_SRC || type == FUSB303_TYPE_SRC_ACC)
+		return;
+
+	if (fusb303_is_vbus_on(chip)) {
+		dev_err(cdev, "%s: vbus voltage was high\n", __func__);
+		if (chip->tcpc->typec_attach_new != TYPEC_ATTACHED_SNK) {
+			chip->tcpc->typec_attach_new = TYPEC_ATTACHED_SNK;
+			tcpci_notify_typec_state(chip->tcpc);
+			chip->tcpc->typec_attach_old = TYPEC_ATTACHED_SNK;
+		}
+	} else {
+		fusb303_detach(chip);
+	}
 	return;
 }
 static void fusb303_fault_changed(struct fusb303_chip *chip)
 {
 	/* TODO */
 	/* implement fault changed work */
+	pr_info("%s: enter \n", __func__);
 	return;
 }
 static void fusb303_orient_changed(struct fusb303_chip *chip)
@@ -1313,86 +1650,88 @@ static void fusb303_remedy_changed(struct fusb303_chip *chip)
 {
 	/* TODO */
 	/* implement remedy changed work */
+	pr_info("%s: enter \n", __func__);
 	return;
 }
 static void fusb303_frc_succ_changed(struct fusb303_chip *chip)
 {
 	/* TODO */
 	/* implement frc succ changed work */
+	pr_info("%s: enter \n", __func__);
 	return;
 }
 static void fusb303_frc_fail_changed(struct fusb303_chip *chip)
 {
 	/* TODO */
 	/* implement frc fail changed work */
+	pr_info("%s: enter \n", __func__);
 	return;
 }
 static void fusb303_rem_fail_changed(struct fusb303_chip *chip)
 {
 	/* TODO */
 	/* implement rem fail changed work */
+	pr_info("%s: enter \n", __func__);
 	return;
 }
 static void fusb303_rem_vbon_changed(struct fusb303_chip *chip)
 {
 	/* TODO */
 	/* implement rem vbon changed work */
+	pr_info("%s: enter \n", __func__);
 	return;
 }
 static void fusb303_rem_vboff_changed(struct fusb303_chip *chip)
 {
 	/* TODO */
 	/* implement rem vboff changed work */
+	pr_info("%s: enter \n", __func__);
 	return;
 }
-static void fusb303_src_detected(struct fusb303_chip *chip)
+static void fusb303_attached_src(struct fusb303_chip *chip)
 {
 	struct device *cdev = &chip->client->dev;
-	//int rc;
-	if (chip->mode & (FUSB303_SRC | FUSB303_SRC_ACC)) {
-		dev_err(cdev, "fusb303 not support in source mode\n");
+
+	if (chip->mode & (FUSB303_SNK | FUSB303_SNK_ACC)) {
+		dev_err(cdev, "%s: donot support source mode\n", __func__);
 	}
-	if (chip->state == FUSB_STATE_TRY_SNK)
-		cancel_delayed_work(&chip->twork);
-	//fusb_update_state(chip, FUSB_STATE_ATTACHED_SNK);
+
+	fusb_update_state(chip, FUSB_STATE_ATTACHED_SRC);
 #ifdef HAVE_DR
 	dual_role_instance_changed(chip->dual_role);
 #endif /* HAVE_DR */
 	chip->type = FUSB303_TYPE_SRC;
-
-	pr_err("%s chip->type=%d\n", __func__, chip->type);
+	dev_info(cdev, "%s: chip->type=0x%02x\n", __func__, chip->type);
 }
-static void fusb303_snk_detected(struct fusb303_chip *chip)
+static void fusb303_attached_snk(struct fusb303_chip *chip)
 {
 	struct device *cdev = &chip->client->dev;
-	if (chip->mode & (FUSB303_SNK | FUSB303_SNK_ACC | FUSB303_SRC)) {
-		dev_err(cdev, "fusb not support in sink mode\n");
+	if (chip->mode & (FUSB303_SRC | FUSB303_SRC_ACC)) {
+		dev_err(cdev, "%s: donot support sink mode\n", __func__);
 	}
 
+	fusb_update_state(chip, FUSB_STATE_ATTACHED_SNK);
+#ifdef HAVE_DR
+	dual_role_instance_changed(chip->dual_role);
+#endif /* HAVE_DR */
 	chip->type = FUSB303_TYPE_SNK;
-	pr_err("%s,chip->type=%d\n", __func__, chip->type);
+	dev_info(cdev, "%s: chip->type=0x%02x\n", __func__, chip->type);
 }
-static void fusb303_dbg_acc_detected(struct fusb303_chip *chip)
+static void fusb303_attached_dbg_acc(struct fusb303_chip *chip)
 {
-	struct device *cdev = &chip->client->dev;
-	if (chip->mode & (FUSB303_SRC | FUSB303_SNK | FUSB303_DRP)) {
-		dev_err(cdev, "not support accessory mode\n");
-		if ((fusb303_reset_device(chip) != 0))
-			dev_err(cdev, "%s: failed to reset\n", __func__);
-		return;
-	}
 	/*
 	 * TODO
 	 * need to implement
 	 */
+	pr_info("%s: enter \n", __func__);
 	fusb_update_state(chip, FUSB_STATE_DEBUG_ACCESSORY);
 }
-static void fusb303_aud_acc_detected(struct fusb303_chip *chip)
+static void fusb303_attached_aud_acc(struct fusb303_chip *chip)
 {
 	struct device *cdev = &chip->client->dev;
-	if (chip->mode & (FUSB303_SRC | FUSB303_SNK | FUSB303_DRP)) {
-		dev_err(cdev, "not support accessory mode\n");
-		if ((fusb303_reset_device(chip)) != 0)
+	if (!(chip->mode & FUSB303_AUD_ACC)) {
+		dev_err(cdev, "%s: not support accessory mode\n", __func__);
+		if (fusb303_reset_device(chip) < 0)
 			dev_err(cdev, "%s: failed to reset\n", __func__);
 		return;
 	}
@@ -1400,47 +1739,31 @@ static void fusb303_aud_acc_detected(struct fusb303_chip *chip)
 	 * TODO
 	 * need to implement
 	 */
+	pr_info("%s: enter \n", __func__);
 	fusb_update_state(chip, FUSB_STATE_AUDIO_ACCESSORY);
-}
-static void fusb303_timer_try_expired(struct fusb303_chip *chip)
-{
-	struct device *cdev = &chip->client->dev;
-	if ((fusb303_set_mode(chip, FUSB303_SRC) != 0) ||
-		(fusb303_set_chip_state(chip,
-					0x0) != 0)) {
-		dev_err(cdev, "%s: failed to config tryWaitSrc\n", __func__);
-		if ((fusb303_reset_device(chip) != 0))
-			dev_err(cdev, "%s: failed to reset\n", __func__);
-	} else {
-		fusb_update_state(chip, FUSB_STATE_TRYWAIT_SRC);
-		queue_delayed_work(chip->cc_wq, &chip->twork,
-			msecs_to_jiffies(chip->pdata->ccdebounce_timeout));
-	}
+	fusb303_detach(chip);
 }
 static void fusb303_detach(struct fusb303_chip *chip)
 {
-//	struct device *cdev = &chip->client->dev;
-	pr_err("%s: type[0x%02x] chipstate[0x%02x]\n",
+	struct device *cdev = &chip->client->dev;
+
+	dev_err(cdev, "%s: chip->type=0x%02x, chip->state=0x%02x\n",
 			__func__, chip->type, chip->state);
 
 	chip->type = FUSB303_TYPE_INVALID;
 	chip->bc_lvl = FUSB303_SNK_0MA;
 	chip->ufp_power = 0;
-	chip->triedsnk = !chip->pdata->try_snk_emulation;
-	chip->try_attcnt = 0;
 
 	typec_cc_orientation = 0x0;
-    pr_err("%s, typec_attach_old= %d\n", __func__, chip->tcpc->typec_attach_old);
-    chip->tcpc->typec_attach_new = TYPEC_UNATTACHED;
-    tcpci_notify_typec_state(chip->tcpc);
-    chip->tcpc_desc->rp_lvl = TYPEC_CC_RP_1_5;
-    fusb303_set_dfp_power(chip, FUSB303_HOST_1500MA);
+	dev_err(cdev, "%s: typec_attach_old= %d\n",
+			__func__, chip->tcpc->typec_attach_old);
+	chip->tcpc->typec_attach_new = TYPEC_UNATTACHED;
+	tcpci_notify_typec_state(chip->tcpc);
 	if (chip->tcpc->typec_attach_old == TYPEC_ATTACHED_SRC) {
-		    tcpci_source_vbus(chip->tcpc, TCP_VBUS_CTRL_TYPEC, TCPC_VBUS_SOURCE_0V, 0);
+		tcpci_source_vbus(chip->tcpc,
+				TCP_VBUS_CTRL_TYPEC, TCPC_VBUS_SOURCE_0V, 0);
 	}
-    chip->tcpc->typec_attach_old = TYPEC_UNATTACHED;
-	fusb_update_state(chip, 0x0);
-//	fusb303_reset_device(chip);
+	chip->tcpc->typec_attach_old = TYPEC_UNATTACHED;
 #ifdef HAVE_DR
 	dual_role_instance_changed(chip->dual_role);
 #endif /* HAVE_DR */
@@ -1449,19 +1772,21 @@ static bool fusb303_is_vbus_on(struct fusb303_chip *chip)
 {
 	struct device *cdev = &chip->client->dev;
 	int rc;
+
 	rc = i2c_smbus_read_byte_data(chip->client, FUSB303_REG_STATUS);
 	if (rc < 0) {
 		dev_err(cdev, "%s: failed to read status\n", __func__);
 		return false;
 	}
-	/* TODO why the !!?? */
+
 	return !!(rc & FUSB303_VBUSOK);
 }
 static void fusb303_attach(struct fusb303_chip *chip)
 {
 	struct device *cdev = &chip->client->dev;
 	int rc;
-	u8 status, type;
+	u8 status, status1, type;
+
 	/* get status and type */
 	rc = i2c_smbus_read_word_data(chip->client,
 			FUSB303_REG_STATUS);
@@ -1469,7 +1794,9 @@ static void fusb303_attach(struct fusb303_chip *chip)
 		dev_err(cdev, "%s: failed to read status\n", __func__);
 		return;
 	}
+
 	status = rc & 0xFF;
+	status1 = (rc >> 8) & 0xFF;
 
 	rc = i2c_smbus_read_byte_data(chip->client,
 			FUSB303_REG_TYPE);
@@ -1477,29 +1804,31 @@ static void fusb303_attach(struct fusb303_chip *chip)
 		dev_err(cdev, "%s: failed to read type\n", __func__);
 		return;
 	}
+
 	type = (status & FUSB303_ATTACH) ?
-			(rc & FUSB303_TYPE_MASK) : FUSB303_TYPE_INVALID;
-	pr_err("%s sts[0x%02x], type[0x%02x]\n", __func__, status, type);
+		(rc & FUSB303_TYPE_MASK) : FUSB303_TYPE_INVALID;
+	dev_info(cdev, "%s: status=0x%02x, status1=0x%02x, type=0x%02x\n",
+			__func__, status, status1, type);
 
 	switch (type) {
 	case FUSB303_TYPE_SRC:
-		fusb303_src_detected(chip);
-		rc = fusb303_is_vbus_on(chip);
+	case FUSB303_TYPE_SRC_ACC:
+		fusb303_attached_src(chip);
+		if (fusb303_is_vbus_on(chip)) {
+			dev_err(cdev, "%s: vbus voltage was high\n", __func__);
+			break;
+		}
 		chip->tcpc_desc->rp_lvl = TYPEC_CC_RP_3_0;
-		rc = fusb303_set_dfp_power(chip, FUSB303_HOST_3000MA);
-		pr_err("%s, vbus = %d", __func__, rc);
 		if (chip->tcpc->typec_attach_new != TYPEC_ATTACHED_SRC) {
-				chip->tcpc->typec_attach_new = TYPEC_ATTACHED_SRC;
-				tcpci_source_vbus(chip->tcpc, TCP_VBUS_CTRL_TYPEC, TCPC_VBUS_SOURCE_5V, 3000);
-				tcpci_notify_typec_state(chip->tcpc);
-				chip->tcpc->typec_attach_old = TYPEC_ATTACHED_SRC;
+			chip->tcpc->typec_attach_new = TYPEC_ATTACHED_SRC;
+			tcpci_source_vbus(chip->tcpc,
+					TCP_VBUS_CTRL_TYPEC, TCPC_VBUS_SOURCE_5V, 3000);
+			tcpci_notify_typec_state(chip->tcpc);
+			chip->tcpc->typec_attach_old = TYPEC_ATTACHED_SRC;
 		}
 		break;
 	case FUSB303_TYPE_SNK:
-		fusb303_snk_detected(chip);
-		rc = fusb303_is_vbus_on(chip);
-		pr_err("%s, vbus = %d", __func__, rc);
-
+		fusb303_attached_snk(chip);
 		if (chip->tcpc->typec_attach_new != TYPEC_ATTACHED_SNK) {
 				chip->tcpc->typec_attach_new = TYPEC_ATTACHED_SNK;
 				tcpci_notify_typec_state(chip->tcpc);
@@ -1510,13 +1839,19 @@ static void fusb303_attach(struct fusb303_chip *chip)
 		chip->type = type;
 		break;
 	case FUSB303_TYPE_DBG_ACC_SRC:
+		break;
 	case FUSB303_TYPE_DBG_ACC_SNK:
-		fusb303_dbg_acc_detected(chip);
+		fusb303_attached_dbg_acc(chip);
 		chip->type = type;
+		if (chip->tcpc->typec_attach_new != TYPEC_ATTACHED_SNK) {
+			chip->tcpc->typec_attach_new = TYPEC_ATTACHED_SNK;
+			tcpci_notify_typec_state(chip->tcpc);
+			chip->tcpc->typec_attach_old = TYPEC_ATTACHED_SNK;
+		}
 		break;
 	case FUSB303_TYPE_AUD_ACC:
 	case FUSB303_TYPE_PWR_AUD_ACC:
-		fusb303_aud_acc_detected(chip);
+		fusb303_attached_aud_acc(chip);
 		chip->type = type;
 		break;
 	case FUSB303_TYPE_INVALID:
@@ -1534,36 +1869,19 @@ static void fusb303_attach(struct fusb303_chip *chip)
 		break;
 	}
 }
-static void fusb303_timer_work_handler(struct work_struct *work)
-{
-	struct fusb303_chip *chip =
-			container_of(work, struct fusb303_chip, twork.work);
-	struct device *cdev = &chip->client->dev;
-	mutex_lock(&chip->mlock);
-	if (chip->state == FUSB_STATE_TRY_SNK) {
-		if (fusb303_is_vbus_on(chip)) {
-			if ((fusb303_set_mode(chip,
-						chip->pdata->init_mode)) != 0) {
-				dev_err(cdev, "%s: failed to set init mode\n",
-						__func__);
-			}
-			chip->triedsnk = !chip->pdata->try_snk_emulation;
-			mutex_unlock(&chip->mlock);
-			return;
-		}
-		fusb303_timer_try_expired(chip);
-	} else if (chip->state == FUSB_STATE_TRYWAIT_SRC) {
-		fusb303_detach(chip);
-	}
-	mutex_unlock(&chip->mlock);
-}
 static void fusb303_work_handler(struct work_struct *work)
 {
 	struct fusb303_chip *chip =
 			container_of(work, struct fusb303_chip, dwork);
 	struct device *cdev = &chip->client->dev;
 	int rc;
-	u8 int_sts;
+	u8 int_sts = 0;
+	u8 int_sts1 = 0;
+
+	if (first_check == true) {
+		return;
+	}
+	do {
 	mutex_lock(&chip->mlock);
 	/* get interrupt */
 	rc = i2c_smbus_read_byte_data(chip->client, FUSB303_REG_INTERRUPT);
@@ -1595,37 +1913,42 @@ static void fusb303_work_handler(struct work_struct *work)
 			fusb303_orient_changed(chip);
 		}
 	}
-	/* get interrupt1 */
-	fusb303_write_masked_byte(chip->client, FUSB303_REG_INTERRUPT, 0xFF, 0xFF);
 
 	rc = i2c_smbus_read_byte_data(chip->client, FUSB303_REG_INTERRUPT1);
 	if (rc < 0) {
 		dev_err(cdev, "%s: failed to read interrupt1\n", __func__);
 		goto work_unlock;
 	}
-	int_sts = rc & FUSB303_INT1_STS_MASK;
-	dev_info(cdev, "%s: int1_sts[0x%02x]\n", __func__, int_sts);
-	if (int_sts & FUSB303_I_REMEDY) {
+
+	int_sts1 = rc & FUSB303_INT1_STS_MASK;
+	dev_info(cdev, "%s: interrupt_1=0x%02x\n", __func__, int_sts1);
+
+	if (int_sts1 & FUSB303_I_REMEDY) {
 		fusb303_remedy_changed(chip);
 	}
-	if (int_sts & FUSB303_I_FRC_SUCC) {
+	if (int_sts1 & FUSB303_I_FRC_SUCC) {
 		fusb303_frc_succ_changed(chip);
 	}
-	if (int_sts & FUSB303_I_FRC_FAIL) {
+	if (int_sts1 & FUSB303_I_FRC_FAIL) {
 		fusb303_frc_fail_changed(chip);
 	}
-	if (int_sts & FUSB303_I_REM_FAIL) {
+	if (int_sts1 & FUSB303_I_REM_FAIL) {
 		fusb303_rem_fail_changed(chip);
 	}
-	if (int_sts & FUSB303_I_REM_VBON) {
+	if (int_sts1 & FUSB303_I_REM_VBON) {
 		fusb303_rem_vbon_changed(chip);
 	}
-	if (int_sts & FUSB303_I_REM_VBOFF) {
+	if (int_sts1 & FUSB303_I_REM_VBOFF) {
 		fusb303_rem_vboff_changed(chip);
 	}
-	fusb303_write_masked_byte(chip->client, FUSB303_REG_INTERRUPT1, 0xFF, 0xFF);
+
+	i2c_smbus_write_byte_data(chip->client,
+				FUSB303_REG_INTERRUPT, int_sts);
+	i2c_smbus_write_byte_data(chip->client,
+				FUSB303_REG_INTERRUPT1, int_sts1);
 work_unlock:
 	mutex_unlock(&chip->mlock);
+	} while (platform_get_device_irq_state(chip));
 }
 static irqreturn_t fusb303_interrupt(int irq, void *data)
 {
@@ -1647,40 +1970,42 @@ static int fusb303_init_gpio(struct fusb303_chip *chip)
 {
 	struct device *cdev = &chip->client->dev;
 	int ret = 0;
-	/* Start to enable fusb303 Chip */
-	pr_err("fusb303 int gpio1:%d\n", chip->pdata->int_gpio);
-	chip->pdata->int_gpio = of_get_named_gpio(cdev->of_node, "fusb303,int-gpio", 0);
 
+	chip->pdata->int_gpio = of_get_named_gpio(cdev->of_node,
+			"fusb303,int-gpio", 0);
+	dev_info(cdev, "%s: int_gpio: %d\n",
+			__func__, chip->pdata->int_gpio);
 
-
-	pr_err("fusb303 int gpio12:%d\n", chip->pdata->int_gpio);
-
-	ret = devm_gpio_request(&chip->client->dev, chip->pdata->int_gpio, "type_c_port0");
+	ret = devm_gpio_request(&chip->client->dev,
+			chip->pdata->int_gpio, "type_c_port0");
 	if (ret < 0) {
-		pr_err("Error: failed to request GPIO%d (ret = %d)\n",
-		chip->pdata->int_gpio, ret);
-
+		dev_err(cdev, "Error: failed to request GPIO %d (ret = %d)\n",
+				chip->pdata->int_gpio, ret);
 	}
 
 	ret = gpio_direction_input(chip->pdata->int_gpio);
 	if (ret < 0) {
-		pr_err("Error: failed to set GPIO%d as input pin(ret = %d)\n",
-		chip->pdata->int_gpio, ret);
-
+		dev_err(cdev,
+				"Error: failed to set GPIO %d as input pin(ret = %d)\n",
+				chip->pdata->int_gpio, ret);
 	}
+
 	chip->irq_gpio = gpio_to_irq(chip->pdata->int_gpio);
 	if (chip->irq_gpio  <= 0) {
-		pr_err("%s gpio to irq fail, chip->irq(%d)\n",
-						__func__, chip->irq_gpio);
-
+		dev_err(cdev, "gpio to irq fail, chip->irq(%d)\n",
+				chip->irq_gpio);
 	}
+
 	ret = request_irq(chip->irq_gpio, fusb303_interrupt,
-					IRQF_TRIGGER_FALLING, "fusb303_int_gpio", chip);
+				IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				"fusb303_int_gpio", chip);
 	if (ret)
-			dev_err(cdev, "unable to request int_gpio %d\n",
-					chip->pdata->int_gpio);
-	pr_err("%s name = %s, gpio = %d, IRQ number = %d\n", __func__,
-				chip->tcpc_desc->name, chip->pdata->int_gpio, chip->irq_gpio);
+		dev_err(cdev, "unable to request int_gpio %d\n",
+				chip->pdata->int_gpio);
+
+	dev_info(cdev, "%s: name=%s, gpio=%d, IRQ number=%d\n",
+			__func__, chip->tcpc_desc->name,
+			chip->pdata->int_gpio, chip->irq_gpio);
 	return ret;
 }
 static void fusb303_free_gpio(struct fusb303_chip *chip)
@@ -1693,8 +2018,7 @@ static int fusb303_parse_dt(struct fusb303_chip *chip)
 	struct device *cdev = &chip->client->dev;
 	struct device_node *dev_node = cdev->of_node;
 	struct fusb303_data *data = chip->pdata;
-	u32 timeoutValues[10];
-	int len, rc = 0;
+	int rc = 0;
 
 	rc = of_property_read_u32(dev_node,
 				"fusb303,init-mode", &data->init_mode);
@@ -1712,14 +2036,14 @@ static int fusb303_parse_dt(struct fusb303_chip *chip)
 		rc = 0;
 	}
 	rc = of_property_read_u32(dev_node,
-				"fusb303,drp-toggle-time", &data->tdrptime);
-	if (rc || (data->dttime > FUSB303_TDRP_90MS)) {
+			"fusb303,drp-toggle-time", &data->tdrptime);
+	if (rc || (data->tdrptime > FUSB303_TDRP_90MS)) {
 		dev_err(cdev, "drp time is not available and set default\n");
 		data->tdrptime = FUSB303_TDRP_70MS;
 		rc = 0;
 	}
 	rc = of_property_read_u32(dev_node,
-				"fusb303,drp-time", &data->dttime);
+			"fusb303,drp-duty-time", &data->dttime);
 	if (rc || (data->dttime > FUSB303_TGL_30PCT)) {
 		dev_err(cdev,
 			"drp dutycycle time not available and set default\n");
@@ -1749,40 +2073,6 @@ static int fusb303_parse_dt(struct fusb303_chip *chip)
 			data->tdrptime, data->dttime);
 	dev_err(cdev, "%s autosnk_thres:%d ccdebtime:%d\n",
 			__func__, data->autosnk_thres, data->ccdebtime);
-
-	data->try_snk_emulation = of_property_read_bool(dev_node,
-			"fusb303,use-try-snk-emulation");
-	if (data->try_snk_emulation) {
-		of_get_property(dev_node, "fusb303,ttry-timer-value", &len);
-		if (len > 0) {
-			of_property_read_u32_array(dev_node,
-					"fusb303,ttry-timer-value",
-					timeoutValues,
-					len/sizeof(u32));
-			data->ttry_timeout = timeoutValues[chip->dev_id & 0x0F];
-		} else {
-			dev_err(cdev, "default ttry timeout\n");
-			data->ttry_timeout = 600;
-		}
-		of_get_property(dev_node, "fusb303,ccdebounce-timer-value",
-				&len);
-		if (len > 0) {
-			of_property_read_u32_array(dev_node,
-					"fusb303,ccdebounce-timer-value",
-					timeoutValues,
-					len/sizeof(u32));
-			data->ccdebounce_timeout =
-				timeoutValues[chip->dev_id & 0x0F];
-		} else {
-			dev_err(cdev, "default ccdebounce timeout\n");
-			data->ccdebounce_timeout = 200;
-		}
-		dev_info(cdev, "ttry-timeout:%d ccdebounce-timeout:%d\n",
-				data->ttry_timeout, data->ccdebounce_timeout);
-	} else {
-		dev_dbg(cdev, "try snk in firmware\n");
-	}
-
 	return rc;
 }
 
@@ -1862,9 +2152,8 @@ static int dual_role_set_prop(struct dual_role_phy_instance *dual_role,
 	struct i2c_client *client = dual_role_get_drvdata(dual_role);
 	u8 mode, target_state, fallback_mode, fallback_state;
 	int rc;
-	bool try_snk_emulation;
 	struct device *cdev;
-	long timeout;
+
 	if (!client)
 		return -EIO;
 	chip = i2c_get_clientdata(client);
@@ -1894,70 +2183,19 @@ static int dual_role_set_prop(struct dual_role_phy_instance *dual_role,
 	if (chip->state == target_state)
 		return 0;
 	mutex_lock(&chip->mlock);
-	try_snk_emulation = chip->pdata->try_snk_emulation;
-	/* role_switch is used a flag to force the chip back Try.SNK
-	 * state machine. */
-	chip->role_switch = false;
-	chip->pdata->try_snk_emulation = false;
-	chip->triedsnk = !chip->pdata->try_snk_emulation;
-	rc = fusb303_set_mode(chip, (u8)mode);
-	if (rc < 0) {
-		if ((fusb303_reset_device(chip) != 0))
-			dev_err(cdev, "%s: failed to reset\n", __func__);
-		mutex_unlock(&chip->mlock);
-		return rc;
-	}
-	rc = fusb303_set_chip_state(chip, 0x0);
-	if (rc < 0) {
-		if ((fusb303_reset_device(chip) != 0))
-			dev_err(cdev, "%s: failed to reset\n", __func__);
-		mutex_unlock(&chip->mlock);
-		return rc;
-	}
-	fusb303_detach(chip);
-	chip->pdata->try_snk_emulation = try_snk_emulation;
-	chip->triedsnk = !chip->pdata->try_snk_emulation;
-	chip->role_switch = true;
-	mutex_unlock(&chip->mlock);
-	timeout = wait_event_interruptible_timeout(mode_switch,
-			chip->state == target_state,
-			msecs_to_jiffies(ROLE_SWITCH_TIMEOUT));
-	if (timeout > 0)
-		return 0;
-	mutex_lock(&chip->mlock);
-	rc = fusb303_set_mode(chip, (u8)fallback_mode);
-	if (rc < 0) {
-		if ((fusb303_reset_device(chip)) != 0)
-			dev_err(cdev, "%s: failed to set mode\n", __func__);
-		mutex_unlock(&chip->mlock);
-		return rc;
-	}
-	rc = fusb303_set_chip_state(chip,
-			fallback_mode == FUSB303_SRC ?
-			FUSB_STATE_UNATTACHED_SRC :
-			fallback_mode == FUSB303_SNK ?
-			FUSB_STATE_UNATTACHED_SNK :
-			0x0);
-	if (rc < 0) {
-		if ((fusb303_reset_device(chip) != 0))
-			dev_err(cdev, "%s: failed to set state\n", __func__);
-		mutex_unlock(&chip->mlock);
-		return rc;
+	if ((mode == FUSB303_SRC) &&
+			(chip->state == FUSB_STATE_ATTACHED_SNK)) {
+		fusb303_set_manual_reg(chip, FUSB303_FORCE_SRC);
+	} else if (mode == FUSB303_SNK &&
+			chip->state == FUSB_STATE_ATTACHED_SRC) {
+		fusb303_set_manual_reg(chip, FUSB303_FORCE_SNK);
 	}
 	mutex_unlock(&chip->mlock);
-	timeout = wait_event_interruptible_timeout(mode_switch,
-			chip->state == fallback_state,
-			msecs_to_jiffies(ROLE_SWITCH_TIMEOUT));
-	mutex_lock(&chip->mlock);
-	if ((fusb303_set_mode(chip,	chip->pdata->init_mode) != 0))
-		dev_err(cdev, "%s: failed to set init mode\n", __func__);
-	mutex_unlock(&chip->mlock);
-	return -EIO;
+	return 0;
 }
 #endif /* HAVE_DR */
-
-
-int fusb303_alert_status_clear(struct tcpc_device *tcpc, uint32_t mask)
+int fusb303_alert_status_clear(struct tcpc_device *tcpc,
+		uint32_t mask)
 {
 		pr_info("%s enter \n", __func__);
 	return 0;
@@ -2037,7 +2275,62 @@ static int fusb303_tcpc_deinit(struct tcpc_device *tcpc_dev)
 	return 0;
 }
 
+int fusb303_get_mode(struct tcpc_device *tcpc, int *typec_mode)
+{
+	struct device *cdev = &g_client->dev;
+	int rc;
+	u8 type;
 
+
+	rc = i2c_smbus_read_byte_data(g_client,
+			FUSB303_REG_TYPE);
+	if (rc < 0) {
+		*typec_mode = 0;
+		dev_err(cdev, "%s: failed to read type\n", __func__);
+		return 0;
+	}
+
+	type = rc & FUSB303_TYPE_MASK;
+
+	switch (type) {
+	case FUSB303_TYPE_SRC:
+	case FUSB303_TYPE_SRC_ACC:
+	case FUSB303_TYPE_DBG_ACC_SRC:
+		*typec_mode = 2;
+		break;
+	case FUSB303_TYPE_SNK:
+	case FUSB303_TYPE_DBG_ACC_SNK:
+		*typec_mode = 1;
+		break;
+	default:
+		*typec_mode = 0;
+		dev_err(cdev, "%s: Invaild type[0x%02x]\n", __func__, type);
+		break;
+	}
+	pr_err("dhx---fusb303 get typec mode type:%d, reg:%x\n", *typec_mode, type);
+	return 0;
+
+}
+int fusb303_set_role(struct tcpc_device *tcpc, int state)
+{
+	int rc = 0;
+	u8 reg;
+
+	pr_err("dhx--set role %d\n", state);
+
+	if (state == REVERSE_CHG_SOURCE)
+		reg = FUSB303_FORCE_SRC;
+	else
+		return 0;
+
+	rc = i2c_smbus_write_byte_data(g_client, FUSB303_REG_MANUAL, reg);
+
+	if (rc < 0) {
+		pr_err("%s: failed to write manual(%d)\n", __func__, rc);
+		return rc;
+	}
+	return rc;
+}
 static struct tcpc_ops fusb303_tcpc_ops = {
 	.init = fusb303_tcpc_init,
 	.alert_status_clear = fusb303_alert_status_clear,
@@ -2051,13 +2344,93 @@ static struct tcpc_ops fusb303_tcpc_ops = {
 	.set_polarity = fusb303_set_polarity,
 	.set_low_rp_duty = fusb303_set_low_rp_duty,
 	.set_vconn = fusb303_set_vconn,
+	.set_role = fusb303_set_role,
+	.get_mode = fusb303_get_mode,
 	.deinit = fusb303_tcpc_deinit,
 };
+static void fusb303_first_check_typec_work(struct work_struct *work)
+{
+	struct fusb303_chip *chip = container_of(work,
+			struct fusb303_chip, first_check_typec_work.work);
+	struct device *cdev = &chip->client->dev;
+	int rc;
+	u8 int_sts = 0;
+	u8 int_sts1 = 0;
 
+	do {
+	mutex_lock(&chip->mlock);
+	/* get interrupt */
+	rc = i2c_smbus_read_byte_data(chip->client, FUSB303_REG_INTERRUPT);
+	if (rc < 0) {
+		dev_err(cdev, "%s: failed to read interrupt\n", __func__);
+		goto work_unlock;
+	}
+
+	first_check = false;
+	int_sts = rc & FUSB303_INT_STS_MASK;
+	dev_info(cdev, "%s: interrupt=0x%02x\n", __func__, int_sts);
+	if (int_sts & FUSB303_I_DETACH) {
+		fusb303_detach(chip);
+	} else {
+		if (int_sts & FUSB303_I_ATTACH) {
+			fusb303_attach(chip);
+		}
+		if (int_sts & FUSB303_I_BC_LVL) {
+			fusb303_bclvl_changed(chip);
+		}
+		if (int_sts & FUSB303_I_AUTOSNK) {
+			fusb303_autosnk_changed(chip);
+		}
+		if (int_sts & FUSB303_I_VBUS_CHG) {
+			fusb303_vbus_changed(chip);
+		}
+		if (int_sts & FUSB303_I_FAULT) {
+			fusb303_fault_changed(chip);
+		}
+		if (int_sts & FUSB303_I_ORIENT) {
+			fusb303_orient_changed(chip);
+		}
+	}
+
+	/* get interrupt1 */
+	rc = i2c_smbus_read_byte_data(chip->client, FUSB303_REG_INTERRUPT1);
+	if (rc < 0) {
+		dev_err(cdev, "%s: failed to read interrupt1\n", __func__);
+		goto work_unlock;
+	}
+	int_sts1 = rc & FUSB303_INT1_STS_MASK;
+	dev_info(cdev, "%s: interrupt_1=0x%02x\n", __func__, int_sts1);
+	if (int_sts1 & FUSB303_I_REMEDY) {
+		fusb303_remedy_changed(chip);
+	}
+	if (int_sts1 & FUSB303_I_FRC_SUCC) {
+		fusb303_frc_succ_changed(chip);
+	}
+	if (int_sts1 & FUSB303_I_FRC_FAIL) {
+		fusb303_frc_fail_changed(chip);
+	}
+	if (int_sts1 & FUSB303_I_REM_FAIL) {
+		fusb303_rem_fail_changed(chip);
+	}
+	if (int_sts1 & FUSB303_I_REM_VBON) {
+		fusb303_rem_vbon_changed(chip);
+	}
+	if (int_sts1 & FUSB303_I_REM_VBOFF) {
+		fusb303_rem_vboff_changed(chip);
+	}
+
+	i2c_smbus_write_byte_data(chip->client,
+				FUSB303_REG_INTERRUPT, int_sts);
+	i2c_smbus_write_byte_data(chip->client,
+				FUSB303_REG_INTERRUPT1, int_sts1);
+work_unlock:
+	mutex_unlock(&chip->mlock);
+	} while (platform_get_device_irq_state(chip));
+}
 static int fusb303_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
-	struct fusb303_chip *chip = NULL;
+	struct fusb303_chip *chip;
 	struct device *cdev = &client->dev;
 //	struct power_supply *usb_psy;
 	struct fusb303_data *data ;
@@ -2067,12 +2440,12 @@ static int fusb303_probe(struct i2c_client *client,
 	struct dual_role_phy_instance *dual_role;
 #endif /* HAVE_DR */
 	int ret = 0;
-	chip_chg = chip;
-//	usb_psy = power_supply_get_by_name("usb");
-//	if (!usb_psy) {
-//		dev_err(cdev, "USB supply not found, deferring probe\n");
-//		return -EPROBE_DEFER;
-//	}
+	first_check = true;
+	//	usb_psy = power_supply_get_by_name("usb");
+	//	if (!usb_psy) {
+	//		dev_err(cdev, "USB supply not found, deferring probe\n");
+	//		return -EPROBE_DEFER;
+	//	}
 	if (!i2c_check_functionality(client->adapter,
 				I2C_FUNC_SMBUS_BYTE_DATA |
 				I2C_FUNC_SMBUS_WORD_DATA)) {
@@ -2086,6 +2459,7 @@ static int fusb303_probe(struct i2c_client *client,
 	}
 	chip->client = client;
 	i2c_set_clientdata(client, chip);
+	g_client = chip->client;
 	ret = fusb303_read_device_id(chip);
 	if (ret != FUSB303_REV) {
 		dev_err(cdev, "fusb303 not support\n");
@@ -2109,18 +2483,17 @@ static int fusb303_probe(struct i2c_client *client,
 	chip->state = 0x0;
 	chip->bc_lvl = FUSB303_SNK_0MA;
 	chip->ufp_power = 0;
-	/* Try.Snk in HW? */
-	chip->triedsnk = !chip->pdata->try_snk_emulation;
-	chip->try_attcnt = 0;
-//	chip->usb_psy = usb_psy;
+	//	chip->usb_psy = usb_psy;
+
 	chip->cc_wq = alloc_ordered_workqueue("fusb303-wq", WQ_HIGHPRI);
 	if (!chip->cc_wq) {
 		dev_err(cdev, "unable to create workqueue fusb303-wq\n");
 		goto err2;
 	}
 	INIT_WORK(&chip->dwork, fusb303_work_handler);
-	INIT_DELAYED_WORK(&chip->twork, fusb303_timer_work_handler);
-
+	sema_init(&chip->suspend_lock, 1);
+	INIT_DELAYED_WORK(&chip->first_check_typec_work,
+			fusb303_first_check_typec_work);
 	mutex_init(&chip->mlock);
 	ret = fusb303_create_devices(cdev);
 	if (ret < 0) {
@@ -2148,8 +2521,8 @@ static int fusb303_probe(struct i2c_client *client,
 	chip->tcpc->typec_attach_new = TYPEC_UNATTACHED;
 	ret = fusb303_init_gpio(chip);
 	if (ret) {
-		dev_err(cdev, "fail to init gpio\n");
-		goto err2;
+		dev_err(cdev, "%s: fail to init gpio\n", __func__);
+		goto err4;
 	}
 #ifdef HAVE_DR
 	if (IS_ENABLED(CONFIG_DUAL_ROLE_USB_INTF)) {
@@ -2173,6 +2546,8 @@ static int fusb303_probe(struct i2c_client *client,
 		chip->desc = desc;
 	}
 #endif /* HAVE_DR */
+	schedule_delayed_work(&chip->first_check_typec_work,
+			msecs_to_jiffies(3000));
 	ret = fusb303_reset_device(chip);
 	if (ret) {
 		dev_err(cdev, "failed to initialize\n");
@@ -2184,8 +2559,8 @@ err5:
 #ifdef HAVE_DR
 	if (IS_ENABLED(CONFIG_DUAL_ROLE_USB_INTF))
 		devm_kfree(cdev, chip->desc);
-err4:
 #endif /* HAVE_DR */
+err4:
 	fusb303_destory_device(cdev);
 
 err3:
@@ -2215,7 +2590,11 @@ static int fusb303_remove(struct i2c_client *client)
 		devm_kfree(cdev, chip->desc);
 	}
 #endif /* HAVE_DR */
+
+	cancel_delayed_work_sync(&chip->first_check_typec_work);
+
 	fusb303_destory_device(cdev);
+
 	destroy_workqueue(chip->cc_wq);
 	mutex_destroy(&chip->mlock);
 	fusb303_free_gpio(chip);
@@ -2228,18 +2607,59 @@ static void fusb303_shutdown(struct i2c_client *client)
 {
 	struct fusb303_chip *chip = i2c_get_clientdata(client);
 	struct device *cdev = &client->dev;
-	if ((fusb303_set_mode(chip, FUSB303_SNK) != 0) ||
-			(fusb303_set_chip_state(chip,
-					0x0) != 0))
+	int rc = 0;
+
+	dev_err(cdev, "%s: enter\n", __func__);
+	rc = i2c_smbus_write_byte_data(chip->client,
+			FUSB303_REG_RESET,
+			FUSB303_SW_RESET);
+	if (rc < 0) {
+		dev_err(cdev, "%s: reset fails\n", __func__);
+	}
+	if (fusb303_set_mode(chip, FUSB303_SNK) != 0)
 		dev_err(cdev, "%s: failed to set sink mode\n", __func__);
+	rc = fusb303_dangling_cbl_en(chip, false);
+	if (rc < 0)
+		dev_err(cdev,
+				"%s: fail to disable dangling cbl func\n", __func__);
+	rc = fusb303_remedy_en(chip, false);
+	if (rc < 0)
+		dev_err(cdev, "%s: fail to disable remedy func\n", __func__);
+	rc = fusb303_auto_snk_en(chip, false);
+	if (rc < 0)
+		dev_err(cdev, "%s: fail to disable auto snk func\n", __func__);
 }
 #ifdef CONFIG_PM
 static int fusb303_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
+	struct fusb303_chip *chip = i2c_get_clientdata(client);
+	struct device *cdev = &client->dev;
+
+	dev_err(cdev, "%s: enter\n", __func__);
+
+	if (!chip) {
+		dev_err(cdev, "%s: No device is available!\n", __func__);
+		return -EINVAL;
+	}
+
+	down(&chip->suspend_lock);
 	return 0;
 }
 static int fusb303_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
+	struct fusb303_chip *chip = i2c_get_clientdata(client);
+	struct device *cdev = &client->dev;
+
+	dev_err(cdev, "%s: enter\n", __func__);
+
+	if (!chip) {
+		dev_err(cdev, "%s: No device is available!\n", __func__);
+		return -EINVAL;
+	}
+
+	up(&chip->suspend_lock);
 	return 0;
 }
 static const struct dev_pm_ops fusb303_dev_pm_ops = {
