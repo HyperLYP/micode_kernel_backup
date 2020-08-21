@@ -70,12 +70,16 @@ static const unsigned int taac_mant[] = {
 		__res & __mask;						\
 	})
 
+static struct mmc_cid *emmc_cid;
+
 /*
  * Given the decoded CSD structure, decode the raw CID to our CID structure.
  */
 static int mmc_decode_cid(struct mmc_card *card)
 {
 	u32 *resp = card->raw_cid;
+
+	emmc_cid = &card->cid;
 
 	/*
 	 * The selection of the format here is based upon published
@@ -123,6 +127,16 @@ static int mmc_decode_cid(struct mmc_card *card)
 	}
 
 	return 0;
+}
+
+uint32_t mmc_get_serial(void)
+{
+	if (NULL != emmc_cid) {
+		return emmc_cid->serial;
+	} else {
+		pr_err("pointer emmc_cid is NULL \n");
+		return 0;
+	}
 }
 
 static void mmc_set_erase_size(struct mmc_card *card)
@@ -867,6 +881,7 @@ static ssize_t mmc_fwrev_show(struct device *dev,
 }
 
 static DEVICE_ATTR(fwrev, S_IRUGO, mmc_fwrev_show, NULL);
+static DEVICE_ATTR(hq_fw_version, S_IRUGO, mmc_fwrev_show, NULL);
 
 static ssize_t mmc_dsr_show(struct device *dev,
 			    struct device_attribute *attr,
@@ -885,6 +900,7 @@ static ssize_t mmc_dsr_show(struct device *dev,
 static DEVICE_ATTR(dsr, S_IRUGO, mmc_dsr_show, NULL);
 
 static struct attribute *mmc_std_attrs[] = {
+	&dev_attr_hq_fw_version.attr,
 	&dev_attr_cid.attr,
 	&dev_attr_csd.attr,
 	&dev_attr_date.attr,
