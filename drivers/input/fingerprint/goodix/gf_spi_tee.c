@@ -51,6 +51,10 @@
 #include "mtk_spi_hal.h"
 #endif
 
+#ifdef CONFIG_HQ_SYSFS_SUPPORT
+#include <linux/hqsysfs.h>
+#endif
+
 /* there is no this file on standardized GPIO platform */
 #ifdef CONFIG_MTK_GPIO
 #include "mtk_gpio.h"
@@ -2077,6 +2081,11 @@ static int gf_probe(struct spi_device *spi)
 	pr_err("%s %d now disable spi clk API", __func__, __LINE__);
 	gf_spi_clk_enable(gf_dev, 0);
 
+
+#ifdef CONFIG_HQ_SYSFS_SUPPORT
+	gf_debug(ERR_LOG, "%s hq_regiser_hw_info\n", __func__);
+	hq_regiser_hw_info(HWID_FP, "Goodix");
+#endif
 	gf_debug(ERR_LOG, "[gf][goodix_test] %s, probe success\n", __func__);
 	FUNC_EXIT();
 	return 0;

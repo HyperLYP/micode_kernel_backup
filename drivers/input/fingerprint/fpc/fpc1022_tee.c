@@ -510,6 +510,10 @@ static int fpc1022_platform_probe(struct platform_device *pldev)
 		goto err_create_sysfs;
 	}
 
+#ifdef CONFIG_HQ_SYSFS_SUPPORT
+	dev_info(dev, "%s hq_regiser_hw_info\n", __func__);
+	hq_regiser_hw_info(HWID_FP, "FPC");
+#endif
 	hw_reset(fpc1022);
 	dev_info(dev, "%s: ok\n", __func__);
 
