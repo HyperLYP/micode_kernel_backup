@@ -1940,6 +1940,14 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
 				custData) + sizeof(req.set_cust_req.getInfo);
 			break;
+		case CUST_ACTION_SET_FACTORY:
+			req.set_cust_req.setFactory.action =
+				CUST_ACTION_SET_FACTORY;
+			req.set_cust_req.setFactory.factory =
+				*((int32_t *) data);
+			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
+				custData) + sizeof(req.set_cust_req.setFactory);
+			break;
 		default:
 			return -1;
 		}
