@@ -273,6 +273,21 @@ static int gf_get_gpio_dts_info(struct gf_device *gf_dev)
 		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl reset_high\n", __func__);
 		return ret;
 	}
+
+	gf_dev->pins_spi_cs_high = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "spi_cs_high");
+	if (IS_ERR(gf_dev->pins_spi_cs_high)) {
+		ret = PTR_ERR(gf_dev->pins_spi_cs_high);
+		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl spi_cs_high\n", __func__);
+		return ret;
+	}
+
+	gf_dev->pins_spi_cs_low = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "spi_cs_low");
+	if (IS_ERR(gf_dev->pins_spi_cs_low)) {
+		ret = PTR_ERR(gf_dev->pins_spi_cs_low);
+		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl spi_cs_low\n", __func__);
+		return ret;
+	}
+
 	gf_dev->pins_reset_low = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "reset_low");
 	if (IS_ERR(gf_dev->pins_reset_low)) {
 		ret = PTR_ERR(gf_dev->pins_reset_low);
@@ -1907,7 +1922,10 @@ static int gf_probe(struct spi_device *spi)
 
 	/*enable the power*/
 	pr_err("%s %d now get dts info done!", __func__, __LINE__);
+	mdelay(10);
 	gf_hw_power_enable(gf_dev, 1);
+	//set cs pin to cs mode
+	pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_spi_cs_high);
 	gf_bypass_flash_gpio_cfg();
 	pr_err("%s %d now enable spi clk API", __func__, __LINE__);
 	gf_spi_clk_enable(gf_dev, 1);

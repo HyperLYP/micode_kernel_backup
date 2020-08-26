@@ -107,6 +107,8 @@ struct fpc1022_data {
 	struct pinctrl_state *st_irq;	//xpt
 	struct pinctrl_state *st_rst_l;
 	struct pinctrl_state *st_rst_h;
+	struct pinctrl_state *st_spi_cs_l;
+	struct pinctrl_state *st_spi_cs_h;
 	//struct pinctrl_state *pins_miso_spi;
 
 	struct input_dev *idev;
@@ -443,6 +445,24 @@ static int fpc1022_platform_probe(struct platform_device *pldev)
 		dev_err(dev, "pinctrl err, rst_low\n");
 		goto err_lookup_state;
 	}
+
+	fpc1022->st_spi_cs_h = pinctrl_lookup_state(fpc1022->pinctrl, "spi_cs_high");
+	if (IS_ERR(fpc1022->st_spi_cs_h)) {
+		ret = PTR_ERR(fpc1022->st_spi_cs_h);
+		dev_err(dev, "pinctrl err, st_spi_cs_h\n");
+		goto err_lookup_state;
+	}
+	fpc1022->st_spi_cs_l = pinctrl_lookup_state(fpc1022->pinctrl, "spi_cs_low");
+	if (IS_ERR(fpc1022->st_spi_cs_l)) {
+		ret = PTR_ERR(fpc1022->st_spi_cs_l);
+		dev_err(dev, "pinctrl err, st_spi_cs_l\n");
+		goto err_lookup_state;
+	}
+
+	mdelay(10);
+	//set cs from gpio mode to spi mode
+	pinctrl_select_state(fpc1022->pinctrl, fpc1022->st_spi_cs_h);
+
 	fpc1022_get_irqNum(fpc1022);
 
 	ret = of_property_read_u32(np, "fpc,event-type", &val);
