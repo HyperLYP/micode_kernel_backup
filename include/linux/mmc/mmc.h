@@ -102,6 +102,8 @@ static inline bool mmc_op_multi(u32 opcode)
 	       opcode == MMC_READ_MULTIPLE_BLOCK;
 }
 
+uint32_t mmc_get_serial(void);
+
 /*
  * MMC_SWITCH argument format:
  *

@@ -51,6 +51,10 @@
 #include "mtk_spi_hal.h"
 #endif
 
+#ifdef CONFIG_HQ_SYSFS_SUPPORT
+#include <linux/hqsysfs.h>
+#endif
+
 /* there is no this file on standardized GPIO platform */
 #ifdef CONFIG_MTK_GPIO
 #include "mtk_gpio.h"
@@ -269,6 +273,21 @@ static int gf_get_gpio_dts_info(struct gf_device *gf_dev)
 		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl reset_high\n", __func__);
 		return ret;
 	}
+
+	gf_dev->pins_spi_cs_high = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "spi_cs_high");
+	if (IS_ERR(gf_dev->pins_spi_cs_high)) {
+		ret = PTR_ERR(gf_dev->pins_spi_cs_high);
+		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl spi_cs_high\n", __func__);
+		return ret;
+	}
+
+	gf_dev->pins_spi_cs_low = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "spi_cs_low");
+	if (IS_ERR(gf_dev->pins_spi_cs_low)) {
+		ret = PTR_ERR(gf_dev->pins_spi_cs_low);
+		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl spi_cs_low\n", __func__);
+		return ret;
+	}
+
 	gf_dev->pins_reset_low = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "reset_low");
 	if (IS_ERR(gf_dev->pins_reset_low)) {
 		ret = PTR_ERR(gf_dev->pins_reset_low);
@@ -1903,7 +1922,10 @@ static int gf_probe(struct spi_device *spi)
 
 	/*enable the power*/
 	pr_err("%s %d now get dts info done!", __func__, __LINE__);
+	mdelay(10);
 	gf_hw_power_enable(gf_dev, 1);
+	//set cs pin to cs mode
+	pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_spi_cs_high);
 	gf_bypass_flash_gpio_cfg();
 	pr_err("%s %d now enable spi clk API", __func__, __LINE__);
 	gf_spi_clk_enable(gf_dev, 1);
@@ -1915,10 +1937,11 @@ static int gf_probe(struct spi_device *spi)
 	gf_spi_read_bytes(gf_dev, 0x0000, 4, rx_test);
 	printk("%s rx_test chip id:0x%x 0x%x 0x%x 0x%x \n", __func__, rx_test[0], rx_test[1], rx_test[2], rx_test[3]);
 	if (1) {
-		if ((rx_test[0] != 0x04) || (rx_test[3] != 0x25)) {
+	if (((rx_test[0] != 0x04) || (rx_test[3] != 0x25)) && ((rx_test[0] != 0x03) || (rx_test[3] != 0x25))) {
 			goodix_fp_exist = false;
 			gf_debug(ERR_LOG, "%s, get goodix FP sensor chipID fail!!\n", __func__);
 			//goto err_readid;
+
 			//workaround to solve two spi device
 			pr_err("%s cannot find the sensor,now exit\n", __func__);
 			if (gf_dev->pinctrl_gpios) {
@@ -2077,6 +2100,11 @@ static int gf_probe(struct spi_device *spi)
 	pr_err("%s %d now disable spi clk API", __func__, __LINE__);
 	gf_spi_clk_enable(gf_dev, 0);
 
+
+#ifdef CONFIG_HQ_SYSFS_SUPPORT
+	gf_debug(ERR_LOG, "%s hq_regiser_hw_info\n", __func__);
+	hq_regiser_hw_info(HWID_FP, "Goodix");
+#endif
 	gf_debug(ERR_LOG, "[gf][goodix_test] %s, probe success\n", __func__);
 	FUNC_EXIT();
 	return 0;

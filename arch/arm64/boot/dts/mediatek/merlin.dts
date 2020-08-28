@@ -94,8 +94,18 @@
 &board_id {
 	io-channels = <&auxadc 3>;
 	io-channel-names = "board_id-channel";
+	hw_id-gpios = <&pio 158 0>;
+	board_id2-gpios = <&pio 5 0>;
+	board_id3-gpios = <&pio 6 0>;
 	status = "okay";
 };
+/*
+&board_id {
+	io-channels = <&auxadc 3>;
+	io-channel-names = "board_id-channel";
+	status = "okay";
+};
+*/
 
 /* flashlight start */
 &flashlights_led191 {
@@ -263,10 +273,12 @@
 
 &goodix_fp {
 	fpc,gpio_irq = <&pio 8 0>;
-	pinctrl-names = "default", "reset_high", "reset_low";
+	pinctrl-names = "default", "reset_high", "reset_low", "spi_cs_low", "spi_cs_high";
 	pinctrl-0 = <&fingerprint_default>;
 	pinctrl-1 = <&fingerprint_reset_high>;
 	pinctrl-2 = <&fingerprint_reset_low>;
+	pinctrl-3 = <&fingerprint_spi_cs_low>;
+	pinctrl-4 = <&fingerprint_spi_cs_high>;
 	status = "okay";
 };
 
@@ -288,6 +300,50 @@
 	fingerprint_reset_low: state_reset_low {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO31__FUNC_GPIO31>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	fingerprint_spi_cs_low: state_spi_cs_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO25__FUNC_SPI2_CSB>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	fingerprint_spi_cs_high: state_spi_cs_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO25__FUNC_SPI2_CSB>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	ctp_ts_int_active: int_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO1__FUNC_GPIO1>;
+			slew-rate = <0>;
+			bias-pull-up = <11>;
+		};
+	};
+	ctp_ts_reset_active: reset_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_GPIO23>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	ctp_ts_int_suspend: int_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO1__FUNC_GPIO1>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	ctp_ts_reset_suspend: reset_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_GPIO23>;
 			slew-rate = <1>;
 			output-low;
 		};
