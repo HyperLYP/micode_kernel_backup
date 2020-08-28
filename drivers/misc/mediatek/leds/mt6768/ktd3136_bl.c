@@ -572,16 +572,13 @@ void ktd3137_brightness_set_workfunc(struct ktd3137_chip *chip, int brightness)
 	} else {
 		if (ktd_hbm_mode == 3) {
 			ktd3137_write_reg(bkl_chip->client, REG_MODE, 0xE1);//27.4mA
-			if (printk_ratelimit())
-				printk(KERN_INFO "[%s]: ktd_hbm_mode = %d\n", __func__, ktd_hbm_mode);
+			printk(KERN_INFO "[%s]: ktd_hbm_mode = %d\n", __func__, ktd_hbm_mode);
 		} else if (ktd_hbm_mode == 2) {
 			ktd3137_write_reg(bkl_chip->client, REG_MODE, 0xC9);//25mA
-			if (printk_ratelimit())
-				printk(KERN_INFO "[%s]: ktd_hbm_mode = %d\n", __func__, ktd_hbm_mode);
+			printk(KERN_INFO "[%s]: ktd_hbm_mode = %d\n", __func__, ktd_hbm_mode);
 		} else {
 			ktd3137_write_reg(chip->client, REG_MODE, 0xA9);//21.8mA
-			if (printk_ratelimit())
-				printk(KERN_INFO "[%s]: ktd_hbm_mode = %d\n", __func__, ktd_hbm_mode);
+			printk(KERN_INFO "[%s]: ktd_hbm_mode = %d\n", __func__, ktd_hbm_mode);
 		}
 	}
 
@@ -647,8 +644,7 @@ int ktd_hbm_set(enum backlight_hbm_mode hbm_mode)
 
 int ktd3137_brightness_set(int brightness)
 {
-	if (printk_ratelimit())
-		LOG_DBG("%s brightness = %d\n", __func__, brightness);
+	LOG_DBG("%s brightness = %d\n", __func__, brightness);
 
 #ifdef CONFIG_TARGET_PRODUCT_MERLINCOMMON
 	if ((brightness < 5) && (brightness > 2)) {//HQ-61731
