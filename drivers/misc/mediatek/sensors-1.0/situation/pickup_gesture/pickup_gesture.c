@@ -82,6 +82,12 @@ static int pickup_gesture_batch(int flag,
 	return sensor_batch_to_hub(ID_PICK_UP_GESTURE,
 		flag, samplingPeriodNs, maxBatchReportLatencyNs);
 }
+
+static int pickup_detect_flush(void)
+{
+	return situation_flush_report(ID_PICK_UP_GESTURE);
+}
+
 static int pickup_gesture_recv_data(struct data_unit_t *event,
 	void *reserved)
 {
@@ -103,6 +109,7 @@ static int pkuphub_local_init(void)
 
 	ctl.open_report_data = pickup_gesture_open_report_data;
 	ctl.batch = pickup_gesture_batch;
+	ctl.flush = pickup_detect_flush;
 	ctl.is_support_wake_lock = true;
 	err = situation_register_control_path(&ctl, ID_PICK_UP_GESTURE);
 	if (err) {

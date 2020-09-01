@@ -378,7 +378,7 @@ static int ti_lmu_backlight_set_brightness(int brightness)
 
 int lm3697_set_brightness(int brightness)
 {
-	//printk(KERN_INFO "[bkl][before]%s brightness = %d\n", __func__, brightness);
+	printk(KERN_INFO "[bkl][before]%s brightness = %d\n", __func__, brightness);
 	//return ti_lmu_backlight_update_brightness_register(bl_chip->lmu_bl, brightness);
 
 #ifdef CONFIG_TARGET_PRODUCT_MERLINCOMMON

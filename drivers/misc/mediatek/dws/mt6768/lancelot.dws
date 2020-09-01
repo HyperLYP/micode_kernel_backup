@@ -214,12 +214,10 @@
                 <def_mode>0</def_mode>
                 <inpull_en>true</inpull_en>
                 <inpull_selhigh>false</inpull_selhigh>
-		<inpull_selhigh>true</inpull_selhigh>
                 <def_dir>IN</def_dir>
                 <out_high>false</out_high>
                 <varName0>GPIO_JTAG_TRSTN_PIN</varName0>
                 <smt>false</smt>
-		<smt>true</smt>
                 <ies>true</ies>
             </gpio8>
             <gpio9>

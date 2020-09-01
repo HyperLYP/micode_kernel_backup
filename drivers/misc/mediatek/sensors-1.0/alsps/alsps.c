@@ -15,10 +15,11 @@
 
 #include "inc/alsps.h"
 #include "inc/aal_control.h"
+#include <SCP_sensorHub.h>
 struct alsps_context *alsps_context_obj /* = NULL*/;
 struct platform_device *pltfm_dev;
 int last_als_report_data = -1;
-
+static int g_screen_info;
 uint16_t als_data_count;
 int als_data_temp = -1;
 /* AAL default delay timer(nano seconds)*/
@@ -187,6 +188,21 @@ int ps_cali_report(int *value)
 	err = sensor_input_event(alsps_context_obj->ps_mdev.minor, &event);
 	return err;
 }
+
+// new add for sec cal
+int ps_sec_cali_report(int value)
+{
+	int err = 0;
+	struct sensor_event event;
+	printk("zch---ps_sec_cali_report\n");
+	memset(&event, 0, sizeof(struct sensor_event));
+
+	event.flush_action = CALI_SEC_ACTION;
+	event.word[0] = value;
+	err = sensor_input_event(alsps_context_obj->ps_mdev.minor, &event);
+	return err;
+}
+
 
 int ps_flush_report(void)
 {
@@ -1025,6 +1041,85 @@ int ps_report_interrupt_data(int value)
 
 	return 0;
 }
+
+ //new add by zch for get lcm info
+static ssize_t als_store_screen_info(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+    int res = 0;
+
+    res = sensor_set_cmd_to_hub(ID_LIGHT, CUST_ACTION_LCM_INFO, &g_screen_info);
+    if (res < 0) {
+    pr_err("sensor_set_cmd_to_hub fail,(ID: %d),(action: %d)\n",
+    ID_PROXIMITY, CUST_ACTION_LCM_INFO);
+    return 0;
+    }
+    printk("ps_store_screen_info send g_screen_info =%d\n ", g_screen_info);
+    return count;
+  }
+
+
+static ssize_t als_show_screen_info(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", g_screen_info);
+}
+
+static int __init early_lcm_name(char *p)
+{
+    if (memcmp(p, "ft8719", 6) == 0) {
+    printk("LCM_name=ft8719_fhdp_dsi_vdo_xinli_lcm_drv g_screen_info = 1\n");
+    g_screen_info = 2;
+    } else if (memcmp(p, "nt36672", 7) == 0) {
+    printk("LCM_name=nt36672A_fhdp_dsi_vdo_tianma_lcm_drv, g_screen_info = 2\n");
+    g_screen_info = 1;
+    } else
+    printk("LCM_name = unknow,\n");
+    return 0;
+}
+early_param("LCM_name", early_lcm_name);
+
+
+
+ // end
+
+
+ //new add by zch for sec cal
+static ssize_t pscali_sec_store_cali(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+    int data = 0;
+    sscanf(buf, "%d", &data);
+    printk("zch---pscali_sec_store_cali  ct=%d\n", data);
+    // sec cali
+    ps_sec_cali_report(data);
+    return count;
+     }
+
+ static ssize_t update_cali_data_store_cali(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+    int data, res = 0;
+    sscanf(buf, "%d", &data);
+    printk("update_cali_data_store_cali  ct=%d\n", data);
+
+     res = sensor_set_cmd_to_hub(ID_PROXIMITY, CUST_ACTION_SEC_PCAL, &data);
+    if (res < 0) {
+    pr_err("sensor_set_cmd_to_hub fail,(ID: %d),(action: %d)\n",
+    ID_PROXIMITY, CUST_ACTION_SEC_PCAL);
+    return 0;
+    }
+    printk("zch---update_cali_data_store_cali send new CT =%d\n ", data);
+    return count;
+     }
+
+//end
+
+
+
 /*----------------------------------------------------------------------------*/
 EXPORT_SYMBOL_GPL(ps_report_interrupt_data);
 DEVICE_ATTR(alsactive, 0644, als_show_active, als_store_active);
@@ -1037,13 +1132,16 @@ DEVICE_ATTR(psbatch, 0644, ps_show_batch, ps_store_batch);
 DEVICE_ATTR(psflush, 0644, ps_show_flush, ps_store_flush);
 DEVICE_ATTR(psdevnum, 0644, ps_show_devnum, NULL);
 DEVICE_ATTR(pscali, 0644, NULL, ps_store_cali);
-
+DEVICE_ATTR(pscali_sec, 0644, NULL, pscali_sec_store_cali);  //new add
+DEVICE_ATTR(update_cali_data, 0644, NULL, update_cali_data_store_cali);  //new add
+DEVICE_ATTR(screen_info, 0644, als_show_screen_info, als_store_screen_info);
 static struct attribute *als_attributes[] = {
 	&dev_attr_alsactive.attr,
 	&dev_attr_alsbatch.attr,
 	&dev_attr_alsflush.attr,
 	&dev_attr_alsdevnum.attr,
 	&dev_attr_alscali.attr,
+	&dev_attr_screen_info.attr,
 	NULL
 };
 
@@ -1053,6 +1151,8 @@ static struct attribute *ps_attributes[] = {
 	&dev_attr_psflush.attr,
 	&dev_attr_psdevnum.attr,
 	&dev_attr_pscali.attr,
+	&dev_attr_pscali_sec.attr,  //new add
+	&dev_attr_update_cali_data.attr, //new add
 	NULL
 };
 

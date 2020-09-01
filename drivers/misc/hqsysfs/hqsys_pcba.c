@@ -97,6 +97,7 @@ static const board_id_map_t board_id_map[] = {
 };
 static const board_id_map_t board_id_map_ext[] = {
 	{130, 225, PCBA_J15S_MP_GLOBAL},
+	{226, 315, PCBA_J15S_CN_NEW_PA},
 };
 static const board_id_map_t j15n_board_id_map[] = {
 	{1031, 1125, PCBA_J15N_P2_GLOBAL_NFC},
