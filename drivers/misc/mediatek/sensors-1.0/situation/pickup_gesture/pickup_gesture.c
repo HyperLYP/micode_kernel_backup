@@ -96,8 +96,8 @@ static int pickup_gesture_recv_data(struct data_unit_t *event,
 	if (event->flush_action == FLUSH_ACTION)
 		pr_debug("pickup_gesture do not support flush\n");
 	else if (event->flush_action == DATA_ACTION)
-		err = situation_notify_t(ID_PICK_UP_GESTURE,
-				(int64_t)event->time_stamp);
+		err = situation_data_report_t(ID_PICK_UP_GESTURE,
+				(uint32_t)event->data[0], (int64_t)event->time_stamp);
 	return err;
 }
 
