@@ -337,6 +337,11 @@
 
 #define KEY_MICMUTE		248	/* Mute / unmute the microphone */
 
+#define KEY_TABLE1		249
+#define KEY_TABLE2		250
+#define KEY_NONE		        251
+
+
 /* Code 255 is reserved for special needs of AT keyboard driver */
 
 #define BTN_MISC		0x100
