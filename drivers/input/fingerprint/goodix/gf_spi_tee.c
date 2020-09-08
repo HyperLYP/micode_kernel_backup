@@ -25,6 +25,12 @@
 #include <linux/notifier.h>
 #endif
 
+/* begin modify for unlock speed */
+#include "../../../misc/mediatek/video/include/mtkfb.h"
+#include <linux/pm_qos.h>
+#include <helio-dvfsrc-opp.h>
+/* end modify for unlock speed */
+
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #include <linux/of_irq.h>
@@ -105,6 +111,16 @@ static DEFINE_MUTEX(device_list_lock);
 
 static struct wakeup_source fp_wakesrc;
 
+/* begin modify for unlock speed */
+static int cluster_num;
+static struct pm_qos_request gf_fingerprint_ddr_req;
+static struct ppm_limit_data *freq_to_set;
+static atomic_t boosted = ATOMIC_INIT(0);
+static struct timer_list release_timer;
+static struct work_struct fp_display_work;
+static struct work_struct fp_freq_work;
+/* end modify for unlock speed */
+
 static unsigned int bufsiz = (25 * 1024);
 module_param(bufsiz, uint, S_IRUGO);
 MODULE_PARM_DESC(bufsiz, "maximum data bytes for SPI message");
@@ -133,17 +149,40 @@ static ssize_t gf_debug_show(struct device *dev,
 static ssize_t gf_debug_store(struct device *dev,
 			struct device_attribute *attr, const char *buf, size_t count);
 
+/* begin modify for unlock speed */
+static ssize_t performance_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t count);
+/* end modify for unlock speed */
 static DEVICE_ATTR(debug, S_IRUGO | S_IWUSR, gf_debug_show, gf_debug_store);
+
+/* begin modify for unlock speed */
+static DEVICE_ATTR(performance, S_IRUGO | S_IWUSR, NULL, performance_store);
+/* end modify for unlock speed */
 
 static struct attribute *gf_debug_attrs[] = {
 	&dev_attr_debug.attr,
 	NULL
 };
 
+/* begin modify for unlock speed */
+static struct attribute *performance_attrs[] = {
+	&dev_attr_performance.attr,
+	NULL
+};
+/* end modify for unlock speed */
+
 static const struct attribute_group gf_debug_attr_group = {
 	.attrs = gf_debug_attrs,
 	.name = "debug"
 };
+
+/* begin modify for unlock speed */
+static const struct attribute_group performance_attr_group = {
+	.attrs = performance_attrs,
+	.name = "authen_fd"
+ };
+/* end modify for unlock speed */
 
 #ifndef CONFIG_SPI_MT65XX
 const struct mt_chip_conf spi_ctrdata = {
@@ -1102,6 +1141,105 @@ static ssize_t gf_debug_show(struct device *dev,
 	return sprintf(buf, "vendor id 0x%x\n", g_vendor_id);
 }
 
+/* begin modify for unlock speed */
+static int gf_fingerprint_vcorefs_hold(void)
+{
+	printk("gf_fingerprint_vcorefs_hold\n");
+	pm_qos_update_request(&gf_fingerprint_ddr_req, DDR_OPP_0);
+	return 0;
+}
+
+static int gf_fingerprint_vcorefs_release(void)
+{
+	printk("gf_fingerprint_vcorefs_release\n");
+	pm_qos_update_request(&gf_fingerprint_ddr_req, DDR_OPP_UNREQ);
+	return 0;
+}
+
+extern int mdss_prim_panel_fb_unblank(int timeout);
+static void unblank_work(struct work_struct *work)
+{
+	printk("unblank_work gf unblank start\n");
+	gf_debug(INFO_LOG, "entry %s line %d \n", __func__, __LINE__);
+	gf_fingerprint_vcorefs_hold();
+	mdss_prim_panel_fb_unblank(200);
+	gf_fingerprint_vcorefs_release();
+	printk("unblank_work gf unblank end\n");
+}
+
+static void freq_release(struct work_struct *work)
+{
+	int i;
+
+	for (i = 0; i < cluster_num; i++) {
+		freq_to_set[i].min = -1;
+		freq_to_set[i].max = -1;
+	}
+	if (atomic_read(&boosted) == 1) {
+		gf_debug(INFO_LOG, "%s  release freq lock\n", __func__);
+		update_userlimit_cpu_freq(CPU_KIR_FINGERPRINT, cluster_num,
+					freq_to_set);
+		atomic_dec(&boosted);
+	}
+}
+
+static void freq_release_timer(unsigned long arg)
+{
+	gf_debug(INFO_LOG, "entry %s line %d \n", __func__, __LINE__);
+	schedule_work(&fp_freq_work);
+}
+
+static int freq_hold(int sec)
+{
+
+	int i;
+
+	for (i = 0; i < cluster_num; i++) {
+		if (i == cluster_num - 1)
+			freq_to_set[i].min = 2050000;
+		else
+			freq_to_set[i].min = 2000000;
+
+		freq_to_set[i].max = -1;
+	}
+	if (atomic_read(&boosted) == 0) {
+		printk("%s: fingerprint down\n", __func__);
+		gf_debug(INFO_LOG, "%s for %d * 500 msec \n", __func__, sec);
+		update_userlimit_cpu_freq(CPU_KIR_FINGERPRINT, cluster_num,
+					freq_to_set);
+		atomic_inc(&boosted);
+		release_timer.expires = jiffies + (HZ / 2) * sec;
+		add_timer(&release_timer);
+	}
+	schedule_work(&fp_display_work);
+	return 0;
+}
+
+static ssize_t performance_store(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t count)
+{
+	if (!strncmp(buf, "1", count)) {
+			printk("%s: fingerprint down\n", __func__);
+			gf_debug(INFO_LOG, "finger down in authentication/enroll\n");
+			freq_hold(1);
+
+	} else if (!strncmp(buf, "0", 1)) {
+			gf_debug(INFO_LOG, "finger up in authentication/enroll\n");
+	} else {
+			int timeout;
+			if (kstrtoint(buf, 10, &timeout) == 0) {
+				freq_hold(timeout);
+				gf_debug(INFO_LOG, "hold performance lock for %d * 500ms\n", timeout);
+		} else {
+				freq_hold(1);
+				gf_debug(INFO_LOG, "hold performance lock for 500ms\n");
+		}
+	}
+	return count;
+}
+/* end modify for unlock speed */
+
 static ssize_t gf_debug_store(struct device *dev,
 			struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -1857,9 +1995,32 @@ static int gf_probe(struct spi_device *spi)
 		goto err;
 	}
 
+	/* begin modify for unlock speed */
+	pm_qos_add_request(&gf_fingerprint_ddr_req, PM_QOS_DDR_OPP, PM_QOS_DDR_OPP_DEFAULT_VALUE);
+	cluster_num = arch_get_nr_clusters();
+	gf_debug(INFO_LOG, "cluster_num = %d \n", cluster_num);
+
+	freq_to_set =
+		kcalloc(cluster_num, sizeof(struct ppm_limit_data), GFP_KERNEL);
+
+	if (!freq_to_set) {
+		gf_debug(INFO_LOG, "kcalloc freq_to_set fail\n");
+		goto err_buf;
+	}
+	/* end modify for unlock speed */
+
 	spin_lock_init(&gf_dev->spi_lock);
 	mutex_init(&gf_dev->buf_lock);
 	mutex_init(&gf_dev->release_lock);
+
+	/* begin modify for unlock speed */
+	INIT_WORK(&fp_freq_work, freq_release);
+	INIT_WORK(&fp_display_work, unblank_work);
+
+	init_timer(&release_timer);
+	release_timer.function = freq_release_timer;
+	release_timer.data = 0UL;
+	/* end modify for unlock speed */
 
 	INIT_LIST_HEAD(&gf_dev->device_entry);
 
@@ -1892,22 +2053,22 @@ static int gf_probe(struct spi_device *spi)
 	gf_dev->spi_buffer = kzalloc(bufsiz, GFP_KERNEL);
 	if (gf_dev->spi_buffer == NULL) {
 		status = -ENOMEM;
-		goto err_buf;
+		goto err_freqbuff;
 	}
 
 	buck = regulator_get(NULL, "vldo28");
 	if (buck == NULL) {
 		gf_debug(INFO_LOG, "regulator_get fail");
-		goto err_buf;
+		goto err_freqbuff;
 	}
 	status = regulator_set_voltage(buck, 2800000, 2800000);
 	if (status < 0) {
-	    goto err_buf;
+	    goto err_freqbuff;
 	}
 	status = regulator_enable(buck);
 	if (status < 0) {
-		gf_debug(ERR_LOG, "%s, regulator_enable fail!!\n", __func__);
-		goto err_buf;
+		gf_debug(ERR_LOG, "%s, regulator_enable fail!!\n" , __func__);
+		goto err_freqbuff;
 	}
 
 
@@ -1932,6 +2093,20 @@ static int gf_probe(struct spi_device *spi)
 	pr_err("%s %d now enable spi clk Done", __func__, __LINE__);
 	/* check firmware Integrity */
 	//gf_debug(INFO_LOG, "%s, Sensor type : %s.\n", __func__, CONFIG_GOODIX_SENSOR_TYPE);
+
+	/* begin modify for unlock speed */
+	/* init freq ppm data */
+	status = sysfs_create_group(&spi->dev.kobj, &performance_attr_group);
+	if (status) {
+		gf_debug(ERR_LOG, "%s, Failed to create authen_fd node.\n",
+			 __func__);
+		status = -ENODEV;
+		goto err_buf;
+	} else {
+		gf_debug(INFO_LOG, "%s, Success create authen_fd node.\n",
+			 __func__);
+	}
+	/* end modify for unlock speed */
 
 	mdelay(1);
 	gf_spi_read_bytes(gf_dev, 0x0000, 4, rx_test);
@@ -2142,6 +2317,11 @@ err_fw:
 	gf_hw_power_enable(gf_dev, 0);
 	gf_spi_clk_enable(gf_dev, 0);
 	kfree(gf_dev->spi_buffer);
+err_freqbuff:
+	/* begin modify for unlock speed */
+	kfree(freq_to_set);
+	/* end modify for unlock speed */
+
 err_buf:
 	mutex_destroy(&gf_dev->buf_lock);
 	mutex_destroy(&gf_dev->release_lock);
@@ -2199,6 +2379,7 @@ static int gf_remove(struct spi_device *spi)
 	gf_netlink_destroy(gf_dev);
 	cdev_del(&gf_dev->cdev);
 	sysfs_remove_group(&spi->dev.kobj, &gf_debug_attr_group);
+	sysfs_remove_group(&spi->dev.kobj, &performance_attr_group);
 	device_destroy(gf_dev->class, gf_dev->devno);
 	list_del(&gf_dev->device_entry);
 
@@ -2216,6 +2397,11 @@ static int gf_remove(struct spi_device *spi)
 	mutex_destroy(&gf_dev->release_lock);
 
 	kfree(gf_dev);
+
+	/* begin modify for unlock speed */
+	kfree(freq_to_set);
+	/* end modify for unlock speed */
+
 	FUNC_EXIT();
 	return 0;
 }
