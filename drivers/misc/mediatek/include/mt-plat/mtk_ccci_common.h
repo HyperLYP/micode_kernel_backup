@@ -673,6 +673,7 @@ enum {
 	CCCI_DUMP_MEM_DUMP,
 	CCCI_DUMP_HISTORY,
 	CCCI_DUMP_REGISTER,
+	CCCI_DUMP_DPMA_DRB,
 	CCCI_DUMP_MAX,
 };
 void ccci_util_mem_dump(int md_id, int buf_type, void *start_addr, int len);
@@ -720,4 +721,11 @@ int mtk_ccci_open_port(int index);
 int mtk_ccci_release_port(int index);
 int mtk_ccci_handle_port_list(int status, char *name);
 void mtk_ccci_net_port_init(char *name);
+
+int mtk_ccci_register_md_state_cb(
+		void (*md_state_cb)(
+			enum MD_STATE old_state,
+			enum MD_STATE new_state));
+
+
 #endif

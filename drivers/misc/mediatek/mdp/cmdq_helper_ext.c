@@ -29,9 +29,9 @@
 #include <mt-plat/mtk_secure_api.h>
 
 #include "cmdq-util.h"
-#include "cmdq_helper_ext.h"
-#include "cmdq_record.h"
-#include "cmdq_device.h"
+#include "mdp_cmdq_helper_ext.h"
+#include "mdp_cmdq_record.h"
+#include "mdp_cmdq_device.h"
 #include "cmdq_virtual.h"
 #include "cmdq_reg.h"
 #include "mdp_common.h"
@@ -568,6 +568,9 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 			reqLen = snprintf(textBuf, bufLen,
 				"Set MASK:0x%08x\n", arg_b);
 		}
+		if (reqLen >= bufLen)
+			pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+				__func__, __LINE__, reqLen, bufLen);
 		break;
 	case CMDQ_CODE_READ:
 	case CMDQ_CODE_WRITE:
@@ -577,6 +580,9 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 	case CMDQ_CODE_WRITE_S_W_MASK:
 		reqLen = snprintf(textBuf, bufLen, "%s: ",
 			cmdq_core_parse_op(op));
+		if (reqLen >= bufLen)
+			pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+				__func__, __LINE__, reqLen, bufLen);
 		bufLen -= reqLen;
 		textBuf += reqLen;
 
@@ -598,31 +604,32 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 			reg_id = cmdq_core_interpret_wpr_value_data_register(
 				op, arg_value);
 			reqLen = snprintf(textBuf, bufLen, "Reg%d, ", reg_id);
-			bufLen -= reqLen;
-			textBuf += reqLen;
 		} else {
 			reqLen = snprintf(textBuf, bufLen, "0x%08x, ",
 				arg_value);
-			bufLen -= reqLen;
-			textBuf += reqLen;
 		}
+		if (reqLen >= bufLen)
+			pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+				__func__, __LINE__, reqLen, bufLen);
+		bufLen -= reqLen;
+		textBuf += reqLen;
 
 		/* address */
 		if (arg_addr_type != 0) {
 			reg_id = cmdq_core_interpret_wpr_address_data_register(
 				op, arg_addr);
 			reqLen = snprintf(textBuf, bufLen, "Reg%d, ", reg_id);
-			bufLen -= reqLen;
-			textBuf += reqLen;
 		} else {
 			reg_addr = cmdq_core_subsys_to_reg_addr(arg_addr);
-
 			reqLen = snprintf(textBuf, bufLen,
 				"addr:0x%08x [%s], ", reg_addr & addr_mask,
 				cmdq_get_func()->parseModule(reg_addr));
-			bufLen -= reqLen;
-			textBuf += reqLen;
 		}
+		if (reqLen >= bufLen)
+			pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+				__func__, __LINE__, reqLen, bufLen);
+		bufLen -= reqLen;
+		textBuf += reqLen;
 
 		use_mask = (arg_addr & 0x1);
 		if (op == CMDQ_CODE_WRITE_S_W_MASK)
@@ -630,8 +637,9 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 		else if (op == CMDQ_CODE_READ_S || op == CMDQ_CODE_WRITE_S)
 			use_mask = 0;
 		reqLen = snprintf(textBuf, bufLen, "use_mask:%d\n", use_mask);
-		bufLen -= reqLen;
-		textBuf += reqLen;
+		if (reqLen >= bufLen)
+			pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+				__func__, __LINE__, reqLen, bufLen);
 		break;
 	case CMDQ_CODE_JUMP:
 		if (arg_a) {
@@ -656,6 +664,9 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 					(s32)CMDQ_REG_REVERT_ADDR(arg_b));
 			}
 		}
+		if (reqLen >= bufLen)
+			pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+				__func__, __LINE__, reqLen, bufLen);
 		break;
 	case CMDQ_CODE_WFE:
 		if (arg_b == 0x80008001) {
@@ -682,12 +693,18 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 				(arg_b >> 15) & 0x1,
 				(arg_b >> 12) & 0x7, (arg_b >> 0) & 0xFFF);
 		}
+		if (reqLen >= bufLen)
+			pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+				__func__, __LINE__, reqLen, bufLen);
 		break;
 	case CMDQ_CODE_EOC:
 		if (arg_a == 0 && arg_b == 0x00000001) {
 			reqLen = snprintf(textBuf, bufLen, "EOC\n");
 		} else {
 			reqLen = snprintf(textBuf, bufLen, "MARKER:");
+			if (reqLen >= bufLen)
+				pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+					__func__, __LINE__, reqLen, bufLen);
 			bufLen -= reqLen;
 			textBuf += reqLen;
 			if (arg_b == 0x00100000) {
@@ -705,6 +722,9 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 						(arg_b & (1 << 0)) > 0);
 			}
 		}
+		if (reqLen >= bufLen)
+			pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+				__func__, __LINE__, reqLen, bufLen);
 		break;
 	case CMDQ_CODE_LOGIC:
 		{
@@ -715,17 +735,26 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 
 			reqLen = snprintf(textBuf, bufLen, "%s: ",
 				cmdq_core_parse_op(op));
+			if (reqLen >= bufLen)
+				pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+					__func__, __LINE__, reqLen, bufLen);
 			bufLen -= reqLen;
 			textBuf += reqLen;
 
 			reqLen = snprintf(textBuf, bufLen, "Reg%d = ",
 				(arg_a & 0xFFFF));
+			if (reqLen >= bufLen)
+				pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+					__func__, __LINE__, reqLen, bufLen);
 			bufLen -= reqLen;
 			textBuf += reqLen;
 
 			if (s_op == CMDQ_LOGIC_ASSIGN) {
 				reqLen = snprintf(textBuf, bufLen, "0x%08x\n",
 					arg_b);
+				if (reqLen >= bufLen)
+					pr_debug("reqLen:%d over bufLen:%d\n",
+						reqLen, bufLen);
 				bufLen -= reqLen;
 				textBuf += reqLen;
 			} else if (s_op == CMDQ_LOGIC_NOT) {
@@ -738,7 +767,9 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 				else
 					reqLen = snprintf(textBuf, bufLen,
 						"~%d\n", arg_b_i);
-
+				if (reqLen >= bufLen)
+					pr_debug("reqLen:%d over bufLen:%d\n",
+						reqLen, bufLen);
 				bufLen -= reqLen;
 				textBuf += reqLen;
 			} else {
@@ -751,32 +782,39 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 				if (arg_b_type != 0) {
 					reqLen = snprintf(textBuf, bufLen,
 						"Reg%d ", arg_b_i);
-					bufLen -= reqLen;
-					textBuf += reqLen;
 				} else {
 					reqLen = snprintf(textBuf, bufLen,
 						"%d ", arg_b_i);
-					bufLen -= reqLen;
-					textBuf += reqLen;
 				}
+				if (reqLen >= bufLen)
+					pr_debug("reqLen:%d over bufLen:%d\n",
+						reqLen, bufLen);
+				bufLen -= reqLen;
+				textBuf += reqLen;
+
 				/* operator */
 				reqLen = snprintf(textBuf, bufLen, "%s ",
 					cmdq_core_parse_logic_sop(s_op));
+				if (reqLen >= bufLen)
+					pr_debug("reqLen:%d over bufLen:%d\n",
+						reqLen, bufLen);
 				bufLen -= reqLen;
 				textBuf += reqLen;
+
 				/* arg_c_i */
 				if (arg_c_type != 0) {
 					reqLen = snprintf(textBuf, bufLen,
 						"Reg%d\n", arg_c_i);
-					bufLen -= reqLen;
-					textBuf += reqLen;
 				} else {
 					reqLen = snprintf(textBuf, bufLen,
 						"%d\n", CMDQ_REG_REVERT_ADDR(
 						arg_c_i));
-					bufLen -= reqLen;
-					textBuf += reqLen;
 				}
+				if (reqLen >= bufLen)
+					pr_debug("reqLen:%d over bufLen:%d\n",
+						reqLen, bufLen);
+				bufLen -= reqLen;
+				textBuf += reqLen;
 			}
 		}
 		break;
@@ -796,6 +834,9 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 
 			reqLen = snprintf(textBuf, bufLen, "%s: if (",
 				cmdq_core_parse_op(op));
+			if (reqLen >= bufLen)
+				pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+					__func__, __LINE__, reqLen, bufLen);
 			bufLen -= reqLen;
 			textBuf += reqLen;
 
@@ -803,50 +844,62 @@ s32 cmdq_core_interpret_instruction(char *textBuf, s32 bufLen,
 			if (arg_b_type != 0) {
 				reqLen = snprintf(textBuf, bufLen, "Reg%d ",
 					arg_b_i);
-				bufLen -= reqLen;
-				textBuf += reqLen;
 			} else {
 				reqLen = snprintf(textBuf, bufLen, "%d ",
 					arg_b_i);
-				bufLen -= reqLen;
-				textBuf += reqLen;
 			}
+			if (reqLen >= bufLen)
+				pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+					__func__, __LINE__, reqLen, bufLen);
+			bufLen -= reqLen;
+			textBuf += reqLen;
+
 			/* operator */
 			reqLen = snprintf(textBuf, bufLen, "%s ",
 				cmdq_core_parse_jump_c_sop(s_op));
+			if (reqLen >= bufLen)
+				pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+					__func__, __LINE__, reqLen, bufLen);
 			bufLen -= reqLen;
 			textBuf += reqLen;
+
 			/* arg_c_i */
 			if (arg_c_type != 0) {
 				reqLen = snprintf(textBuf, bufLen,
 					"Reg%d) jump ", arg_c_i);
-				bufLen -= reqLen;
-				textBuf += reqLen;
 			} else {
 				reqLen = snprintf(textBuf, bufLen,
 					"%d) jump ", CMDQ_REG_REVERT_ADDR(
 					arg_c_i));
-				bufLen -= reqLen;
-				textBuf += reqLen;
 			}
+			if (reqLen >= bufLen)
+				pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+					__func__, __LINE__, reqLen, bufLen);
+			bufLen -= reqLen;
+			textBuf += reqLen;
+
 			/* jump to */
 			if (arg_a_type != 0) {
 				reqLen = snprintf(textBuf, bufLen,
 					"Reg%d\n", arg_a_i);
-				bufLen -= reqLen;
-				textBuf += reqLen;
 			} else {
 				reqLen = snprintf(textBuf, bufLen,
 					"+%d\n", arg_a_i);
-				bufLen -= reqLen;
-				textBuf += reqLen;
 			}
+			if (reqLen >= bufLen)
+				pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+					__func__, __LINE__, reqLen, bufLen);
+			bufLen -= reqLen;
+			textBuf += reqLen;
 		}
 		break;
 	default:
 		reqLen = snprintf(textBuf, bufLen,
 			"UNDEFINED (0x%02x 0x%08x%08x)\n",
 			op, arg_a, arg_b);
+		if (reqLen >= bufLen)
+			pr_debug("%s:%d reqLen:%d over bufLen:%d\n",
+				__func__, __LINE__, reqLen, bufLen);
 		break;
 	}
 
@@ -954,6 +1007,9 @@ void cmdq_long_string(char *buf, u32 *offset, s32 *max_size,
 	va_start(arg_ptr, string);
 	buffer = buf + (*offset);
 	msg_len = vsnprintf(buffer, *max_size, string, arg_ptr);
+	if (msg_len >= *max_size)
+		pr_debug("%s:%d msg_len:%d over max_size:%d\n%s\n",
+			__func__, __LINE__, msg_len, *max_size, buffer);
 	*max_size -= msg_len;
 	if (*max_size < 0)
 		*max_size = 0;
@@ -991,11 +1047,17 @@ int cmdq_core_print_record_title(char *_buf, int bufLen)
 
 	length = snprintf(buf, bufLen,
 		"index,pid,scn,flag,task_pri,is_sec,size,thr#,thr_pri,");
+	if (length >= bufLen)
+		pr_debug("%s:%d length:%d over bufLen:%d\n%s\n",
+			__func__, __LINE__, length, bufLen, buf);
 	bufLen -= length;
 	buf += length;
 
 	length = snprintf(buf, bufLen,
 		"submit,acq_thr,irq_time,begin_wait,exec_time,buf_alloc,buf_rec,buf_rel,total_time,start,end,jump\n");
+	if (length >= bufLen)
+		pr_debug("%s:%d length:%d over bufLen:%d\n%s\n",
+			__func__, __LINE__, length, bufLen, buf);
 	bufLen -= length;
 	buf += length;
 
@@ -1068,6 +1130,9 @@ static int cmdq_core_print_record(const struct RecordStruct *pRecord,
 		pRecord->priority, pRecord->is_secure, pRecord->size,
 		pRecord->thread,
 		cmdq_get_func()->priority(pRecord->scenario));
+	if (length >= bufLen)
+		pr_debug("%s:%d length:%d over bufLen:%d\n%s\n",
+			__func__, __LINE__, length, bufLen, buf);
 	bufLen -= length;
 	buf += length;
 
@@ -1077,6 +1142,9 @@ static int cmdq_core_print_record(const struct RecordStruct *pRecord,
 		IRQTime, unit[1], beginWaitTime, unit[2], execTime, unit[3],
 		pRecord->durAlloc, pRecord->durReclaim, pRecord->durRelease,
 		totalTime, unit[4]);
+	if (length >= bufLen)
+		pr_debug("%s:%d length:%d over bufLen:%d\n%s\n",
+			__func__, __LINE__, length, bufLen, buf);
 	bufLen -= length;
 	buf += length;
 
@@ -1084,6 +1152,9 @@ static int cmdq_core_print_record(const struct RecordStruct *pRecord,
 	length = snprintf(buf, bufLen,
 		"0x%08x,0x%08x,0x%08x",
 		pRecord->start, pRecord->end, pRecord->jump);
+	if (length >= bufLen)
+		pr_debug("%s:%d length:%d over bufLen:%d\n%s\n",
+			__func__, __LINE__, length, bufLen, buf);
 	bufLen -= length;
 	buf += length;
 
@@ -1095,11 +1166,17 @@ static int cmdq_core_print_record(const struct RecordStruct *pRecord,
 		length = snprintf(buf, bufLen, ",%s,%lld",
 			pRecord->profileMarkerTag[i],
 			pRecord->profileMarkerTimeNS[i]);
+		if (length >= bufLen)
+			pr_debug("%s:%d length:%d over bufLen:%d\n%s\n",
+				__func__, __LINE__, length, bufLen, buf);
 		bufLen -= length;
 		buf += length;
 	}
 
 	length = snprintf(buf, bufLen, "\n");
+	if (length >= bufLen)
+		pr_debug("%s:%d length:%d over bufLen:%d\n%s\n",
+			__func__, __LINE__, length, bufLen, buf);
 	bufLen -= length;
 	buf += length;
 
@@ -1270,7 +1347,7 @@ int cmdq_core_print_status_seq(struct seq_file *m, void *v)
 				buf->va_base, &buf->pa_base);
 		}
 
-		client = cmdq_clients[handle->thread];
+		client = cmdq_clients[(u32)handle->thread];
 		cmdq_task_get_thread_irq(client->chan, &irq);
 
 		seq_printf(m,
@@ -1321,7 +1398,7 @@ static void cmdq_core_dump_thread(const struct cmdqRecStruct *handle,
 	if (thread == CMDQ_INVALID_THREAD)
 		return;
 
-#if IS_ENABLED(CONFIG_MACH_MT6885)
+#if IS_ENABLED(CONFIG_MACH_MT6885) || IS_ENABLED(CONFIG_MACH_MT6893)
 	if (thread <= 7)
 		return;
 #endif
@@ -1346,7 +1423,7 @@ static void cmdq_core_dump_thread(const struct cmdqRecStruct *handle,
 
 	CMDQ_LOG(
 		"[%s]===== Error Thread Status index:%d enabled:%d scenario:%d =====\n",
-		tag, thread, value[8], cmdq_ctx.thread[thread].scenario);
+		tag, thread, value[8], cmdq_ctx.thread[(u32)thread].scenario);
 
 	CMDQ_LOG(
 		"[%s]PC:0x%08x End:0x%08x Wait Token:0x%08x IRQ:0x%x IRQ_EN:0x%x cookie:%u\n",
@@ -1934,7 +2011,7 @@ int cmdqCoreFreeWriteAddressByNode(void *fp, enum CMDQ_CLT_ENUM clt)
 			list_node);
 		if (pid != write_addr->user) {
 			pid = write_addr->user;
-			CMDQ_LOG("free write buf by node:%p clt:%d pid:%u",
+			CMDQ_LOG("free write buf by node:%p clt:%d pid:%u\n",
 				fp, clt, pid);
 		}
 
@@ -2135,7 +2212,7 @@ const char *cmdq_core_parse_subsys_from_reg_addr(u32 reg_addr)
 s32 cmdq_core_subsys_from_phys_addr(u32 physAddr)
 {
 	s32 msb;
-	s32 subsysID = -1;
+	s32 subsysID = CMDQ_SPECIAL_SUBSYS_ADDR;
 	u32 i;
 
 	for (i = 0; i < CMDQ_SUBSYS_MAX_COUNT; i++) {
@@ -2149,23 +2226,6 @@ s32 cmdq_core_subsys_from_phys_addr(u32 physAddr)
 		}
 	}
 
-	if (subsysID == -1 && cmdq_adds_subsys.subsysID > 0) {
-		msb = physAddr & cmdq_adds_subsys.mask;
-		if (msb == cmdq_adds_subsys.msb)
-			subsysID = cmdq_adds_subsys.subsysID;
-	}
-
-	if (subsysID == -1) {
-		/* if not supported physAddr is GCE base address,
-		 * then tread as special address
-		 */
-		msb = physAddr & GCE_BASE_PA;
-		if (msb == GCE_BASE_PA)
-			subsysID = CMDQ_SPECIAL_SUBSYS_ADDR;
-		else
-			CMDQ_ERR("unrecognized subsys, physAddr:0x%08x\n",
-				physAddr);
-	}
 	return subsysID;
 }
 
@@ -2209,8 +2269,12 @@ ssize_t cmdq_core_print_log_level(struct device *dev,
 {
 	int len = 0;
 
-	if (buf)
-		len = sprintf(buf, "%d\n", cmdq_ctx.logLevel);
+	if (buf) {
+		len = snprintf(buf, 10, "%d\n", cmdq_ctx.logLevel);
+		if (len >= 10)
+			pr_debug("%s:%d len:%d over 10\n",
+				__func__, __LINE__, len);
+	}
 
 	return len;
 }
@@ -2222,7 +2286,7 @@ ssize_t cmdq_core_write_log_level(struct device *dev,
 	int value = 0;
 	int status = 0;
 
-	char textBuf[10] = { 0 };
+	char textBuf[12] = { 0 };
 
 	do {
 		if (size >= 10) {
@@ -2254,8 +2318,12 @@ ssize_t cmdq_core_print_profile_enable(struct device *dev,
 {
 	int len = 0;
 
-	if (buf)
-		len = sprintf(buf, "0x%x\n", cmdq_ctx.enableProfile);
+	if (buf) {
+		len = snprintf(buf, 10, "0x%x\n", cmdq_ctx.enableProfile);
+		if (len >= 10)
+			pr_debug("%s:%d len:%d over 10\n",
+				__func__, __LINE__, len);
+	}
 
 	return len;
 
@@ -2268,7 +2336,7 @@ ssize_t cmdq_core_write_profile_enable(struct device *dev,
 	int value = 0;
 	int status = 0;
 
-	char textBuf[10] = { 0 };
+	char textBuf[12] = { 0 };
 
 	do {
 		if (size >= 10) {
@@ -2491,7 +2559,7 @@ static void cmdq_core_parse_handle_error(const struct cmdqRecStruct *handle,
 		return;
 	}
 
-	client = cmdq_clients[handle->thread];
+	client = cmdq_clients[(u32)handle->thread];
 
 	do {
 		/* other cases, use instruction to judge
@@ -2651,7 +2719,7 @@ static void cmdq_core_dump_handle_summary(const struct cmdqRecStruct *handle,
 		return;
 	}
 
-	client = cmdq_clients[handle->thread];
+	client = cmdq_clients[(u32)handle->thread];
 
 	/* Do summary ! */
 	cmdq_core_parse_handle_error(handle, thread, &module, &irqFlag,
@@ -2739,7 +2807,7 @@ u32 *cmdq_core_dump_pc(const struct cmdqRecStruct *handle,
 	if (!handle)
 		return NULL;
 
-	client = cmdq_clients[handle->thread];
+	client = cmdq_clients[(u32)handle->thread];
 	cmdq_task_get_thread_pc(client->chan, &curr_pc);
 
 	pcVA = cmdq_core_get_pc_va(curr_pc, handle);
@@ -3126,7 +3194,8 @@ static void cmdq_core_handle_devapc_vio(void)
 
 s32 cmdq_core_acquire_thread(enum CMDQ_SCENARIO_ENUM scenario, bool exclusive)
 {
-	s32 idx, thread_id = CMDQ_INVALID_THREAD;
+	s32 thread_id = CMDQ_INVALID_THREAD;
+	u32 idx;
 
 	mutex_lock(&cmdq_thread_mutex);
 	for (idx = CMDQ_DYNAMIC_THREAD_ID_START;
@@ -3163,7 +3232,7 @@ s32 cmdq_core_acquire_thread(enum CMDQ_SCENARIO_ENUM scenario, bool exclusive)
 
 void cmdq_core_release_thread(s32 scenario, s32 thread)
 {
-	if (thread == CMDQ_INVALID_THREAD) {
+	if (thread == CMDQ_INVALID_THREAD || thread < 0) {
 		CMDQ_ERR("release invalid thread by scenario:%d\n",
 			scenario);
 		return;
@@ -3298,7 +3367,9 @@ static void cmdq_core_clk_enable(struct cmdqRecStruct *handle)
 
 	if (clock_count == 1) {
 		cmdq_core_reset_gce();
-		cmdq_mbox_enable(((struct cmdq_client *)handle->pkt->cl)->chan);
+		if (!handle->secData.is_secure)
+			cmdq_mbox_enable(((struct cmdq_client *)
+				handle->pkt->cl)->chan);
 	}
 
 	cmdq_core_group_clk_cb(true, handle->engineFlag, handle->engine_clk);
@@ -3315,8 +3386,9 @@ static void cmdq_core_clk_disable(struct cmdqRecStruct *handle)
 	CMDQ_MSG("[CLOCK]disable usage:%d\n", clock_count);
 
 	if (clock_count == 0) {
-		cmdq_mbox_disable(((struct cmdq_client *)
-			handle->pkt->cl)->chan);
+		if (!handle->secData.is_secure)
+			cmdq_mbox_disable(((struct cmdq_client *)
+				handle->pkt->cl)->chan);
 		/* Backup event */
 		cmdq_get_func()->eventBackup();
 		/* clock-off */
@@ -3338,7 +3410,7 @@ s32 cmdq_core_suspend_hw_thread(s32 thread)
 		return -EINVAL;
 	}
 
-	client = cmdq_clients[thread];
+	client = cmdq_clients[(u32)thread];
 	if (!client) {
 		CMDQ_ERR("mbox client not ready for thread:%d suspend\n",
 			thread);
@@ -3407,6 +3479,11 @@ static void cmdq_core_replace_overwrite_instr(struct cmdqRecStruct *handle,
 	u32 *p_cmd_assign = (u32 *)cmdq_pkt_get_va_by_offset(handle->pkt,
 		(index - 1) * CMDQ_INST_SIZE);
 
+	if (!p_cmd_assign) {
+		CMDQ_LOG("Cannot find va, handle:%p pkt:%p index:%u\n",
+			handle, handle->pkt, index);
+		return;
+	}
 	if ((p_cmd_assign[1] >> 24) == CMDQ_CODE_LOGIC &&
 		((p_cmd_assign[1] >> 23) & 1) == 1 &&
 		cmdq_core_get_subsys_id(p_cmd_assign[1]) ==
@@ -3467,6 +3544,11 @@ static void cmdq_core_v3_replace_jumpc(struct cmdqRecStruct *handle,
 		(inst_idx - 1) * CMDQ_INST_SIZE);
 	bool revise_offset = false;
 
+	if (!p_cmd_logic) {
+		CMDQ_LOG("Cannot find va, handle:%p pkt:%p idx:%u pos:%u\n",
+			handle, handle->pkt, inst_idx, inst_pos);
+		return;
+	}
 	/* logic and jump relative maybe separate by jump cross buffer */
 	if (p_cmd_logic[1] == ((CMDQ_CODE_JUMP << 24) | 1)) {
 		CMDQ_MSG(
@@ -3477,6 +3559,11 @@ static void cmdq_core_v3_replace_jumpc(struct cmdqRecStruct *handle,
 		revise_offset = true;
 	}
 
+	if (!p_cmd_logic) {
+		CMDQ_LOG("Cannot find va, handle:%p pkt:%p idx:%u pos:%u\n",
+			handle, handle->pkt, inst_idx, inst_pos);
+		return;
+	}
 	if ((p_cmd_logic[1] >> 24) == CMDQ_CODE_LOGIC &&
 		((p_cmd_logic[1] >> 16) & 0x1F) == CMDQ_LOGIC_ASSIGN) {
 		u32 jump_op = CMDQ_CODE_JUMP_C_ABSOLUTE << 24;
@@ -3612,7 +3699,7 @@ void cmdq_core_release_handle_by_file_node(void *file_node)
 		 * The ideal solution is to stop / cancel HW operation
 		 * immediately, but we cannot do so due to SMI hang risk.
 		 */
-		client = cmdq_clients[handle->thread];
+		client = cmdq_clients[(u32)handle->thread];
 		cmdq_mbox_thread_remove_task(client->chan, handle->pkt);
 		cmdq_pkt_auto_release_task(handle, true);
 	}
@@ -4006,7 +4093,7 @@ static s32 cmdq_pkt_lock_handle(struct cmdqRecStruct *handle,
 		return -EINVAL;
 	}
 
-	client = cmdq_clients[handle->thread];
+	client = cmdq_clients[(u32)handle->thread];
 	if (!client) {
 		CMDQ_ERR("mbox client not ready for thread:%d\n",
 			handle->thread);
@@ -4091,7 +4178,7 @@ static s32 cmdq_core_get_pmqos_handle_list(struct cmdqRecStruct *handle,
 	if (!pkt_list)
 		return -ENOMEM;
 
-	client = cmdq_clients[handle->thread];
+	client = cmdq_clients[(u32)handle->thread];
 
 	cmdq_task_get_pkt_from_thread(client->chan, pkt_list,
 		handle_list_size, &pkt_count);
@@ -4135,11 +4222,11 @@ void cmdq_pkt_release_handle(struct cmdqRecStruct *handle)
 	if (handle->thread != CMDQ_INVALID_THREAD &&
 		!handle->secData.is_secure) {
 		ctx = cmdq_core_get_context();
-		mutex_lock(&ctx->thread[handle->thread].thread_mutex);
+		mutex_lock(&ctx->thread[(u32)handle->thread].thread_mutex);
 		/* PMQoS Implement */
 		mutex_lock(&cmdq_thread_mutex);
 		handle_count =
-			--ctx->thread[handle->thread].handle_count;
+			--ctx->thread[(u32)handle->thread].handle_count;
 
 		if (handle_count) {
 			pmqos_handle_list = kcalloc(handle_count + 1,
@@ -4157,7 +4244,7 @@ void cmdq_pkt_release_handle(struct cmdqRecStruct *handle)
 
 		kfree(pmqos_handle_list);
 		mutex_unlock(&cmdq_thread_mutex);
-		mutex_unlock(&ctx->thread[handle->thread].thread_mutex);
+		mutex_unlock(&ctx->thread[(u32)handle->thread].thread_mutex);
 	}
 
 	/* protect multi-thread lock/unlock same time */
@@ -4269,7 +4356,7 @@ static void cmdq_pkt_flush_handler(struct cmdq_cb_data data)
 		return;
 	}
 
-	client = cmdq_clients[handle->thread];
+	client = cmdq_clients[(u32)handle->thread];
 
 	if (data.err == -ETIMEDOUT) {
 		/* error dump may processed on error handler */
@@ -4357,13 +4444,13 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 	CMDQ_PROF_MMP(mdp_mmp_get_event()->wait_task,
 		MMPROFILE_FLAG_PULSE, ((unsigned long)handle), handle->thread);
 
-	if (!cmdq_clients[handle->thread]) {
+	if (!cmdq_clients[(u32)handle->thread]) {
 		CMDQ_ERR("thread:%d cannot use since client is not used\n",
 			handle->thread);
 		return -EINVAL;
 	}
 
-	client = cmdq_clients[handle->thread];
+	client = cmdq_clients[(u32)handle->thread];
 	if (!client->chan->mbox || !client->chan->mbox->dev)
 		CMDQ_AEE("CMDQ",
 			"chan:%u mbox:%p or mbox->dev:%p invalid!!",
@@ -4373,7 +4460,7 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 	do {
 		/* wait event and pre-dump */
 		waitq = wait_event_timeout(
-			cmdq_wait_queue[handle->thread],
+			cmdq_wait_queue[(u32)handle->thread],
 			handle->pkt->flush_item != NULL,
 			msecs_to_jiffies(CMDQ_PREDUMP_TIMEOUT_MS));
 
@@ -4390,10 +4477,25 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 	if (handle->profile_exec) {
 		u32 *va = cmdq_pkt_get_perf_ret(handle->pkt);
 
-		if (va && (va[0] == 0xdeaddead || va[1] == 0xdeaddead))
-			CMDQ_ERR(
-				"task may not execute handle:%p pkt:%p exec:%#x %#x",
-				handle, handle->pkt, va[0], va[1]);
+		if (va) {
+			if (va[0] == 0xdeaddead || va[1] == 0xdeaddead) {
+				CMDQ_ERR(
+					"task may not execute handle:%p pkt:%p exec:%#x %#x",
+					handle, handle->pkt, va[0], va[1]);
+			} else {
+				u32 cost = va[1] < va[0] ?
+					~va[0] + va[1] : va[1] - va[0];
+
+				do_div(cost, 26);
+				if (cost > 80000) {
+					CMDQ_LOG(
+						"[WARN]task executes %uus engine:%#llx caller:%llu-%s\n",
+						cost, handle->engineFlag,
+						(u64)handle->caller_pid,
+						handle->caller_name);
+				}
+			}
+		}
 	}
 
 	CMDQ_PROF_MMP(mdp_mmp_get_event()->wait_task_done,
@@ -4481,7 +4583,7 @@ s32 cmdq_pkt_auto_release_task(struct cmdqRecStruct *handle,
 			cmdq_pkt_auto_release_work);
 	}
 
-	queue_work(cmdq_ctx.taskThreadAutoReleaseWQ[handle->thread],
+	queue_work(cmdq_ctx.taskThreadAutoReleaseWQ[(u32)handle->thread],
 		&handle->auto_release_work);
 	return 0;
 }
@@ -4520,14 +4622,14 @@ static s32 cmdq_pkt_flush_async_ex_impl(struct cmdqRecStruct *handle,
 	ctx = cmdq_core_get_context();
 
 	/* protect qos and communite with mbox */
-	mutex_lock(&ctx->thread[handle->thread].thread_mutex);
+	mutex_lock(&ctx->thread[(u32)handle->thread].thread_mutex);
 
 	/* TODO: remove pmqos in seure path */
 	if (!handle->secData.is_secure) {
 		/* PMQoS */
 		CMDQ_SYSTRACE_BEGIN("%s_pmqos\n", __func__);
 		mutex_lock(&cmdq_thread_mutex);
-		handle_count = ctx->thread[handle->thread].handle_count;
+		handle_count = ctx->thread[(u32)handle->thread].handle_count;
 
 		pmqos_handle_list = kcalloc(handle_count + 1,
 			sizeof(*pmqos_handle_list), GFP_KERNEL);
@@ -4544,7 +4646,7 @@ static s32 cmdq_pkt_flush_async_ex_impl(struct cmdqRecStruct *handle,
 			handle_count + 1);
 
 		kfree(pmqos_handle_list);
-		ctx->thread[handle->thread].handle_count++;
+		ctx->thread[(u32)handle->thread].handle_count++;
 		mutex_unlock(&cmdq_thread_mutex);
 		CMDQ_SYSTRACE_END();
 	}
@@ -4556,14 +4658,14 @@ static s32 cmdq_pkt_flush_async_ex_impl(struct cmdqRecStruct *handle,
 			handle->pkt->cl, client);
 		handle->pkt->cl = client;
 	}
-	wait_q = &cmdq_wait_queue[handle->thread];
+	wait_q = &cmdq_wait_queue[(u32)handle->thread];
 	err = cmdq_pkt_flush_async(handle->pkt, cmdq_pkt_flush_handler,
 		(void *)handle);
 	wake_up(wait_q);
 
 	CMDQ_SYSTRACE_END();
 
-	mutex_unlock(&ctx->thread[handle->thread].thread_mutex);
+	mutex_unlock(&ctx->thread[(u32)handle->thread].thread_mutex);
 
 	if (err < 0) {
 		CMDQ_ERR("pkt flush failed err:%d pkt:0x%p\n",
@@ -4613,7 +4715,7 @@ s32 cmdq_pkt_flush_async_ex(struct cmdqRecStruct *handle,
 			return err;
 		/* client may already wait for flush done, trigger as error */
 		handle->state = TASK_STATE_ERROR;
-		wake_up(&cmdq_wait_queue[handle->thread]);
+		wake_up(&cmdq_wait_queue[(u32)handle->thread]);
 		return err;
 	}
 
@@ -4643,7 +4745,7 @@ s32 cmdq_pkt_stop(struct cmdqRecStruct *handle)
 		return -EINVAL;
 	}
 
-	client = cmdq_clients[handle->thread];
+	client = cmdq_clients[(u32)handle->thread];
 
 	/* TODO: need way to prevent user destroy handle in callback,
 	 * but before we handle all things, since after callback we still
@@ -4667,7 +4769,7 @@ s32 cmdq_pkt_stop(struct cmdqRecStruct *handle)
 		cmdq_mbox_stop(client);
 
 		/* wake again in case thread stops before */
-		wake_up(&cmdq_wait_queue[handle->thread]);
+		wake_up(&cmdq_wait_queue[(u32)handle->thread]);
 	} else {
 		/* stop directly and other thread shoudl clean up */
 		cmdq_mbox_stop(client);
@@ -4691,6 +4793,30 @@ s32 cmdq_pkt_stop(struct cmdqRecStruct *handle)
 
 	CMDQ_MSG("%s done handle:0x%p\n", __func__, handle);
 	return 0;
+}
+
+void cmdq_core_dump_active(void)
+{
+	u64 cost;
+	u32 idx = 0;
+	struct cmdqRecStruct *task;
+
+	mutex_lock(&cmdq_handle_list_mutex);
+	list_for_each_entry(task, &cmdq_ctx.handle_active, list_entry) {
+		if (idx >= 3)
+			break;
+
+		cost = div_u64(sched_clock() - task->submit, 1000);
+		if (cost <= 800000)
+			break;
+
+		CMDQ_LOG(
+			"[warn] waiting task %u cost time:%lluus submit:%llu enging:%#llx caller:%llu-%s\n",
+			idx, cost, task->submit, task->engineFlag,
+			(u64)task->caller_pid, task->caller_name);
+		idx++;
+	}
+	mutex_unlock(&cmdq_handle_list_mutex);
 }
 
 /* mailbox helper functions */

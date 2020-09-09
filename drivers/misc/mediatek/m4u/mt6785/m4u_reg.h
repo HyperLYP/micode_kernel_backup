@@ -415,8 +415,9 @@
 #define F_MMU_TBWALK_FAULT_VA_MSK_SEC   F_MSK(31, 12)
 #define F_MMU_TBWALK_FAULT_LAYER_SEC(regval) F_MSK_SHIFT(regval, 0, 0)
 
-#define REG_MMU_FAULT_VA_SEC(mmu)	 (0x13c+((mmu)<<3))
-#define F_MMU_FAULT_VA_MSK_SEC	F_MSK(31, 12)
+#define REG_MMU_FAULT_VA_SEC(mmu)       (0x13c+((mmu)<<3))
+#define F_MMU_FAULT_VA_MSK_SEC          F_MSK(31, 12)
+#define F_MMU_FAULT_PA_33_32(val)       F_MSK_SHIFT(val, 7, 6)
 #define F_MMU_FAULT_VA_WRITE_BIT_SEC    F_BIT_SET(1)
 #define F_MMU_FAULT_VA_LAYER_BIT_SEC    F_BIT_SET(0)
 
@@ -426,17 +427,14 @@
 #define F_MMU0_INT_ID_TF_MSK_SEC	F_MSK(11, 2)
 
 /* ================================================================ */
-/* SMI larb */
+/* SMI larb                                                         */
+/* DON NOT read/write secure register in kernel                     */
 /* ================================================================ */
 
-#define SMI_LARB_NON_SEC_CONx(larb_port)	(0x380 + ((larb_port)<<2))
-#define F_SMI_NON_SEC_MMU_EN(en)	F_BIT_VAL(en, 0)
-#define F_SMI_MMU_EN          F_BIT_SET(0)
+#define SMI_LARB_NON_SEC_CONx(larb_port)    (0x380 + ((larb_port)<<2))
+#define F_SMI_NON_SEC_MMU_EN(en)            F_BIT_VAL(en, 0)
+#define F_SMI_MMU_EN                        F_BIT_SET(0)
 
-#define SMI_LARB_SEC_CONx(larb_port)	(0xf80 + ((larb_port)<<2))
-#define F_SMI_SEC_MMU_EN(en)	F_BIT_VAL(en, 0)
-#define F_SMI_SEC_EN(sec)	F_BIT_VAL(sec, 1)
-#define F_SMI_DOMN(domain)	F_VAL(domain, 8, 4)
 /* ========================================================================= */
 /* peripheral system */
 /* ========================================================================= */

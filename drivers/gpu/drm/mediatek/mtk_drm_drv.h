@@ -26,19 +26,23 @@
 #include "mtk_drm_session.h"
 #include "mtk_drm_helper.h"
 
-#define MAX_CRTC 3
 #define MAX_CONNECTOR 3
 
-#define MTK_DRM_FENCE_SUPPORT
+#ifndef CONFIG_FPGA_EARLY_PORTING
 #define MTK_DRM_ESD_SUPPORT
+#define MTK_FB_MMDVFS_SUPPORT
+#endif
+#define MTK_DRM_FENCE_SUPPORT
 #define MTK_DRM_CMDQ_ASYNC
 #define CONFIG_MTK_DISPLAY_CMDQ
-#define MTK_FB_MMDVFS_SUPPORT
 #define MTK_FILL_MIPI_IMPEDANCE
 #if (defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6873)\
-	|| defined(CONFIG_MACH_MT6853)) &&\
+	|| defined(CONFIG_MACH_MT6893) ||\
+	defined(CONFIG_MACH_MT6853) || \
+	defined(CONFIG_MACH_MT6833)) &&\
 	defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)
-#define MTK_DRM_DELAY_PRESENT_FENCE
+//#define MTK_DRM_DELAY_PRESENT_FENCE
+/* Delay present fence would cause config merge */
 #endif
 
 
@@ -78,6 +82,7 @@ struct mtk_mmsys_driver_data {
 	void (*sodi_config)(struct drm_device *drm, enum mtk_ddp_comp_id id,
 			struct cmdq_pkt *handle, void *data);
 	const struct mtk_fake_eng_data *fake_eng_data;
+	bool bypass_infra_ddr_control;
 };
 
 struct mtk_drm_lyeblob_ids {
@@ -106,11 +111,14 @@ struct mtk_drm_private {
 	unsigned int session_id[MAX_SESSION_COUNT];
 	unsigned int num_sessions;
 	enum MTK_DRM_SESSION_MODE session_mode;
+	atomic_t crtc_present[MAX_CRTC];
 
 	struct device_node *mutex_node;
 	struct device *mutex_dev;
 	void __iomem *config_regs;
 	resource_size_t config_regs_pa;
+	void __iomem *infra_regs;
+	resource_size_t infra_regs_pa;
 	const struct mtk_mmsys_reg_data *reg_data;
 	struct device_node *comp_node[DDP_COMPONENT_ID_MAX];
 	struct mtk_ddp_comp *ddp_comp[DDP_COMPONENT_ID_MAX];
@@ -137,7 +145,7 @@ struct mtk_drm_private {
 	struct drm_gem_object *fbdev_bo;
 	struct list_head lyeblob_head;
 	struct mutex lyeblob_list_mutex;
-	struct task_struct *fence_release_thread;
+	struct task_struct *fence_release_thread[MAX_CRTC-1];
 
 	/* variable for repaint */
 	struct {
@@ -169,6 +177,11 @@ struct mtk_drm_private {
 #ifdef DRM_MMPATH
 	int HWC_gpid; // for mmpath auto gen
 #endif
+
+	int need_vds_path_switch;
+	int vds_path_switch_dirty;
+	int vds_path_switch_done;
+	int vds_path_enable;
 };
 
 struct mtk_drm_property {
@@ -225,15 +238,21 @@ extern struct platform_driver mtk_lvds_driver;
 extern struct platform_driver mtk_lvds_tx_driver;
 extern struct platform_driver mtk_disp_dsc_driver;
 extern struct lcm_fps_ctx_t lcm_fps_ctx[MAX_CRTC];
+extern struct platform_driver mtk_disp_merge_driver;
+#ifdef CONFIG_MTK_HDMI_SUPPORT
+extern struct platform_driver mtk_dp_tx_driver;
+extern struct platform_driver mtk_dp_intf_driver;
+#endif
 
 void mtk_atomic_state_get(struct drm_atomic_state *state);
 void mtk_atomic_state_put(struct drm_atomic_state *state);
 void mtk_atomic_state_put_queue(struct drm_atomic_state *state);
-void mtk_drm_fence_update(unsigned int fence_idx);
+void mtk_drm_fence_update(unsigned int fence_idx, unsigned int index);
 void drm_trigger_repaint(enum DRM_REPAINT_TYPE type,
 			 struct drm_device *drm_dev);
 int mtk_drm_suspend_release_fence(struct device *dev);
-void mtk_drm_suspend_release_present_fence(struct device *dev);
+void mtk_drm_suspend_release_present_fence(struct device *dev,
+					   unsigned int index);
 void mtk_drm_top_clk_prepare_enable(struct drm_device *drm);
 void mtk_drm_top_clk_disable_unprepare(struct drm_device *drm);
 struct mtk_panel_params *mtk_drm_get_lcm_ext_params(struct drm_crtc *crtc);

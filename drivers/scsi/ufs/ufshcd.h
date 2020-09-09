@@ -560,6 +560,7 @@ struct ufs_stats {
 	struct ufs_err_reg_hist host_reset;
 	struct ufs_err_reg_hist sw_reset;
 	struct ufs_err_reg_hist task_abort;
+	struct ufs_err_reg_hist ocs_err_status;
 
 	/* performance warning */
 	struct ufs_err_reg_hist perf_warn;
@@ -904,6 +905,7 @@ struct ufs_hba {
 
 	bool full_init_linereset;
 	bool force_host_reset;
+	bool invalid_resp_upiu;
 
 #if defined(CONFIG_UFSFEATURE)
 	struct ufsf_feature ufsf;

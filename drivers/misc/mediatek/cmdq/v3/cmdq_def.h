@@ -72,7 +72,7 @@
 #define CMDQ_MAX_INST_CYCLE             (27)
 #define CMDQ_MAX_ERROR_SIZE             (8 * 1024)
 
-#define CMDQ_MAX_TASK_IN_SECURE_THREAD	(10)
+#define CMDQ_MAX_TASK_IN_SECURE_THREAD	(3)
 
 /* max value of CMDQ_THR_EXEC_CMD_CNT (value starts from 0) */
 #ifdef CMDQ_USE_LARGE_MAX_COOKIE
@@ -458,6 +458,7 @@ struct cmdqSecDataStruct {
 	/* client extension feature */
 	uint64_t extension;
 
+	bool mtee;
 #ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
 	/* tablet use */
 	uint32_t secMode;

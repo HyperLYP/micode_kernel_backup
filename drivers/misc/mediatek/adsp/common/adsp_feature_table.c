@@ -35,6 +35,7 @@ static struct adsp_feature_tb feature_table[ADSP_NUM_FEATURE_ID] = {
 	[CALL_FINAL_FEATURE_ID]       = {.name = "call_final"},
 	[FAST_FEATURE_ID]             = {.name = "fast"},
 	[KTV_FEATURE_ID]              = {.name = "ktv"},
+	[CAPTURE_RAW_FEATURE_ID]      = {.name = "capture_raw"},
 };
 
 int adsp_get_feature_index(const char *str)
@@ -189,7 +190,7 @@ int adsp_register_feature(enum adsp_feature_id fid)
 	int ret = -1, cid;
 	bool flag = false;
 
-	if (fid >= ADSP_NUM_FEATURE_ID)
+	if (fid >= ADSP_NUM_FEATURE_ID || fid < 0)
 		return -EINVAL;
 
 	for (cid = 0; cid < ADSP_CORE_TOTAL; cid++) {
@@ -216,7 +217,7 @@ int adsp_deregister_feature(enum adsp_feature_id fid)
 	int ret = -1, cid;
 	bool flag = false;
 
-	if (fid >= ADSP_NUM_FEATURE_ID)
+	if (fid >= ADSP_NUM_FEATURE_ID || fid < 0)
 		return -EINVAL;
 
 	for (cid = 0; cid < ADSP_CORE_TOTAL; cid++) {

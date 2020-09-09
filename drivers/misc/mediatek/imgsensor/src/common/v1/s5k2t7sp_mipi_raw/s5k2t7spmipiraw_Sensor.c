@@ -66,7 +66,7 @@ static const int I2C_BUFFER_LEN = 4;
  * PFX "[%s] " format, __func__, ##args)
  */
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
-
+static void sensor_init(void);
 
 static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_id = S5K2T7SP_SENSOR_ID,
@@ -284,10 +284,10 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[5] = {
 	{ 5200, 3880,    8,    0, 5184, 3880, 2592, 1940,
 	     0,    0, 2592, 1940,    0,    0, 2592, 1940},
 
-	{ 5200, 3880,    1312,  1228, 2576, 1440, 1280, 720,
+	{ 5200, 3880,    1312,  1228, 2560, 1440, 1280, 720,
 	     4,    0, 1280, 720,    0,    0, 1280, 720},
 
-	{ 5200, 3896,    1320,    1220, 2576, 1440, 1280, 720,
+	{ 5200, 3880,    1320,    1220, 2560, 1440, 1280, 720,
 	     4,    0, 1280, 720,    0,    0, 1280, 720},
 };
 
@@ -616,7 +616,25 @@ static void check_streamoff(void)
 		else
 			break;
 	}
+	sensor_init();
 	pr_debug("%s exit! %d\n", __func__, i);
+}
+
+static void check_stream_is_on(void)
+{
+	int i = 0;
+	UINT32 framecnt;
+
+	for (i = 0; i < 100; i++) {
+
+		framecnt = read_cmos_sensor_8(0x0005);
+		if (framecnt != 0xFF) {
+			pr_debug("stream is on, %d\n", framecnt);
+			break;
+		}
+		pr_debug("stream is not on %d\n", framecnt);
+		mdelay(1);
+	}
 }
 
 static kal_uint32 streaming_control(kal_bool enable)
@@ -625,6 +643,7 @@ static kal_uint32 streaming_control(kal_bool enable)
 
 	if (enable) {
 		write_cmos_sensor_8(0x0100, 0x01);
+		check_stream_is_on();
 	} else {
 		write_cmos_sensor_8(0x0100, 0x00);
 		check_streamoff();
@@ -1671,7 +1690,6 @@ static kal_uint32 open(void)
 		return ERROR_SENSOR_CONNECT_FAIL;
 
 	/* initail sequence write in  */
-	sensor_init();
 
 	spin_lock(&imgsensor_drv_lock);
 

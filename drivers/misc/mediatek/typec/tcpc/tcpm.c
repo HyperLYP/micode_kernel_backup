@@ -524,7 +524,7 @@ int tcpm_inquire_pd_partner_modes(
 {
 #ifdef CONFIG_USB_PD_ALT_MODE
 	int ret = TCPM_SUCCESS;
-	struct svdm_svid_data *svid_data;
+	struct svdm_svid_data *svid_data = NULL;
 	struct pd_port *pd_port = &tcpc->pd_port;
 
 	mutex_lock(&pd_port->pd_lock);
@@ -1337,7 +1337,8 @@ int tcpm_put_tcp_dpm_event(
 		return ret;
 
 	if (imme) {
-		ret = pd_put_tcp_pd_event(pd_port, event->event_id);
+		ret = pd_put_tcp_pd_event(pd_port, event->event_id,
+					  PD_TCP_FROM_TCPM);
 
 #ifdef CONFIG_USB_PD_TCPM_CB_2ND
 		if (ret)
@@ -1847,6 +1848,8 @@ static const char * const bk_event_ret_name[] = {
 	"Recovery",
 	"BIST",
 	"PEBusy",
+	"Discard",
+	"Unexpected",
 
 	"Wait",
 	"Reject",
@@ -1924,7 +1927,8 @@ int tcpm_dpm_wait_bk_event(struct pd_port *pd_port, uint32_t tout_ms)
 {
 	int ret = __tcpm_dpm_wait_bk_event(pd_port, tout_ms);
 
-	if (ret < TCP_DPM_RET_NR)
+	if (ret < TCP_DPM_RET_NR && ret > 0
+		&& ret < ARRAY_SIZE(bk_event_ret_name))
 		TCPM_DBG("bk_event_cb -> %s\r\n", bk_event_ret_name[ret]);
 
 	return ret;
@@ -1985,11 +1989,14 @@ static int tcpm_put_tcp_dpm_event_bk(
 	while (1) {
 		ret = __tcpm_put_tcp_dpm_event_bk(
 			tcpc, event, tout_ms, data, size);
-
-		if ((ret != TCP_DPM_RET_TIMEOUT) || (retry == 0))
-			break;
-
-		retry--;
+		if (retry > 0 &&
+		    (ret == TCP_DPM_RET_TIMEOUT ||
+		    ret == TCP_DPM_RET_DROP_DISCARD ||
+		    ret == TCP_DPM_RET_DROP_UNEXPECTED)) {
+			retry--;
+			continue;
+		}
+		break;
 	}
 
 	mutex_unlock(&pd_port->tcpm_bk_lock);

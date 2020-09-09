@@ -15,7 +15,7 @@
 
 #include <linux/interrupt.h>
 #include <media/v4l2-mem2mem.h>
-#include "mtk_vcodec_mem.h"
+#include <uapi/linux/mtk_vcu_controls.h>
 #include "mtk_vcu.h"
 #include "venc_vcu_if.h"
 #include "mtk_vcodec_intr.h"
@@ -290,6 +290,7 @@ int vcu_enc_init(struct venc_vcu_inst *vcu)
 	init_waitqueue_head(&vcu->wq_hd);
 	vcu->signaled = 0;
 	vcu->failure = 0;
+	vcu_get_ctx_ipi_binding_lock(vcu->dev, &vcu->ctx_ipi_binding, VCU_VENC);
 
 	status = vcu_ipi_register(vcu->dev, vcu->id, vcu->handler,
 							  NULL, vcu);
@@ -303,7 +304,6 @@ int vcu_enc_init(struct venc_vcu_inst *vcu)
 	out.venc_inst = (unsigned long)vcu;
 
 	vcu_enc_set_pid(vcu);
-	vcu_enc_set_ctx(vcu, NULL, NULL);
 	status = vcu_enc_send_msg(vcu, &out, sizeof(out));
 
 	if (status) {
@@ -410,6 +410,10 @@ int vcu_enc_set_param(struct venc_vcu_inst *vcu,
 		out.data_item = 1;
 		out.data[0] = enc_param->nonrefp;
 		break;
+	case VENC_SET_PARAM_NONREFPFREQ:
+		out.data_item = 1;
+		out.data[0] = enc_param->nonrefpfreq;
+		break;
 	case VENC_SET_PARAM_DETECTED_FRAMERATE:
 		out.data_item = 1;
 		out.data[0] = enc_param->detectframerate;
@@ -444,6 +448,10 @@ int vcu_enc_set_param(struct venc_vcu_inst *vcu,
 	case VENC_SET_PARAM_SEC_MODE:
 		out.data_item = 1;
 		out.data[0] = enc_param->svp_mode;
+		break;
+	case VENC_SET_PARAM_TSVC:
+		out.data_item = 1;
+		out.data[0] = enc_param->tsvc;
 		break;
 	default:
 		mtk_vcodec_err(vcu, "id %d not supported", id);
@@ -521,8 +529,11 @@ int vcu_enc_encode(struct venc_vcu_inst *vcu, unsigned int bs_mode,
 			(unsigned long)bs_buf->dmabuf,
 			out.bs_fd);
 	}
+
+	mutex_lock(vcu->ctx_ipi_binding);
 	vcu_enc_set_ctx(vcu, frm_buf, bs_buf);
 	ret = vcu_enc_send_msg(vcu, &out, sizeof(out));
+	mutex_unlock(vcu->ctx_ipi_binding);
 
 	if (ret) {
 		mtk_vcodec_err(vcu, "AP_IPIMSG_ENC_ENCODE %d fail %d",
@@ -566,9 +577,12 @@ int vcu_enc_deinit(struct venc_vcu_inst *vcu)
 	memset(&out, 0, sizeof(out));
 	out.msg_id = AP_IPIMSG_ENC_DEINIT;
 	out.vcu_inst_addr = vcu->inst_addr;
+
+	mutex_lock(vcu->ctx_ipi_binding);
 	ret = vcu_enc_send_msg(vcu, &out, sizeof(out));
-	current->flags &= ~PF_NOFREEZE;
 	vcu_enc_clear_ctx(vcu);
+	mutex_unlock(vcu->ctx_ipi_binding);
+	current->flags &= ~PF_NOFREEZE;
 
 	mtk_vcodec_debug_leave(vcu);
 

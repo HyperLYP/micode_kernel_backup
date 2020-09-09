@@ -34,11 +34,18 @@
 #include "mtk_drm_helper.h"
 #include "mtk_layering_rule.h"
 #include "mtk_drm_lowpower.h"
+#if defined(CONFIG_MTK_IOMMU_V2)
 #include "mt_iommu.h"
 #include "mtk_iommu_ext.h"
+#endif
 #include "mtk_drm_gem.h"
 #include "mtk_drm_fb.h"
+#include "mtk_drm_fbdev.h"
 #include "mtk_disp_aal.h"
+#ifdef CONFIG_MTK_HDMI_SUPPORT
+#include "mtk_dp_debug.h"
+#endif
+#include "mtk_drm_arr.h"
 
 #define DISP_REG_CONFIG_MMSYS_CG_SET(idx) (0x104 + 0x10 * (idx))
 #define DISP_REG_CONFIG_MMSYS_CG_CLR(idx) (0x108 + 0x10 * (idx))
@@ -77,6 +84,10 @@ int gCaptureOVLEn;
 int gCapturePriLayerDownX = 20;
 int gCapturePriLayerDownY = 20;
 u64 vfp_backup;
+
+
+static atomic_t lfr_dbg;
+static atomic_t lfr_params;
 
 struct logger_buffer {
 	char **buffer_ptr;
@@ -312,7 +323,7 @@ int mtk_dprec_logger_get_buf(enum DPREC_LOGGER_PR_TYPE type, char *stringbuf,
 	int c = dprec_logger_buffer[type].id;
 	char **buf_arr;
 
-	if (type >= DPREC_LOGGER_PR_NUM || len < 0)
+	if (type >= DPREC_LOGGER_PR_NUM || type < 0 || len < 0)
 		return 0;
 
 	if (!is_buffer_init)
@@ -349,6 +360,23 @@ int mtkfb_set_backlight_level(unsigned int level)
 	return 0;
 }
 EXPORT_SYMBOL(mtkfb_set_backlight_level);
+
+int mtkfb_set_aod_backlight_level(unsigned int level)
+{
+	struct drm_crtc *crtc;
+
+	/* this debug cmd only for crtc0 */
+	crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
+				typeof(*crtc), head);
+	if (!crtc) {
+		pr_info("find crtc fail\n");
+		return 0;
+	}
+	mtk_drm_aod_setbacklight(crtc, level);
+
+	return 0;
+}
+EXPORT_SYMBOL(mtkfb_set_aod_backlight_level);
 
 void mtk_disp_mipi_ccci_callback(unsigned int en, unsigned int usrdata)
 {
@@ -883,6 +911,10 @@ void ddic_dsi_send_cmd_test(unsigned int case_num)
 
 	DDPMSG("%s start case_num:%d\n", __func__, case_num);
 
+	if (!cmd_msg) {
+		DDPPR_ERR("cmd msg is NULL\n");
+		return;
+	}
 	memset(cmd_msg, 0, sizeof(struct mtk_ddic_dsi_msg));
 
 	switch (case_num) {
@@ -1023,6 +1055,10 @@ void ddic_dsi_read_cmd_test(unsigned int case_num)
 
 	DDPMSG("%s start case_num:%d\n", __func__, case_num);
 
+	if (!cmd_msg) {
+		DDPPR_ERR("cmd msg is NULL\n");
+		return;
+	}
 	memset(cmd_msg, 0, sizeof(struct mtk_ddic_dsi_msg));
 
 	switch (case_num) {
@@ -1134,26 +1170,6 @@ int mtk_dprec_mmp_dump_ovl_layer(struct mtk_plane_state *plane_state)
 	DDPINFO("%s, gCapturePriLayerEnable is %d\n",
 		__func__, gCaptureOVLEn);
 	return -1;
-}
-
-void mtk_drm_idlemgr_kick_ext(const char *source)
-{
-	struct drm_crtc *crtc;
-
-	DDPINFO("%s +\n", __func__);
-
-	/* This cmd only for crtc0 */
-	crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
-			typeof(*crtc), head);
-
-	if (!crtc) {
-		DDPPR_ERR("find crtc fail\n");
-		return;
-	}
-
-	mtk_drm_idlemgr_kick(source, crtc, 1);
-
-	DDPINFO("%s -\n", __func__);
 }
 
 static void process_dbg_opt(const char *opt)
@@ -1361,6 +1377,18 @@ static void process_dbg_opt(const char *opt)
 		}
 
 		mtkfb_set_backlight_level(level);
+	} else if (!strncmp(opt, "aod_bl:", 7)) {
+		unsigned int level;
+		int ret;
+
+		ret = sscanf(opt, "aod_bl:%u\n", &level);
+		if (ret != 1) {
+			pr_info("%d fail to parse cmd %s\n",
+				__LINE__, opt);
+			return;
+		}
+
+		mtkfb_set_aod_backlight_level(level);
 	} else if (strncmp(opt, "dump_fake_engine", 16) == 0) {
 		struct drm_crtc *crtc;
 		struct mtk_drm_crtc *mtk_crtc;
@@ -1527,15 +1555,103 @@ static void process_dbg_opt(const char *opt)
 			DDPMSG("error to parse cmd\n");
 			return;
 		}
-		gCaptureOVLEn = dump_en;
 
-		if (!downSampleX)
+		if (downSampleX)
 			gCapturePriLayerDownX = downSampleX;
-		if (!downSampleY)
+		if (downSampleY)
 			gCapturePriLayerDownY = downSampleY;
-	} else if (strncmp(opt, "idlemgr_kick", 12) == 0) {
-		mtk_drm_idlemgr_kick_ext(__func__);
+		gCaptureOVLEn = dump_en;
+#ifdef CONFIG_MTK_HDMI_SUPPORT
+	} else if (strncmp(opt, "dptx:", 5) == 0) {
+		mtk_dp_debug(opt + 5);
+	} else if (strncmp(opt, "dpintf_dump:", 12) == 0) {
+		struct mtk_ddp_comp *comp;
+		struct drm_crtc *crtc;
+		struct mtk_drm_crtc *mtk_crtc;
+
+		drm_for_each_crtc(crtc, drm_dev) {
+			if (!crtc) {
+				DDPPR_ERR("find crtc fail\n");
+				continue;
+			}
+			DDPINFO("------find crtc------");
+			mtk_crtc = to_mtk_crtc(crtc);
+			if (!crtc->enabled
+				|| mtk_crtc->ddp_mode == DDP_NO_USE)
+				continue;
+
+			mtk_crtc = to_mtk_crtc(crtc);
+			comp = mtk_ddp_comp_request_output(mtk_crtc);
+			mtk_dp_intf_dump(comp);
+		}
+#endif
+	} else if (strncmp(opt, "pan_disp_test:", 13) == 0) {
+		int frame_num, bpp, ret;
+
+		ret = sscanf(opt, "pan_disp_test:%d,%d\n", &frame_num, &bpp);
+		if (ret != 2) {
+			DDPMSG("%d error to parse cmd %s\n", __LINE__, opt);
+			return;
+		}
+
+		pan_display_test(frame_num, bpp);
+	} else if (strncmp(opt, "arr4_enable", 11) == 0) {
+		struct mtk_ddp_comp *comp;
+		struct drm_crtc *crtc;
+		struct mtk_drm_crtc *mtk_crtc;
+		struct mtk_dsi_lfr_con lfr_con = {0};
+
+		lfr_con.lfr_mode     = mtk_dbg_get_lfr_mode_value();
+		lfr_con.lfr_type     = mtk_dbg_get_lfr_type_value();
+		lfr_con.lfr_enable   = mtk_dbg_get_lfr_enable_value();
+		lfr_con.lfr_skip_num = mtk_dbg_get_lfr_skip_num_value();
+
+		/* this debug cmd only for crtc0 */
+		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
+					typeof(*crtc), head);
+		if (!crtc) {
+			DDPPR_ERR("find crtc fail\n");
+			return;
+		}
+
+		mtk_crtc = to_mtk_crtc(crtc);
+		comp = mtk_ddp_comp_request_output(mtk_crtc);
+		comp->funcs->io_cmd(comp, NULL, DSI_LFR_SET, &lfr_con);
+	} else if (strncmp(opt, "LFR_update", 10) == 0) {
+		struct mtk_ddp_comp *comp;
+		struct drm_crtc *crtc;
+		struct mtk_drm_crtc *mtk_crtc;
+
+		/* this debug cmd only for crtc0 */
+		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
+					typeof(*crtc), head);
+		if (!crtc) {
+			DDPPR_ERR("find crtc fail\n");
+			return;
+		}
+
+		mtk_crtc = to_mtk_crtc(crtc);
+		comp = mtk_ddp_comp_request_output(mtk_crtc);
+		comp->funcs->io_cmd(comp, NULL, DSI_LFR_UPDATE, NULL);
+	} else if (strncmp(opt, "LFR_status_check", 16) == 0) {
+		//unsigned int data = mtk_dbg_get_LFR_value();
+		struct mtk_ddp_comp *comp;
+		struct drm_crtc *crtc;
+		struct mtk_drm_crtc *mtk_crtc;
+
+		/* this debug cmd only for crtc0 */
+		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
+					typeof(*crtc), head);
+		if (!crtc) {
+			DDPPR_ERR("find crtc fail\n");
+			return;
+		}
+
+		mtk_crtc = to_mtk_crtc(crtc);
+		comp = mtk_ddp_comp_request_output(mtk_crtc);
+		comp->funcs->io_cmd(comp, NULL, DSI_LFR_STATUS_CHECK, NULL);
 	}
+
 }
 
 static void process_dbg_cmd(char *cmd)
@@ -1653,19 +1769,94 @@ int disp_met_set(void *data, u64 val)
 {
 	/*1 enable  ; 0 disable*/
 	disp_met_en = val;
-
 	return 0;
 }
 
 static int disp_met_get(void *data, u64 *val)
 {
 	*val = disp_met_en;
-
 	return 0;
 }
 
 DEFINE_SIMPLE_ATTRIBUTE(disp_met_fops, disp_met_get, disp_met_set, "%llu\n");
+int disp_lfr_dbg_set(void *data, u64 val)
+{
+	atomic_set(&lfr_dbg, val);
+	return 0;
+}
 
+static int disp_lfr_dbg_get(void *data, u64 *val)
+{
+	*val = atomic_read(&lfr_dbg);
+
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(disp_lfr_dbg_fops, disp_lfr_dbg_get,
+	disp_lfr_dbg_set, "%llu\n");
+
+int disp_lfr_params_set(void *data, u64 val)
+{
+	atomic_set(&lfr_params, val);
+	return 0;
+}
+
+static int disp_lfr_params_get(void *data, u64 *val)
+{
+	*val = atomic_read(&lfr_params);
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(disp_lfr_params_fops, disp_lfr_params_get,
+	disp_lfr_params_set, "%llu\n");
+
+unsigned int mtk_dbg_get_lfr_mode_value(void)
+{
+	unsigned int lfr_mode = (atomic_read(&lfr_params) & 0x03);
+
+	lfr_mode = lfr_mode & 0x03;
+	return lfr_mode;
+}
+unsigned int mtk_dbg_get_lfr_type_value(void)
+{
+	unsigned int lfr_type = (atomic_read(&lfr_params));
+
+	lfr_type = (lfr_type & 0x0C) >> 2;
+	return lfr_type;
+}
+unsigned int mtk_dbg_get_lfr_enable_value(void)
+{
+	unsigned int lfr_enable = atomic_read(&lfr_params);
+
+	lfr_enable = (lfr_enable & 0x10) >> 4;
+	return lfr_enable;
+}
+unsigned int mtk_dbg_get_lfr_update_value(void)
+{
+	unsigned int lfr_update = atomic_read(&lfr_params);
+
+	lfr_update = (lfr_update & 0x20) >> 5;
+	return lfr_update;
+}
+unsigned int mtk_dbg_get_lfr_vse_dis_value(void)
+{
+	unsigned int lfr_vse_dis = atomic_read(&lfr_params);
+
+	lfr_vse_dis = (lfr_vse_dis & 0x40) >> 6;
+	return lfr_vse_dis;
+}
+unsigned int mtk_dbg_get_lfr_skip_num_value(void)
+{
+	unsigned int lfr_skip_num = atomic_read(&lfr_params);
+
+	lfr_skip_num = (lfr_skip_num & 0x3F00) >> 8;
+	return lfr_skip_num;
+}
+
+unsigned int mtk_dbg_get_lfr_dbg_value(void)
+{
+	return atomic_read(&lfr_dbg);
+}
 
 static void backup_vfp_for_lp_cust(u64 vfp)
 {
@@ -1713,7 +1904,12 @@ void disp_dbg_probe(void)
 		d_file = debugfs_create_file("disp_met", S_IFREG | 0644,
 					     d_folder, NULL, &disp_met_fops);
 	}
-
+	if (d_folder) {
+		d_file = debugfs_create_file("disp_lfr_dbg",
+			S_IFREG | 0644,	d_folder, NULL, &disp_lfr_dbg_fops);
+		d_file = debugfs_create_file("disp_lfr_params",
+			S_IFREG | 0644,	d_folder, NULL, &disp_lfr_params_fops);
+	}
 	init_log_buffer();
 
 	drm_mmp_init();
@@ -1762,9 +1958,14 @@ void disp_dbg_probe(void)
 			__func__, __LINE__);
 		goto out;
 	}
+#endif
+
+#if IS_ENABLED(CONFIG_MTK_HDMI_SUPPORT)
+	mtk_dp_debugfs_init();
+#endif
+
 out:
 	return;
-#endif
 }
 
 void disp_dbg_init(struct drm_device *dev)
@@ -1789,6 +1990,9 @@ void disp_dbg_deinit(void)
 		proc_remove(disp_lowpower_proc);
 		disp_lowpower_proc = NULL;
 	}
+#endif
+#if IS_ENABLED(CONFIG_MTK_HDMI_SUPPORT)
+	mtk_dp_debugfs_deinit();
 #endif
 }
 

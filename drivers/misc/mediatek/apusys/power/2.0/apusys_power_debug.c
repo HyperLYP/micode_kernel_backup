@@ -154,6 +154,10 @@ int apu_power_power_stress(int type, int device, int opp)
 #endif
 		LOG_WRN("%s, BINNING_VOLTAGE_SUPPORT : %d\n",
 				__func__, BINNING_VOLTAGE_SUPPORT);
+#ifdef CCF_SET_RATE
+		LOG_WRN("%s, CCF_SET_RATE : %d\n",
+			__func__, CCF_SET_RATE);
+#endif
 		LOG_WRN("%s, g_pwr_log_level : %d\n",
 				__func__, g_pwr_log_level);
 		LOG_WRN("%s, power_on_off_stress : %d\n",
@@ -177,63 +181,19 @@ static void change_log_level(int new_level)
 
 void fix_dvfs_debug(void)
 {
-	int i = 0;
-	int opp = 0;
+	enum DVFS_VOLTAGE_DOMAIN i;
+	enum DVFS_BUCK buck;
 
 	mutex_lock(&power_fix_dvfs_mtx);
-
-	for (i = VPU0; i < VPU0 + APUSYS_VPU_NUM; i++)
-		apusys_opps.next_opp_index[i] = fixed_opp;
-
-	for (i = MDLA0; i < MDLA0 + APUSYS_MDLA_NUM; i++)
-		apusys_opps.next_opp_index[i] = fixed_opp;
-
-	// determine vpu / mdla / vcore voltage
-	apusys_opps.next_buck_volt[VPU_BUCK] =
-		apusys_opps.opps[fixed_opp][V_VPU0].voltage;
-	apusys_opps.next_buck_volt[MDLA_BUCK] =
-		apusys_opps.opps[fixed_opp][V_MDLA0].voltage;
-
-	#if VCORE_DVFS_SUPPORT
-	apusys_opps.next_buck_volt[VCORE_BUCK] =
-		apusys_opps.opps[fixed_opp][V_VCORE].voltage;
-	#else
-	if (apusys_opps.next_buck_volt[VPU_BUCK] ==
-		DVFS_VOLT_00_800000_V)
-		apusys_opps.next_buck_volt[VCORE_BUCK] =
-			DVFS_VOLT_00_600000_V;
-	else
-		apusys_opps.next_buck_volt[VCORE_BUCK] =
-			DVFS_VOLT_00_575000_V;
-	#endif
-
-	// determine buck domain opp
 	for (i = 0; i < APUSYS_BUCK_DOMAIN_NUM; i++) {
 		if (dvfs_power_domain_support(i) == false)
 			continue;
-		for (opp = 0; opp < APUSYS_MAX_NUM_OPPS; opp++) {
-#if !defined(CONFIG_MACH_MT6873) && !defined(CONFIG_MACH_MT6853)
-			if ((i == V_APU_CONN ||	i == V_TOP_IOMMU) &&
-				(apusys_opps.opps[opp][i].voltage ==
-				apusys_opps.next_buck_volt[VPU_BUCK])) {
-				apusys_opps.next_opp_index[i] = opp;
-				break;
-#else
-			if ((i == V_APU_CONN) &&
-				(apusys_opps.opps[opp][i].voltage ==
-				apusys_opps.next_buck_volt[VPU_BUCK])) {
-				apusys_opps.next_opp_index[i] = opp;
-				break;
-#endif
-			} else if (i == V_VCORE &&
-			apusys_opps.opps[opp][i].voltage ==
-			apusys_opps.next_buck_volt[VCORE_BUCK]) {
-				apusys_opps.next_opp_index[i] = opp;
-				break;
-			}
-		}
+		apusys_opps.next_opp_index[i] = fixed_opp;
+		buck = apusys_buck_domain_to_buck[i];
+		apusys_opps.next_buck_volt[buck] =
+				max(apusys_opps.opps[fixed_opp][i].voltage,
+				    apusys_opps.next_buck_volt[buck]);
 	}
-
 	is_power_debug_lock = true;
 	apusys_dvfs_policy(0);
 
@@ -273,7 +233,6 @@ static int apusys_debug_power_open(struct inode *inode, struct file *file)
 static int apusys_set_power_parameter(uint8_t param, int argc, int *args)
 {
 	int ret = 0;
-	int i = 0;
 
 	switch (param) {
 	case POWER_PARAM_FIX_OPP:
@@ -356,33 +315,13 @@ static int apusys_set_power_parameter(uint8_t param, int argc, int *args)
 					(int)(args[2]));
 			goto out;
 		}
-#if !defined(CONFIG_MACH_MT6873) && !defined(CONFIG_MACH_MT6853)
-		if ((args[0] == VPU0 || args[0] == VPU1 || args[0] == VPU2)
-#else
-		if ((args[0] == VPU0 || args[0] == VPU1)
-#endif
-			&& APUSYS_VPU_NUM != 0) {
-			for (i = VPU0; i < VPU0 + APUSYS_VPU_NUM; i++) {
-				apusys_opps.power_lock_max_opp[i] =
-					apusys_boost_value_to_opp(i, args[1]);
-				apusys_opps.power_lock_min_opp[i] =
-					apusys_boost_value_to_opp(i, args[2]);
-			}
-		}
 
-#if !defined(CONFIG_MACH_MT6873) && !defined(CONFIG_MACH_MT6853)
-		if ((args[0] == MDLA0 || args[0] == MDLA1)
-#else
-		if ((args[0] == MDLA0)
-#endif
-			&& APUSYS_MDLA_NUM != 0) {
-			for (i = MDLA0; i < MDLA0 + APUSYS_MDLA_NUM; i++) {
-				apusys_opps.power_lock_max_opp[i] =
-					apusys_boost_value_to_opp(i, args[1]);
-				apusys_opps.power_lock_min_opp[i] =
-					apusys_boost_value_to_opp(i, args[2]);
-			}
-		}
+		/* setting max/min opp of user, args[0] */
+		apusys_opps.power_lock_max_opp[args[0]] =
+			apusys_boost_value_to_opp(args[0], args[1]);
+		apusys_opps.power_lock_min_opp[args[0]] =
+			apusys_boost_value_to_opp(args[0], args[2]);
+
 		apusys_dvfs_policy(0);
 		break;
 	}

@@ -329,6 +329,13 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			alignment = <0 0x200000>;
 			alloc-ranges = <0 0x40000000 0 0x80000000>;
 		};
+		ion-carveout-heap {
+			compatible = "mediatek,ion-carveout-heap";
+			no-map;
+			size = <0 0x5000>;
+			alignment = <0 0x1000>;
+			alloc-ranges = <0 0xc0000000 0 0x10000000>;
+		};
 #ifdef CONFIG_MICROTRUST_TEE_SUPPORT
 		soter-shared-mem {
 			compatible = "microtrust,shared_mem";
@@ -1289,6 +1296,12 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			"infra-ccif1-md",
 			"infra-ccif2-ap",
 			"infra-ccif2-md";
+	};
+
+	md_auxadc:md_auxadc {
+		compatible = "mediatek,md_auxadc";
+		io-channels = <&auxadc 2>;
+		io-channel-names = "md-channel";
 	};
 
 	infra_md_cfg@1021d000 {
@@ -4094,7 +4107,6 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		enable_type_c;
 		power_path_support;
 		enable_dynamic_mivr;
-		disable_pd_dual;
 
 		/* common */
 		battery_cv = <4350000>;

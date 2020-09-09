@@ -2698,8 +2698,38 @@ static int mt6360_chg_init_setting(struct mt6360_pmu_chg_info *mpci)
 
 static int mt6360_set_shipping_mode(struct mt6360_pmu_chg_info *mpci)
 {
-	return mt6360_pmu_reg_set_bits(mpci->mpi,
-				     MT6360_PMU_CHG_CTRL2, 0x80);
+	struct mt6360_pmu_info *mpi = mpci->mpi;
+	int ret;
+	u8 data = 0;
+
+	dev_info(mpci->dev, "%s\n", __func__);
+	mutex_lock(&mpi->io_lock);
+	/* disable shipping mode rst */
+	ret = i2c_smbus_read_i2c_block_data(mpi->i2c,
+					    MT6360_PMU_CORE_CTRL2, 1, &data);
+	if (ret < 0)
+		goto out;
+	data |= MT6360_MASK_SHIP_RST_DIS;
+	dev_info(mpci->dev, "%s: reg[0x06] = 0x%02x\n", __func__, data);
+	ret = i2c_smbus_write_i2c_block_data(mpi->i2c,
+					     MT6360_PMU_CORE_CTRL2, 1, &data);
+	if (ret < 0) {
+		dev_err(mpci->dev,
+			"%s: fail to disable shipping mode rst\n", __func__);
+		goto out;
+	}
+
+	data = 0x80;
+	/* enter shipping mode and disable cfo_en/chg_en */
+	ret = i2c_smbus_write_i2c_block_data(mpi->i2c,
+					     MT6360_PMU_CHG_CTRL2, 1, &data);
+	if (ret < 0)
+		dev_err(mpci->dev,
+			"%s: fail to enter shipping mode\n", __func__);
+	return 0;
+out:
+	mutex_unlock(&mpi->io_lock);
+	return ret;
 }
 
 static ssize_t shipping_mode_store(struct device *dev,
@@ -2756,6 +2786,7 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 	struct iio_channel *channel;
 	bool use_dt = pdev->dev.of_node;
 	int i, ret = 0;
+	char *p;
 
 	dev_info(&pdev->dev, "%s\n", __func__);
 	if (use_dt) {
@@ -2840,9 +2871,14 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 	mt6360_pmu_chg_irq_register(pdev);
 	device_init_wakeup(&pdev->dev, true);
 	/* mivr task */
-	mpci->mivr_task = kthread_run(mt6360_chg_mivr_task_threadfn, mpci,
-				      devm_kasprintf(mpci->dev, GFP_KERNEL,
-				      "mivr_thread.%s", dev_name(mpci->dev)));
+	p = devm_kasprintf(mpci->dev, GFP_KERNEL,
+				"mivr_thread.%s", dev_name(mpci->dev));
+	if (IS_ERR_OR_NULL(p)) {
+		dev_notice(mpci->dev, "devm kasprintf fail\n");
+		ret = -EINVAL;
+		goto err_register_chg_dev;
+	}
+	mpci->mivr_task = kthread_run(mt6360_chg_mivr_task_threadfn, mpci, p);
 	ret = PTR_ERR_OR_ZERO(mpci->mivr_task);
 	if (ret < 0) {
 		dev_err(mpci->dev, "create mivr handling thread fail\n");

@@ -32,7 +32,7 @@
 #include "cmdq_reg.h"
 #include "cmdq_virtual.h"
 #include "mdp_common.h"
-#include "cmdq_device.h"
+#include "mdp_cmdq_device.h"
 
 #ifdef CMDQ_CONFIG_SMI
 #include "smi_public.h"
@@ -917,6 +917,8 @@ static void testcase_dram_access(void)
 
 	result_va = cmdq_core_alloc_hw_buffer(cmdq_dev_get(),
 		sizeof(u32) * 2, &result_pa, GFP_KERNEL);
+	if (!result_va)
+		return;
 
 	/* set up intput */
 	result_va[0] = 0xdeaddead;	/* this is read-from */
@@ -2018,12 +2020,17 @@ static void testcase_thread_dispatch(void)
 		(0x1LL << CMDQ_ENG_MDP_CAMIN);
 	const long long engineFlag2 = (0x1LL << CMDQ_ENG_MDP_RDMA0) |
 		(0x1LL << CMDQ_ENG_MDP_WROT0);
+	int len;
 
 	CMDQ_LOG("%s\n", __func__);
 	CMDQ_MSG(
 		"=============== 2 THREAD with different engines ===============\n");
 
-	sprintf(threadName, "cmdqKTHR_%llx", engineFlag1);
+	len = sprintf(threadName, "cmdqKTHR_%llx", engineFlag1);
+	if (len >= 20)
+		pr_debug("%s:%d len:%d threadName:%s\n",
+			__func__, __LINE__, len, threadName);
+
 	pKThread1 = kthread_run(_testcase_thread_dispatch,
 		(void *)(&engineFlag1), threadName);
 	if (IS_ERR(pKThread1)) {
@@ -2031,7 +2038,11 @@ static void testcase_thread_dispatch(void)
 		return;
 	}
 
-	sprintf(threadName, "cmdqKTHR_%llx", engineFlag2);
+	len = sprintf(threadName, "cmdqKTHR_%llx", engineFlag2);
+	if (len >= 20)
+		pr_debug("%s:%d len:%d threadName:%s\n",
+			__func__, __LINE__, len, threadName);
+
 	pKThread2 = kthread_run(_testcase_thread_dispatch,
 		(void *)(&engineFlag2), threadName);
 	if (IS_ERR(pKThread2)) {
@@ -2100,10 +2111,15 @@ static void testcase_full_thread_array(void)
 {
 	char threadName[20];
 	struct task_struct *pKThread;
+	int len;
 
 	CMDQ_LOG("%s\n", __func__);
 
-	sprintf(threadName, "cmdqKTHR");
+	len = sprintf(threadName, "cmdqKTHR");
+	if (len >= 20)
+		pr_debug("%s:%d len:%d threadName:%s\n",
+			__func__, __LINE__, len, threadName);
+
 	pKThread = kthread_run(_testcase_full_thread_array, NULL, threadName);
 	if (IS_ERR(pKThread)) {
 		/* create thread failed */
@@ -3519,6 +3535,8 @@ static void testcase_end_behavior(bool test_prefetch, u32 dummy_size)
 	cmdqCoreClearEvent(CMDQ_SYNC_TOKEN_GPR_SET_4);
 	va_base = cmdq_core_alloc_hw_buffer(cmdq_dev_get(),
 		CMDQ_CMD_BUFFER_SIZE, &pa_base, GFP_KERNEL);
+	if (!va_base)
+		return;
 	cmd_end = va_base;
 	cmd_end[1] = (CMDQ_CODE_MOVE << 24) |
 		((CMDQ_DATA_REG_DEBUG_DST & 0x1f) << 16) | (4 << 21);
@@ -6173,7 +6191,7 @@ static ssize_t cmdq_write_test_proc_config(struct file *file,
 {
 	char desc[50];
 	long long int testConfig[CMDQ_TESTCASE_PARAMETER_MAX];
-	s32 len = 0;
+	u64 len = 0ULL;
 
 	do {
 		/* copy user input */

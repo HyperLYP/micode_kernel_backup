@@ -582,9 +582,27 @@ int msdc_get_ccf_clk_pointer(struct platform_device *pdev,
 		if (clk_freq > 0)
 			host->hclk = clk_freq;
 	}
-
-	pr_info("[msdc%d] hclk:%d, clk_ctl:%p, hclk_ctl:%p\n",
-		pdev->id, host->hclk, host->clk_ctl, host->hclk_ctl);
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_MMC_CRYPTO)
+	if (pdev->id == 0) {
+		host->aes_clk_ctl = devm_clk_get(&pdev->dev,
+			MSDC0_AES_CLK_NAME);
+		if (!PTR_ERR(host->aes_clk_ctl) || IS_ERR(host->aes_clk_ctl)) {
+			pr_notice("[msdc%d] can not get aes clock control\n",
+				pdev->id);
+			WARN_ON(1);
+			return 1;
+		}
+		if (clk_prepare(host->aes_clk_ctl)) {
+			pr_notice(
+				"[msdc%d] can not prepare aes clock control\n",
+				pdev->id);
+			WARN_ON(1);
+			return 1;
+		}
+	}
+#endif
+	pr_info("[msdc%d] hclk:%d, clk_ctl:%p, hclk_ctl:%p, aes_clk_ctl:%p\n",
+		pdev->id, host->hclk, host->clk_ctl, host->hclk_ctl, host->aes_clk_ctl);
 #endif /* CLOCK_READY */
 	return 0;
 }
@@ -1283,6 +1301,11 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 		device_rename(mmc->parent, "bootdevice");
 	else if (host->id == 1)
 		device_rename(mmc->parent, "externdevice");
+
+	/* fix uaf(use afer free) issue:backup pdev->name,
+	 * device_rename will free pdev->name
+	 */
+	pdev->name = pdev->dev.kobj.name;
 
 	/* Register PMIC Interrupt for VMCH OC */
 #ifdef POWER_READY

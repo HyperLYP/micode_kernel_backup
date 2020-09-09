@@ -42,7 +42,6 @@
 #include <mtk_spm_vcore_dvfs.h>
 
 /* #include <mach/mt_wtd.h> */
-#include <mach/wd_api.h>
 #include <mtk_gpu_utility.h>
 #include <linux/time.h>
 
@@ -68,7 +67,9 @@
 #if defined(ATM_USES_PPM)
 #include "mtk_ppm_api.h"
 #else
+#ifndef CONFIG_MACH_MT8168
 #include "mt_cpufreq.h"
+#endif
 #endif
 
 #include <linux/uidgid.h>
@@ -76,7 +77,9 @@
 #include "mtk_auxadc.h"
 
 #include <ap_thermal_limit.h>
+#if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 #include "mtk_thermal_ipi.h"
+#endif
 
 #if !defined(CFG_THERM_LVTS)
 #define CFG_THERM_LVTS		0
@@ -306,7 +309,9 @@ mt_cpufreq_thermal_protect(unsigned int limited_power)
 	bool __attribute__ ((weak))
 mtk_get_gpu_loading(unsigned int *pLoading)
 {
+#ifdef CONFIG_MTK_GPU_SUPPORT
 	pr_notice("E_WF: %s doesn't exist\n", __func__);
+#endif
 	return 0;
 }
 
@@ -2466,6 +2471,10 @@ static void init_thermal(void)
 	tscpu_thermal_cal_prepare_2(0);
 
 	tscpu_reset_thermal();
+#endif
+
+#if CFG_THERM_LVTS
+	lvts_tscpu_reset_thermal();
 #endif
 
 #if CFG_THERM_LVTS

@@ -29,8 +29,10 @@
 #include "mtk_disp_recovery.h"
 #include "mtk_drm_ddp_addon.h"
 #include <linux/pm_wakeup.h>
+#include "mtk_disp_pmqos.h"
 
 
+#define MAX_CRTC 3
 #define OVL_LAYER_NR 12L
 #define OVL_PHY_LAYER_NR 4L
 #define RDMA_LAYER_NR 1UL
@@ -78,10 +80,10 @@ enum DISP_PMQOS_SLOT {
 #define DISP_SLOT_CUR_CONFIG_FENCE_BASE 0x0000
 #define DISP_SLOT_CUR_CONFIG_FENCE(n)                                          \
 	(DISP_SLOT_CUR_CONFIG_FENCE_BASE + (0x4 * (n)))
-#define DISP_SLOT_PRESENT_FENCE                                          \
-	DISP_SLOT_CUR_CONFIG_FENCE(OVL_LAYER_NR)
+#define DISP_SLOT_PRESENT_FENCE(n)                                          \
+	(DISP_SLOT_CUR_CONFIG_FENCE(OVL_LAYER_NR) + (0x4 * (n)))
 #define DISP_SLOT_SUBTRACTOR_WHEN_FREE_BASE                                    \
-	(DISP_SLOT_PRESENT_FENCE + 0x4)
+	(DISP_SLOT_PRESENT_FENCE(MAX_CRTC) + 0x4)
 #define DISP_SLOT_SUBTRACTOR_WHEN_FREE(n)                                      \
 	(DISP_SLOT_SUBTRACTOR_WHEN_FREE_BASE + (0x4 * (n)))
 #define DISP_SLOT_ESD_READ_BASE DISP_SLOT_SUBTRACTOR_WHEN_FREE(OVL_LAYER_NR)
@@ -109,6 +111,10 @@ enum DISP_PMQOS_SLOT {
 	(DISP_SLOT_READ_DDIC_BASE + READ_DDIC_SLOT_NUM * 0x4)
 #define DISP_SLOT_CUR_USER_CMD_IDX (DISP_SLOT_READ_DDIC_BASE_END + 0x4)
 #define DISP_SLOT_CUR_BL_IDX (DISP_SLOT_CUR_USER_CMD_IDX + 0x4)
+
+/* For Dynamic OVL feature */
+#define DISP_OVL_ROI_SIZE 0x20
+#define DISP_OVL_DATAPATH_CON 0x24
 
 /* TODO: figure out Display pipe which need report PMQOS BW */
 #define DISP_SLOT_SIZE (DISP_SLOT_CUR_BL_IDX + 0x4)
@@ -145,7 +151,8 @@ enum DISP_PMQOS_SLOT {
 	(_MTK_CRTC_COLOR_FMT_bpp_SHIFT + _MTK_CRTC_COLOR_FMT_bpp_WIDTH)
 #define _MTK_CRTC_COLOR_FMT_RGB_WIDTH 1
 
-#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833)
 #define GCE_BASE_ADDR 0x10228000
 #define GCE_GCTL_VALUE 0x48
 #define GCE_DEBUG_START_ADDR 0x1104
@@ -309,6 +316,28 @@ enum DISP_PMQOS_SLOT {
 				1);                           \
 				(__j)++)
 
+#define for_each_comp_id_in_dual_pipe(comp_id, path_data, __i, __j)    \
+	for ((__i) = 0; (__i) < DDP_SECOND_PATH; (__i)++) \
+		for ((__j) = 0;				  \
+			(__j) <					  \
+			(path_data)->dual_path_len[__i] &&  \
+			((comp_id) = (path_data)	  \
+			->dual_path[__i][__j],	  \
+			1);						  \
+			(__j)++)
+
+#define for_each_comp_in_dual_pipe(comp, mtk_crtc, __i, __j)       \
+	for ((__i) = 0; (__i) < DDP_SECOND_PATH; (__i)++)		   \
+		for ((__j) = 0; (__j) <		  \
+			(mtk_crtc)->dual_pipe_ddp_ctx   \
+			.ddp_comp_nr[__i] &&		  \
+			((comp) = (mtk_crtc)		  \
+			->dual_pipe_ddp_ctx			  \
+			.ddp_comp[__i][__j],		  \
+			1);						  \
+			(__j)++)					  \
+			for_each_if(comp)
+
 #define for_each_wb_comp_id_in_path_data(comp_id, path_data, __i, p_mode)      \
 	for ((p_mode) = 0; (p_mode) < DDP_MODE_NR; (p_mode)++)        \
 		for ((__i) = 0;                       \
@@ -412,13 +441,15 @@ enum CRTC_GCE_EVENT_TYPE {
 	EVENT_VDO_EOF,
 	EVENT_STREAM_EOF,
 	EVENT_STREAM_DIRTY,
-#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833)
 	EVENT_SYNC_TOKEN_SODI,
 #endif
 	EVENT_TE,
 	EVENT_ESD_EOF,
 	EVENT_RDMA0_EOF,
 	EVENT_WDMA0_EOF,
+	EVENT_WDMA1_EOF,
 	EVENT_STREAM_BLOCK,
 	EVENT_CABC_EOF,
 	EVENT_DSI0_SOF,
@@ -445,6 +476,9 @@ struct mtk_crtc_path_data {
 	const enum mtk_ddp_comp_id *wb_path[DDP_MODE_NR];
 	unsigned int wb_path_len[DDP_MODE_NR];
 	const struct mtk_addon_scenario_data *addon_data;
+	//for dual path
+	const enum mtk_ddp_comp_id *dual_path[DDP_PATH_NR];
+	unsigned int dual_path_len[DDP_PATH_NR];
 };
 
 struct mtk_crtc_gce_obj {
@@ -523,7 +557,8 @@ struct mtk_drm_crtc {
 	struct drm_pending_vblank_event *event;
 	struct mtk_crtc_gce_obj gce_obj;
 	struct cmdq_pkt *trig_loop_cmdq_handle;
-#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833)
 	struct cmdq_pkt *sodi_loop_cmdq_handle;
 #endif
 	struct mtk_drm_plane *planes;
@@ -543,6 +578,8 @@ struct mtk_drm_crtc {
 	bool wb_hw_enable;
 
 	const struct mtk_crtc_path_data *path_data;
+	struct mtk_crtc_ddp_ctx dual_pipe_ddp_ctx;
+	bool is_dual_pipe;
 
 	struct mtk_drm_idlemgr *idlemgr;
 	wait_queue_head_t crtc_status_wq;
@@ -646,6 +683,7 @@ int mtk_drm_crtc_getfence_ioctl(struct drm_device *dev, void *data,
 long mtk_crtc_wait_status(struct drm_crtc *crtc, bool status, long timeout);
 int mtk_crtc_path_switch(struct drm_crtc *crtc, unsigned int path_sel,
 			 int need_lock);
+void mtk_need_vds_path_switch(struct drm_crtc *crtc);
 
 void mtk_drm_crtc_first_enable(struct drm_crtc *crtc);
 void mtk_drm_crtc_enable(struct drm_crtc *crtc);
@@ -710,7 +748,8 @@ bool mtk_crtc_with_trigger_loop(struct drm_crtc *crtc);
 void mtk_crtc_stop_trig_loop(struct drm_crtc *crtc);
 void mtk_crtc_start_trig_loop(struct drm_crtc *crtc);
 
-#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833)
 bool mtk_crtc_with_sodi_loop(struct drm_crtc *crtc);
 void mtk_crtc_stop_sodi_loop(struct drm_crtc *crtc);
 void mtk_crtc_start_sodi_loop(struct drm_crtc *crtc);
@@ -723,6 +762,7 @@ unsigned int mtk_drm_dump_wk_lock(struct mtk_drm_private *priv,
 	char *stringbuf, int buf_len);
 char *mtk_crtc_index_spy(int crtc_index);
 bool mtk_drm_get_hdr_property(void);
+int mtk_drm_aod_setbacklight(struct drm_crtc *crtc, unsigned int level);
 
 /* ********************* Legacy DISP API *************************** */
 unsigned int DISP_GetScreenWidth(void);

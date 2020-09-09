@@ -236,7 +236,7 @@ static void get_picachu_efuse(void)
 	val = (int *)&eem_devinfo;
 
 	picachu_mem_size = 0x80000;
-	picachu_mem_base_phys = eem_read(EEM_TEMPSPARE0);
+	picachu_mem_base_phys = eem_read(EEMSPARE0);
 	if ((void __iomem *)picachu_mem_base_phys != NULL)
 		picachu_mem_base_virt =
 			(phys_addr_t)(uintptr_t)ioremap_wc(
@@ -1805,7 +1805,7 @@ skip_update:
 static int eem_volt_thread_handler(void *data)
 {
 	struct eem_ctrl *ctrl = (struct eem_ctrl *)data;
-	struct eem_det *det = id_to_eem_det(ctrl->det_id);
+	struct eem_det *det;
 #ifdef CONFIG_EEM_AEE_RR_REC
 	int temp = -1;
 #endif
@@ -1816,6 +1816,12 @@ static int eem_volt_thread_handler(void *data)
 #endif
 
 	FUNC_ENTER(FUNC_LV_HELP);
+	if (ctrl == NULL)
+		return 0;
+
+	det = id_to_eem_det(ctrl->det_id);
+	if (det == NULL)
+		return 0;
 	do {
 		eem_debug("In thread handler\n");
 		wait_event_interruptible(ctrl->wq, ctrl->volt_update);
@@ -2393,6 +2399,9 @@ static void eem_set_eem_volt(struct eem_det *det)
 	struct eem_ctrl *ctrl = id_to_eem_ctrl(det->ctrl_id);
 
 	FUNC_ENTER(FUNC_LV_HELP);
+	if (ctrl == NULL)
+		return;
+
 	ctrl->volt_update |= EEM_VOLT_UPDATE;
 	dsb(sy);
 	eem_debug("@@!In %s\n", __func__);
@@ -3677,7 +3686,7 @@ static int eem_probe(struct platform_device *pdev)
 
 	/* node_mcucfg */
 	node_mcucfg = of_find_compatible_node(NULL, NULL, MCUCFG_NODE);
-	if (!node_infra) {
+	if (!node_mcucfg) {
 		eem_debug("MCUCFG_NODE Not Found\n");
 		return 0;
 	}
@@ -3723,13 +3732,11 @@ static int eem_probe(struct platform_device *pdev)
 #ifdef CONFIG_EEM_AEE_RR_REC
 		_mt_eem_aee_init();
 #endif
-#if defined(CONFIG_ARM64) && defined(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES)
-	if (strstr(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES,
-						"aging") != NULL) {
-		eem_debug("@%s: AGING flavor name: %s\n",
-			__func__, CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES);
-		eem_aging_enable = 1;
-	}
+
+#if defined(AGING_LOAD)
+	eem_debug("@%s: AGING flavor name: %s\n",
+		__func__, PROJECT_DTB_NAMES);
+	eem_aging_enable = 1;
 #endif
 
 	if (eem_aging_enable) {

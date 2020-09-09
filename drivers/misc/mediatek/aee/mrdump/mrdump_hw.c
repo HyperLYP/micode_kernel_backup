@@ -67,7 +67,6 @@ static void mrdump_dbgtop_dram_reserved(bool enable)
 }
 #else
 #ifdef CONFIG_MTK_WATCHDOG
-
 static void mrdump_wd_dram_reserved_mode(bool enabled)
 {
 	int res;
@@ -92,7 +91,7 @@ static void mrdump_wd_dram_reserved_mode(bool enabled)
 						pr_notice("%s: DFD_BASIC_DUMP enabled\n",
 								__func__);
 #else
-			pr_notice("%s: config is not enabled yet\n",
+			pr_notice("%s: dfd config is not enabled yet\n",
 					__func__);
 #endif
 				} else {

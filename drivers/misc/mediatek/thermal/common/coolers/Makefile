@@ -1,14 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0
 #
-# Copyright (C) 2015 MediaTek Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# Copyright (c) 2019 MediaTek Inc.
 #
 
 THERMAL_CHIP_DRIVER_DIR := $(srctree)/drivers/misc/mediatek/thermal/$(MTK_PLATFORM)
@@ -17,7 +9,11 @@ ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/fakeHeader/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/include/
+ifneq (,$(findstring 3gear,$(PROJECT_DTB_NAMES)))
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/ppm_v3/src/mach/mt6893
+else
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/ppm_v3/src/mach/$(MTK_PLATFORM)
+endif
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/video/include
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/gpu/ged/include
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/common/inc/
@@ -158,7 +154,7 @@ endif
 
 
 
-ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6799" "mt6759" "mt6763" "mt6765" "mt6758"))
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6799" "mt6759" "mt6763" "mt6765" "mt6758" "mt8168"))
 ifeq ($(CONFIG_MTK_THERMAL_PA_VIA_ATCMD),y)
     obj-$(CONFIG_THERMAL) += mtk_cooler_mutt.o
 endif

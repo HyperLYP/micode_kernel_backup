@@ -18,7 +18,7 @@
 
 #include "cmdq-util.h"
 #include "cmdq-sec.h"
-#include "../../mdp/cmdq_helper_ext.h"
+#include "../../mdp/mdp_cmdq_helper_ext.h"
 
 #define CMDQ_THR_SPR3(base, id)		((base) + (0x80 * (id)) + 0x16c)
 #define CMDQ_GPR_R32(base, id)		((base) + (0x4 * (id)) + 0x80)
@@ -592,7 +592,7 @@ static void cmdq_test_mbox_sync_token_flush(unsigned long data)
 }
 
 void cmdq_test_mbox_flush(
-	struct cmdq_test *test, const bool secure, const bool threaded)
+	struct cmdq_test *test, const s32 secure, const bool threaded)
 {
 	struct cmdq_client		*clt = secure ? test->sec : test->clt;
 	struct cmdq_pkt			*pkt[CMDQ_TEST_CNT] = {0};
@@ -611,8 +611,9 @@ void cmdq_test_mbox_flush(
 		if (secure) {
 			cmdq_sec_pkt_set_data(pkt[i], 0, 0, CMDQ_SEC_DEBUG,
 				CMDQ_METAEX_NONE);
-#if 1
-			cmdq_sec_pkt_set_mtee(pkt[i], true);
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+			if (!~secure)
+				cmdq_sec_pkt_set_mtee(pkt[i], true);
 #endif
 		}
 #endif
@@ -653,7 +654,7 @@ void cmdq_test_mbox_flush(
 }
 
 static void cmdq_test_mbox_write(
-	struct cmdq_test *test, const bool secure, const bool need_mask)
+	struct cmdq_test *test, const s32 secure, const bool need_mask)
 {
 	const u32	mask = need_mask ? (1 << 16) : ~0;
 	const u32	pttn = (1 << 0) | (1 << 2) | (1 << 16);
@@ -682,9 +683,9 @@ static void cmdq_test_mbox_write(
 	if (secure) {
 		cmdq_sec_pkt_set_data(pkt, 0, 0, CMDQ_SEC_DEBUG,
 			CMDQ_METAEX_NONE);
-
-#if 1
-		cmdq_sec_pkt_set_mtee(pkt, true); //MTEE UT
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+		if (!~secure)
+			cmdq_sec_pkt_set_mtee(pkt, true);
 #endif
 	}
 #endif
@@ -749,6 +750,10 @@ static void cmdq_access_sub_impl(struct cmdq_test *test,
 	u32 pat_init = 0xdeaddead, pat_src = 0xbeefbeef;
 
 	va = cmdq_mbox_buf_alloc(clt->client.dev, &pa);
+	if (!va) {
+		cmdq_err("cmdq_mbox_buf_alloc failed");
+		return;
+	}
 	count = cmdq_test_get_subsys_list(&regs);
 
 	for (i = 0; i < count; i++) {
@@ -942,7 +947,8 @@ cmdq_test_write(struct file *filp, const char *buf, size_t count, loff_t *offp)
 {
 	struct cmdq_test *test = (struct cmdq_test *)filp->f_inode->i_private;
 	char		str[MAX_SCAN] = {0};
-	s32		len, sec, id = 0;
+	s32		sec, id = 0;
+	u32		len;
 
 	len = (count < MAX_SCAN - 1) ? count : (MAX_SCAN - 1);
 	if (copy_from_user(str, buf, len)) {

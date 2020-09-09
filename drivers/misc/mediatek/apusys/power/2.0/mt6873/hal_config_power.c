@@ -233,8 +233,9 @@ static void recording_power_fail_state(void)
 static void dump_fail_state(void)
 {
 	char log_str[128];
+	int ret = 0;
 
-	snprintf(log_str, sizeof(log_str),
+	ret = snprintf(log_str, sizeof(log_str),
 		"v[%u,%u,%u,%u]f[%u,%u,%u,%u,%u]r[%x,%x,%x,%x,%x,%x,%x]t[%lu.%06lu]",
 		power_fail_record.pwr_info.vvpu,
 		power_fail_record.pwr_info.vmdla,
@@ -254,7 +255,10 @@ static void dump_fail_state(void)
 		power_fail_record.pwr_info.mdla0_cg_stat,
 		power_fail_record.time_sec, power_fail_record.time_nsec);
 
-	LOG_ERR("APUPWR err %s\n", log_str);
+	if (ret >= 0) {
+		LOG_ERR("APUPWR err %s\n", log_str);
+		LOG_DUMP("APUPWR err %s\n", log_str); // debug ring buffer
+	}
 }
 
 // vcore voltage p to vcore opp
@@ -987,6 +991,7 @@ static void get_current_power_info(void *param, int force)
 	#ifdef APUPWR_TAG_TP
 	unsigned long long time_id = info->id;
 	#endif
+	int ret = 0;
 
 	info->dump_div = 1000;
 
@@ -1006,7 +1011,7 @@ static void get_current_power_info(void *param, int force)
 		// including SPM related pwr reg
 		check_spm_register(info, 0);
 
-		snprintf(log_str, sizeof(log_str),
+		ret = snprintf(log_str, sizeof(log_str),
 			"v[%u,%u,%u,%u]f[%u,%u,%u,%u,%u]r[%x,%x,%x,%x,%x,%x,%x][%5lu.%06lu]",
 			info->vvpu, info->vmdla, info->vcore, info->vsram,
 			info->dsp_freq, info->dsp1_freq, info->dsp2_freq,
@@ -1029,7 +1034,7 @@ static void get_current_power_info(void *param, int force)
 			info->mdla0_cg_stat);
 		#endif
 	} else {
-		snprintf(log_str, sizeof(log_str),
+		ret = snprintf(log_str, sizeof(log_str),
 			"v[%u,%u,%u,%u]f[%u,%u,%u,%u,%u][%5lu.%06lu]",
 			info->vvpu, info->vmdla, info->vcore, info->vsram,
 			info->dsp_freq, info->dsp1_freq, info->dsp2_freq,
@@ -1046,10 +1051,12 @@ static void get_current_power_info(void *param, int force)
 
 	trace_APUSYS_DFS(info, mdla_0);
 
-	if (info->force_print)
-		LOG_ERR("APUPWR %s\n", log_str);
-	else
-		LOG_PM("APUPWR %s\n", log_str);
+	if (ret >= 0) {
+		if (info->force_print)
+			LOG_ERR("APUPWR %s\n", log_str);
+		else
+			LOG_PM("APUPWR %s\n", log_str);
+	}
 
 }
 

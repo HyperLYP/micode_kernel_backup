@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #ifndef _MDDP_F_TUPLE_H
@@ -30,57 +22,36 @@
 
 
 struct tuple {
-	union {
-		struct {
-			u_int32_t src;	/*src */
-			u_int32_t dst;	/*dst */
-			union {
-				u_int16_t all;
-				struct {
-					u_int16_t port;
-				} tcp;
-				struct {
-					u_int16_t port;
-				} udp;
-				struct {
-					u_int16_t callid;
-				} gre;
-			} s;
-			union {
-				u_int16_t all;
-				struct {
-					u_int16_t port;
-				} tcp;
-				struct {
-					u_int16_t port;
-				} udp;
-				struct {
-					u_int16_t callid;
-				} gre;
-			} d;
-			u_int8_t proto;
-		} nat;
-		struct {
-			union {
-				struct {
-					u_int8_t dst_unused[2];
-					u_int8_t dst_mac[6];
-				} __attribute__ ((__packed__));
-				struct {
-					u_int16_t dst_unused2;
-					u_int16_t dst_mac1;
-					u_int32_t dst_mac2;
-				};
-			};
-			u_int8_t vlevel_src;
-			u_int16_t vlan_src[MAX_VLAN_LEVEL];
-		} bridge;
-	};
-#ifndef MDDP_F_NETFILTER
-	u_int8_t iface_in;
-#else
+	struct {
+		u_int32_t src;	/*src */
+		u_int32_t dst;	/*dst */
+		union {
+			u_int16_t all;
+			struct {
+				u_int16_t port;
+			} tcp;
+			struct {
+				u_int16_t port;
+			} udp;
+			struct {
+				u_int16_t callid;
+			} gre;
+		} s;
+		union {
+			u_int16_t all;
+			struct {
+				u_int16_t port;
+			} tcp;
+			struct {
+				u_int16_t port;
+			} udp;
+			struct {
+				u_int16_t callid;
+			} gre;
+		} d;
+		u_int8_t proto;
+	} nat;
 	struct net_device *dev_in;
-#endif
 };
 
 struct nat_tuple {
@@ -129,13 +100,8 @@ struct nat_tuple {
 
 	u_int8_t proto;
 
-#ifndef MDDP_F_NETFILTER
-	u_int8_t iface_src;
-	u_int8_t iface_dst;
-#else
 	struct net_device *dev_src;
 	struct net_device *dev_dst;
-#endif
 
 	struct timer_list timeout_used;
 
@@ -150,13 +116,8 @@ struct router_tuple {
 	struct in6_addr saddr;
 	struct in6_addr daddr;
 
-#ifndef MDDP_F_NETFILTER
-	u_int8_t iface_src;
-	u_int8_t iface_dst;
-#else
 	struct net_device *dev_src;
 	struct net_device *dev_dst;
-#endif
 
 	struct timer_list timeout_used;
 

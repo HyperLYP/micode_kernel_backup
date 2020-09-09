@@ -53,8 +53,10 @@ int pseudo_test_alloc_dealloc(int port, unsigned long va,
 	M4U_INFO("test va=0x%lx,size=0x%x\n", va, size);
 
 	client = pseudo_get_m4u_client();
-	if (IS_ERR_OR_NULL(client))
+	if (IS_ERR_OR_NULL(client)) {
 		M4U_MSG("create client fail!\n");
+		return -1;
+	}
 
 	ret = __pseudo_alloc_mva(client, port, va,
 			    size, sg_table, 0, &mva);
@@ -150,8 +152,10 @@ static int m4u_test_map_kernel(void)
 		*(int *)(va + i) = i;
 
 	client = pseudo_get_m4u_client();
-	if (IS_ERR_OR_NULL(client))
-		M4U_MSG("createclientfail!\n");
+	if (IS_ERR_OR_NULL(client)) {
+		M4U_MSG("create client fail!\n");
+		return -1;
+	}
 
 	ret = __pseudo_alloc_mva(client, M4U_PORT_OVL_DEBUG,
 		va, size, NULL, 0, &mva);
@@ -198,6 +202,10 @@ int m4u_test_fake_engine(void)
 	unsigned int i = 0;
 	struct m4u_client_t *client = pseudo_get_m4u_client();
 
+	if (IS_ERR_OR_NULL(client)) {
+		M4U_MSG("create client fail!\n");
+		return -1;
+	}
 	iommu_perf_monitor_start(0);
 
 	pSrc = vmalloc(allocated_size);
@@ -209,7 +217,7 @@ int m4u_test_fake_engine(void)
 	memset(pSrc, 0xFF, allocated_size);
 	M4U_MSG("(0) vmalloc pSrc:0x%p\n", pSrc);
 
-	pDst =  vmalloc(allocated_size);
+	pDst = vmalloc(allocated_size);
 	if (!pDst) {
 		M4U_MSG("vmalloc failed!\n");
 		vfree(pSrc);
@@ -276,6 +284,10 @@ int m4u_test_ddp(void)
 	struct M4U_PORT_STRUCT port;
 	struct m4u_client_t *client = pseudo_get_m4u_client();
 
+	if (IS_ERR_OR_NULL(client)) {
+		M4U_MSG("create client fail!\n");
+		return -1;
+	}
 	pSrc = vmalloc(size);
 	if (!pSrc) {
 		M4U_MSG("vmalloc failed!\n");
@@ -290,6 +302,8 @@ int m4u_test_ddp(void)
 		pseudo_put_m4u_client();
 		return -1;
 	}
+	memset(pSrc, 0xFF, size);
+	memset(pDst, 0xFF, size);
 
 	__pseudo_alloc_mva(client, M4U_PORT_OVL_DEBUG, *pSrc,
 		      size, NULL, 0, &src_pa);
@@ -349,6 +363,10 @@ int m4u_test_tf(void)
 	struct m4u_client_t *client = pseudo_get_m4u_client();
 	int data = 88;
 
+	if (IS_ERR_OR_NULL(client)) {
+		M4U_MSG("create client fail!\n");
+		return -1;
+	}
 	mtk_iommu_register_fault_callback(M4U_PORT_OVL_DEBUG,
 		test_fault_callback, &data);
 	mtk_iommu_register_fault_callback(M4U_PORT_MDP_DEBUG,
@@ -368,6 +386,8 @@ int m4u_test_tf(void)
 		pseudo_put_m4u_client();
 		return -1;
 	}
+	memset(pSrc, 0xFF, size);
+	memset(pDst, 0xFF, size);
 
 	__pseudo_alloc_mva(client, M4U_PORT_OVL_DEBUG, *pSrc,
 		      size, NULL, 0, &src_pa);
@@ -856,12 +876,17 @@ static int m4u_debug_set(void *data, u64 val)
 		struct m4u_client_t *client = pseudo_get_m4u_client();
 		struct device *dev = pseudo_get_larbdev(M4U_PORT_UNKNOWN);
 
+		if (IS_ERR_OR_NULL(client)) {
+			M4U_MSG("create client fail!\n");
+			return -1;
+		}
 		pSrc = vmalloc(128);
 		if (!pSrc) {
 			M4U_MSG("vmalloc failed!\n");
 			pseudo_put_m4u_client();
 			return -1;
 		}
+		memset(pSrc, 0xFF, 128);
 
 		__pseudo_alloc_mva(client, M4U_PORT_OVL_DEBUG,
 			(unsigned long)*pSrc, 128, NULL, 0, &mva);
@@ -1043,6 +1068,17 @@ static int m4u_debug_set(void *data, u64 val)
 			larb_clock_off(i, 1);
 	}
 	break;
+#ifdef M4U_GZ_SERVICE_ENABLE
+	case 52:
+	{
+		int ret = 0;
+
+		ret = m4u_gz_sec_init(0);
+		pr_notice("%s, %d, genie zone secure init, ret:%d\n",
+			  __func__, __LINE__, ret);
+	}
+	break;
+#endif
 	default:
 		M4U_MSG("%s error,val=%llu\n", __func__, val);
 	}
@@ -1179,6 +1215,8 @@ int m4u_debug_help_show(struct seq_file *s, void *unused)
 		      "echo 8'd50 > /d/m4u/debug:	init the Trustlet and T-drv of secure IOMMU\n");
 	M4U_PRINT_SEQ(s,
 		      "echo 8'd51 > /d/m4u/debug:	IOMMU ATF (all) command test\n");
+	M4U_PRINT_SEQ(s,
+		      "echo 8'd52 > /d/m4u/debug:	init the genie zone secure iommu\n");
 
 	M4U_PRINT_SEQ(s, "\nM4U_MAGIC_KEY:0x%x(bit31~bit8)\n", M4U_MAGIC_KEY);
 	M4U_PRINT_SEQ(s, "ex: adb shell \"echo 0x%xxx > /d/m4u/debug\"\n",

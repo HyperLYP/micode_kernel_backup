@@ -16,6 +16,12 @@
 
 #define MTK_MDLA_MAX_NUM 1 // shift to dts later
 
+#define MDLA_HWLOCK_NAME \
+	{"HWLOCK0"}
+
+#define MDLA_SCHEDLOCK_NAME \
+	{"SCHEDLOCK0"}
+
 #ifndef CONFIG_MTK_MDLA_DEBUG
 #define CONFIG_MTK_MDLA_DEBUG
 #endif
@@ -32,8 +38,16 @@
 
 #ifdef CONFIG_MTK_APUSYS_RT_SUPPORT
 #define PRIORITY_LEVEL 2 //now support pripority level
+enum MDLA_PRIORITY {
+	MDLA_LOW_PRIORITY  = 0,
+	MDLA_HIGH_PRIORITY = 1,
+};
 #else//MTK_APUSYS_RT_SUPPORT
 #define PRIORITY_LEVEL 1
+enum MDLA_PRIORITY {
+	MDLA_LOW_PRIORITY  = 0,
+	MDLA_HIGH_PRIORITY = 1,
+};
 #endif//MTK_APUSYS_RT_SUPPORT
 
 #include "apusys_device.h"

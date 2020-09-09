@@ -634,27 +634,17 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 	unsigned int lv = CPU_LEVEL_4;
 #endif
 	int val = get_devinfo_with_index(7) & 0xFF; /* segment code */
+	int cpulv0 = get_devinfo_with_index(52); /* cpu level code */
 	int cpulv = get_devinfo_with_index(62); /* cpu level code */
-	/* int cpulv1 = (cpulv & 0xFF); */ /* cpu level code [7:0]*/
-	/* int cpulv2 = (cpulv & 0x300); */ /* cpu level code [9:8]*/
+	int cpulv1 = (cpulv0 & 0xFF); /* cpu level code [7:0]*/
+	int cpulv2 = (cpulv & 0x300); /* cpu level code [9:8]*/
 	int seg = val & 0x3; /* segment cod[1:0] */
 
 	if (!val) {
-#if 0
-		if (cpulv1 <= 1 && !cpulv2) {
-#ifndef CONFIG_MT6360_PMIC
-			lv = CPU_LEVEL_1;
-#else
-			lv = CPU_LEVEL_2;
-#endif
-		}
-#else
 #ifndef CONFIG_MT6360_PMIC
 		lv = CPU_LEVEL_1;
 #else
 		lv = CPU_LEVEL_2;
-#endif
-
 #endif
 	} else {
 		if (seg) {
@@ -666,28 +656,43 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 		}
 	}
 
-#if defined(CONFIG_ARM64) && \
-		defined(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES)
-	/* oonly check for 6853t project */
-	if (strstr(
-		CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES,
-			"k6853tv1")){
-		WARN_ON(GEN_DB_ON(lv < CPU_LEVEL_3,
-			"cpufreq segment wrong, efuse_val = 0x%x 0x%x",
-			val, cpulv));
+#if defined(K6853TV1)
+	if (!val) {
+		if (cpulv1 > 1 || cpulv2) {
+#ifndef CONFIG_MT6360_PMIC
+			lv = CPU_LEVEL_3;
+#else
+			lv = CPU_LEVEL_4;
+#endif
+		}
 	}
-	if (strstr(
-		CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES,
-			"_turbo")){
-		lv = CPU_LEVEL_0;
-		tag_pr_info("turbo project over\n");
-	}
+	WARN_ON(GEN_DB_ON(lv < CPU_LEVEL_3,
+		"cpufreq segment wrong, efuse_val = 0x%x 0x%x",
+		val, cpulv));
 #endif
 
+#if defined(QEA)
+	if (!val) {
+		if (cpulv1 > 1 || cpulv2) {
+#ifndef CONFIG_MT6360_PMIC
+			lv = CPU_LEVEL_5;
+#else
+			lv = CPU_LEVEL_6;
+#endif
+		}
+	}
+	WARN_ON(GEN_DB_ON(lv < CPU_LEVEL_5,
+			"cpufreq segment wrong for qea, efuse_val = 0x%x 0x%x",
+		val, cpulv));
+#endif
 
-	tag_pr_info("%s %d, %d, Settle time(%d, %d) efuse_val = 0x%x 0x%x\n",
-		CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES,
-		lv, turbo_flag, UP_SRATE, DOWN_SRATE, val, cpulv);
+#if defined(TURBO)
+	lv = CPU_LEVEL_0;
+	tag_pr_info("turbo project over\n");
+#endif
+
+	tag_pr_info("%d, %d, Settle time(%d, %d) efuse_val = 0x%x 0x%x 0x%x 0x%x\n",
+		lv, turbo_flag, UP_SRATE, DOWN_SRATE, val, cpulv, cpulv1, cpulv2);
 	return lv;
 }
 #ifdef DFD_WORKAROUND

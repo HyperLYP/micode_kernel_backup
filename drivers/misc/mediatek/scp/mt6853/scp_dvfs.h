@@ -16,18 +16,20 @@
 
 #define SCP_DVFS_USE_PLL		1
 
-#define PLL_ENABLE				(1)
-#define PLL_DISABLE				(0)
+#define PLL_ENABLE			(1)
+#define PLL_DISABLE			(0)
 
 #define DVFS_STATUS_OK			(0)
 #define DVFS_STATUS_BUSY		(-1)
-#define DVFS_REQUEST_SAME_CLOCK	(-2)
+#define DVFS_REQUEST_SAME_CLOCK		(-2)
 #define DVFS_STATUS_ERR			(-3)
 #define DVFS_STATUS_TIMEOUT		(-4)
 #define DVFS_CLK_ERROR			(-5)
 #define DVFS_STATUS_CMD_FIX		(-6)
-#define DVFS_STATUS_CMD_LIMITED	(-7)
-#define DVFS_STATUS_CMD_DISABLE	(-8)
+#define DVFS_STATUS_CMD_LIMITED		(-7)
+#define DVFS_STATUS_CMD_DISABLE		(-8)
+
+#define ULPOSC_CALI_BY_AP
 
 enum scp_state_enum {
 	IN_DEBUG_IDLE = 1,
@@ -51,7 +53,7 @@ enum scp_req_r {
 	SCP_REQ_26M = 1 << 0,
 	SCP_REQ_IFR = 1 << 1,
 	SCP_REQ_SYSPLL1 = 1 << 2,
-	SCP_REQ_MAX = 0xffff,
+	SCP_REQ_MAX = 1 << 3,
 };
 
 enum {
@@ -90,7 +92,8 @@ enum {
 	SLP_DBG_CMD_BLOCK_BY_PENDING_IRQ_CNT,
 	SLP_DBG_CMD_BLOCK_BY_SLP_DISABLED_CNT,
 	SLP_DBG_CMD_BLOCK_BY_SLP_BUSY_CNT,
-	SLP_DBG_CMD_BLOCK_BY_HARD1_BUSY_CNT
+	SLP_DBG_CMD_BLOCK_BY_HARD1_BUSY_CNT,
+	SLP_DBG_CMD_ULPOSC_CALI_VAL,
 };
 
 struct mt_scp_pll_t {
@@ -104,6 +107,27 @@ struct mt_scp_pll_t {
 	struct clk *clk_pll6;
 	struct clk *clk_pll7;
 };
+
+#ifdef ULPOSC_CALI_BY_AP
+enum {
+	ULPOSC_1 = 1,
+	ULPOSC_2
+};
+
+enum {
+	FREQ_METER_ABIST_AD_OSC_CK = 37,
+	FREQ_METER_ABIST_AD_OSC_CK_2 = 36,
+};
+
+struct ulposc_cali_t {
+	unsigned int ulposc_rg0;
+	unsigned int ulposc_rg1;
+	unsigned int ulposc_rg2;
+	unsigned int fmeter_id;
+	unsigned short freq;
+	unsigned short cali_val;
+};
+#endif
 
 extern int scp_pll_ctrl_set(unsigned int pll_ctrl_flag, unsigned int pll_sel);
 extern int scp_set_pmic_vcore(unsigned int cur_freq);
@@ -123,5 +147,10 @@ extern unsigned int scp_expected_freq;
 extern unsigned int scp_current_freq;
 extern spinlock_t scp_awake_spinlock;
 extern int scp_dvfs_flag;
+
+#ifdef ULPOSC_CALI_BY_AP
+extern void ulposc_cali_init(void);
+extern void sync_ulposc_cali_data_to_scp(void);
+#endif
 
 #endif  /* __SCP_DVFS_H__ */

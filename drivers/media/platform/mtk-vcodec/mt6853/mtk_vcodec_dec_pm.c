@@ -154,6 +154,8 @@ void mtk_vcodec_dec_clock_on(struct mtk_vcodec_pm *pm, int hw_id)
 		larb_port_num = 0;
 		larb_id = 0;
 		mtk_v4l2_err("invalid hw_id %d", hw_id);
+		time_check_end(MTK_FMT_DEC, hw_id, 50);
+		return;
 	}
 
 	//enable 34bits port configs & sram settings
@@ -173,9 +175,68 @@ void mtk_vcodec_dec_clock_on(struct mtk_vcodec_pm *pm, int hw_id)
 void mtk_vcodec_dec_clock_off(struct mtk_vcodec_pm *pm, int hw_id)
 {
 #ifndef FPGA_PWRCLK_API_DISABLE
+	struct mtk_vcodec_dev *dev;
+
+	dev = container_of(pm, struct mtk_vcodec_dev, pm);
+	mtk_vdec_hw_break(dev, hw_id);
+
 	clk_disable_unprepare(pm->clk_MT_CG_VDEC);
 	smi_bus_disable_unprepare(SMI_LARB4, "VDEC");
 #endif
+}
+
+void mtk_vdec_hw_break(struct mtk_vcodec_dev *dev, int hw_id)
+{
+	u32 cg_status = 0;
+	void __iomem *vdec_misc_addr = dev->dec_reg_base[VDEC_MISC];
+	void __iomem *vdec_vld_addr = dev->dec_reg_base[VDEC_VLD];
+	void __iomem *vdec_gcon_addr = dev->dec_reg_base[VDEC_SYS];
+	struct mtk_vcodec_ctx *ctx = dev->curr_dec_ctx[hw_id];
+
+	struct timeval tv_start;
+	struct timeval tv_end;
+	s32 usec, timeout = 20000;
+	int offset;
+	unsigned long value;
+
+	if (hw_id == MTK_VDEC_CORE) {
+		/* hw break */
+		writel((readl(vdec_misc_addr + 0x0100) | 0x1),
+			vdec_misc_addr + 0x0100);
+
+		do_gettimeofday(&tv_start);
+		cg_status = readl(vdec_misc_addr + 0x0104);
+		while (!((cg_status & 0x1) && (cg_status & 0x10))) {
+			do_gettimeofday(&tv_end);
+			usec = (tv_end.tv_sec - tv_start.tv_sec) * 1000000 +
+			       tv_end.tv_usec - tv_start.tv_usec;
+			if (usec > timeout) {
+				mtk_v4l2_err("VDEC HW break timeout. codec:0x%08x",
+				  ctx->q_data[MTK_Q_DATA_SRC].fmt->fourcc);
+				for (offset = 68; offset <= 79; offset++) {
+					value = readl(
+					    vdec_misc_addr + (offset << 2));
+					mtk_v4l2_err("[DEBUG][MISC] 0x%x(%d) = 0x%lx",
+						offset << 2, offset, value);
+				}
+				value = readl(vdec_gcon_addr + (6 << 2));
+				mtk_v4l2_err("[DEBUG][GCON] 0x%x(%d) = 0x%lx",
+					6 << 2, 6, value);
+
+				if (timeout == 20000)
+					timeout = 1000000;
+				do_gettimeofday(&tv_start);
+				//smi_debug_bus_hang_detect(0, "VCODEC");
+			}
+			cg_status = readl(vdec_misc_addr + 0x0104);
+		}
+
+		/* sw reset */
+		writel(0x1, vdec_vld_addr + 0x0108);
+		writel(0x0, vdec_vld_addr + 0x0108);
+	} else {
+		mtk_v4l2_err("hw_id (%d) is unknown\n", hw_id);
+	}
 }
 
 void mtk_prepare_vdec_dvfs(void)
@@ -244,10 +305,27 @@ void mtk_vdec_dvfs_begin(struct mtk_vcodec_ctx *ctx)
 	int target_freq = 0;
 	u64 target_freq_64 = 0;
 	struct codec_job *vdec_cur_job = 0;
+	long long op_rate_to_freq = 0;
 
 	mutex_lock(&ctx->dev->dec_dvfs_mutex);
 	vdec_cur_job = move_job_to_head(&ctx->id, &vdec_jobs);
-	if (vdec_cur_job != 0) {
+
+	if (ctx->dec_params.operating_rate > 0) {
+		op_rate_to_freq = 312LL *
+				ctx->q_data[MTK_Q_DATA_DST].coded_width *
+				ctx->q_data[MTK_Q_DATA_DST].coded_height *
+				ctx->dec_params.operating_rate /
+				3840LL / 2160LL / 30LL;
+		target_freq_64 = match_freq((int)op_rate_to_freq,
+					&vdec_freq_steps[0],
+					vdec_freq_step_size);
+
+		vdec_freq = target_freq_64;
+		if (vdec_cur_job != 0)
+			vdec_cur_job->mhz = (int)target_freq_64;
+
+		pm_qos_update_request(&vdec_qos_req_f, target_freq_64);
+	} else if (vdec_cur_job != 0) {
 		vdec_cur_job->start = get_time_us();
 		target_freq = est_freq(vdec_cur_job->handle, &vdec_jobs,
 					vdec_hists);
