@@ -8713,10 +8713,6 @@ int primary_display_lcm_ATA(void)
 	int recv_data_cnt;
 	char read_buffer[16];
 
-	struct ddp_lcm_read_cmd_table read_table;
-	int  recv_data_cnt;
-	char read_buffer[16];
-
 	memset(&read_table, 0,
 		sizeof(struct ddp_lcm_read_cmd_table));
 		read_table.cmd[0] = 0x0A;

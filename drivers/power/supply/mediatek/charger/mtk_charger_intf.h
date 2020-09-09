@@ -453,6 +453,13 @@ struct charger_manager {
 	/*thermal level*/
 	int system_temp_level;
 	int system_temp_level_max;
+
+	struct smartcharging sc;
+
+	/*daemon related*/
+	struct sock *daemo_nl_sk;
+	u_int g_scd_pid;
+	struct scd_cmd_param_t_1 sc_data;
 };
 
 
@@ -472,8 +479,8 @@ struct chg_type_info {
 	struct task_struct *chgdet_task;
 	struct workqueue_struct *pwr_off_wq;
 	struct work_struct pwr_off_work;
-    struct workqueue_struct *chg_in_wq;
-    struct work_struct chg_in_work;
+	struct workqueue_struct *chg_in_wq;
+	struct work_struct chg_in_work;
 	bool ignore_usb;
 	bool plugin;
 	int cc_orientation;
@@ -501,13 +508,6 @@ struct mt_charger {
 	enum charger_type chg_type;
 	enum hvdcp_status	hvdcp_type;
 	struct charger_device *chg1_dev;
-	struct smartcharging sc;
-
-
-	/*daemon related*/
-	struct sock *daemo_nl_sk;
-	u_int g_scd_pid;
-	struct scd_cmd_param_t_1 sc_data;
 };
 
 /* charger related module interface */
