@@ -139,8 +139,6 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT,
 	POWER_SUPPLY_PROP_BATT_ID,
 	POWER_SUPPLY_PROP_BATTERY_TYPE,
-	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
-	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_REVERSE_LIMIT,
 };
@@ -382,21 +380,6 @@ signed int battery_meter_get_VSense(void)
 		return pmic_get_ibus();
 }
 
-int check_cap_level(int uisoc)
-{
-	if (uisoc >= 100)
-		return POWER_SUPPLY_CAPACITY_LEVEL_FULL;
-	else if (uisoc >= 80 && uisoc < 100)
-		return POWER_SUPPLY_CAPACITY_LEVEL_HIGH;
-	else if (uisoc >= 20 && uisoc < 80)
-		return POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
-	else if (uisoc > 0 && uisoc < 20)
-		return POWER_SUPPLY_CAPACITY_LEVEL_LOW;
-	else if (uisoc == 0)
-		return POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
-	else
-		return POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN;
-}
 
 static int bms_get_property(struct power_supply *psy,
 		enum power_supply_property psp, union power_supply_propval *val)
@@ -608,31 +591,6 @@ static int battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_REVERSE_LIMIT:
 		val->intval = otg_limit;
-		break;
-	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
-		val->intval = check_cap_level(data->BAT_CAPACITY);
-		break;
-	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
-		/* full or unknown must return 0 */
-		ret = check_cap_level(data->BAT_CAPACITY);
-		if ((ret == POWER_SUPPLY_CAPACITY_LEVEL_FULL) ||
-			(ret == POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN))
-			val->intval = 0;
-		else {
-			int q_max_now = fg_table_cust_data.fg_profile[
-						gm.battery_id].q_max;
-			int remain_ui = 100 - data->BAT_CAPACITY;
-			int remain_mah = remain_ui * q_max_now / 10;
-			int time_to_full = 0;
-
-			gauge_get_current(&fgcurrent);
-
-			if (fgcurrent != 0)
-				time_to_full = remain_mah * 360 / fgcurrent;
-
-			val->intval = abs(time_to_full);
-		}
-		ret = 0;
 		break;
 	default:
 		ret = -EINVAL;
@@ -1417,14 +1375,6 @@ static ssize_t store_Battery_Temperature(
 	signed int temp;
 
 	if (kstrtoint(buf, 10, &temp) == 0) {
-
-		if (temp > 58 || temp < -10) {
-			bm_err(
-				"%s: setting tmp:%d!,reject set\n",
-				__func__,
-				temp);
-			return size;
-		}
 
 		gm.fixed_bat_tmp = temp;
 		if (gm.fixed_bat_tmp == 0xffff)
@@ -3263,38 +3213,6 @@ void exec_BAT_EC(int cmd, int param)
 				FG_KERNEL_CMD_AG_LOG_TEST, param);
 		}
 		break;
-	case 797:
-		{
-			gm.soc_decimal_rate = param;
-			bm_err(
-				"exe_BAT_EC cmd %d,soc_decimal_rate=%d\n",
-				cmd, param);
-
-		}
-		break;
-	case 798:
-		{
-			bm_err(
-				"exe_BAT_EC cmd %d,FG_KERNEL_CMD_CHG_DECIMAL_RATE=%d\n",
-				cmd, param);
-
-			gm.soc_decimal_rate = param;
-
-			wakeup_fg_algo_cmd(
-				FG_INTR_KERNEL_CMD,
-				FG_KERNEL_CMD_CHG_DECIMAL_RATE, param);
-		}
-		break;
-	case 799:
-		{
-			bm_err(
-				"exe_BAT_EC cmd %d, Send INTR_CHR_FULL to daemon, force_full =%d\n",
-				cmd, param);
-
-			gm.is_force_full = param;
-			wakeup_fg_algo(FG_INTR_CHR_FULL);
-		}
-		break;
 
 
 	default:
@@ -3706,7 +3624,7 @@ static ssize_t store_reset_aging_factor(
 		}
 		if (val == 0)
 			gm.is_reset_aging_factor = false;
-		else if (val == 1) {
+		else {
 			gm.is_reset_aging_factor = true;
 			wakeup_fg_algo_cmd(FG_INTR_KERNEL_CMD,
 				FG_KERNEL_CMD_RESET_AGING_FACTOR, 0);
