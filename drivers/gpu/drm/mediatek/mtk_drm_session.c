@@ -32,6 +32,12 @@ int mtk_drm_session_create(struct drm_device *dev,
 		MAKE_MTK_SESSION(config->type, config->device_id);
 	int i, idx = -1;
 
+	if (config->type < MTK_SESSION_PRIMARY ||
+			config->type > MTK_SESSION_MEMORY) {
+		DDPPR_ERR("%s create session type abnormal: %u,\n",
+			__func__, config->type);
+		return -EINVAL;
+	}
 	/* 1.To check if this session exists already */
 	mutex_lock(&disp_session_lock);
 	for (i = 0; i < MAX_SESSION_COUNT; i++) {
@@ -49,12 +55,9 @@ int mtk_drm_session_create(struct drm_device *dev,
 		goto done;
 	}
 
-	for (i = 0; i < MAX_SESSION_COUNT; i++) {
-		if (private->session_id[i] == 0 && idx == -1) {
-			idx = i;
-			break;
-		}
-	}
+	if (idx == -1)
+		idx = config->type - 1;
+
 	/* 1.To check if support this session (mode,type,dev) */
 	/* 2. Create this session */
 	if (idx != -1) {
@@ -70,6 +73,27 @@ int mtk_drm_session_create(struct drm_device *dev,
 	}
 done:
 	mutex_unlock(&disp_session_lock);
+
+	if (mtk_drm_helper_get_opt(private->helper_opt,
+		MTK_DRM_OPT_VDS_PATH_SWITCH) &&
+		(MTK_SESSION_TYPE(session) == MTK_SESSION_MEMORY)) {
+		enum MTK_DRM_HELPER_OPT helper_opt;
+
+		private->need_vds_path_switch = 1;
+		private->vds_path_switch_dirty = 1;
+		private->vds_path_switch_done = 0;
+		private->vds_path_enable = 0;
+
+		DDPINFO("crtc2 vds session create\n");
+		/* Close RPO */
+		mtk_drm_helper_set_opt_by_name(private->helper_opt,
+			"MTK_DRM_OPT_RPO", 0);
+		helper_opt =
+			mtk_drm_helper_name_to_opt(private->helper_opt,
+				"MTK_DRM_OPT_RPO");
+		mtk_update_layering_opt_by_disp_opt(helper_opt, 0);
+		mtk_set_layering_opt(LYE_OPT_RPO, 0);
+	}
 
 	DDPINFO("[DRM] new session done\n");
 	return ret;
@@ -114,6 +138,30 @@ int mtk_session_set_mode(struct drm_device *dev, unsigned int session_mode)
 
 	DDPMSG("%s from %u to %u\n", __func__,
 		private->session_mode, session_mode);
+
+	if (mtk_drm_helper_get_opt(private->helper_opt,
+		MTK_DRM_OPT_VDS_PATH_SWITCH) &&
+		(private->session_mode == MTK_DRM_SESSION_DOUBLE_DL) &&
+		(session_mode == MTK_DRM_SESSION_DL)) {
+		enum MTK_DRM_HELPER_OPT helper_opt;
+
+		private->need_vds_path_switch = 0;
+		private->vds_path_switch_done = 0;
+		private->vds_path_enable = 0;
+
+		/* Open RPO */
+		mtk_drm_helper_set_opt_by_name(private->helper_opt,
+			"MTK_DRM_OPT_RPO", 1);
+		helper_opt =
+			mtk_drm_helper_name_to_opt(private->helper_opt,
+				"MTK_DRM_OPT_RPO");
+		mtk_update_layering_opt_by_disp_opt(helper_opt, 1);
+		mtk_set_layering_opt(LYE_OPT_RPO, 1);
+
+		/* OVL0_2l switch back to main path */
+		DDPINFO("crtc2 vds set ddp mode to DL\n");
+		mtk_need_vds_path_switch(private->crtc[0]);
+	}
 
 	/* For releasing HW resource purpose, the ddp mode should
 	 * switching reversely in some situation.

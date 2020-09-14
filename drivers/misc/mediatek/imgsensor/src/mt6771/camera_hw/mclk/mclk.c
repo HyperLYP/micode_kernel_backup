@@ -133,14 +133,31 @@ static enum IMGSENSOR_RETURN mclk_set(
 	 *__func__, sensor_idx, pin, pin_state);
 	 */
 
+	if (sensor_idx < 0)
+		return IMGSENSOR_RETURN_ERROR;
+
 	if (pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
 	    pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH) {
 		ret = IMGSENSOR_RETURN_ERROR;
 	} else {
-		state_index = (pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_0) ?
-			pinst->drive_current[sensor_idx] : MCLK_STATE_DISABLE;
+		state_index = (pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_0)
+		? pinst->drive_current[sensor_idx]
+		: MCLK_STATE_DISABLE;
 
-		ppinctrl_state = pinst->ppinctrl_state[sensor_idx][state_index];
+		if (state_index < 0)
+			return IMGSENSOR_RETURN_ERROR;
+
+		ppinctrl_state =
+			pinst->ppinctrl_state[sensor_idx][state_index];
+		/*
+		 * pr_debug(
+		 *	"%s : idx %d pin %d state %d driv_current %d\n",
+		 *	__func__,
+		 *	sensor_idx,
+		 *	pin,
+		 *	pin_state,
+		 *	pinst->drive_current[sensor_idx]);
+		 */
 
 		mutex_lock(pinst->pmclk_mutex);
 

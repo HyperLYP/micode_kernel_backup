@@ -115,7 +115,7 @@ static struct DISP_DRE30_HIST g_aal_dre30_hist_db;
 
 static atomic_t g_aal_change_to_dre30 = ATOMIC_INIT(0);
 
-static static atomic_t g_aal_dre_config = ATOMIC_INIT(0);
+static atomic_t g_aal_dre_config = ATOMIC_INIT(0);
 #define AAL_SRAM_SOF 1
 #define AAL_SRAM_EOF 0
 static u32 aal_sram_method = AAL_SRAM_SOF;
@@ -558,7 +558,7 @@ void disp_aal_flip_sram(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 	const char *caller)
 {
 #ifdef CONFIG_MTK_DRE30_SUPPORT
-	u32 hist_apb, hist_int, sram_cfg;
+	u32 hist_apb = 0, hist_int = 0, sram_cfg;
 	phys_addr_t dre3_pa = mtk_aal_dre3_pa(comp);
 
 	if (aal_sram_method != AAL_SRAM_SOF)
@@ -1050,7 +1050,8 @@ static int disp_aal_write_dre_to_reg(struct mtk_ddp_comp *comp,
 
 	gain = param->DREGainFltStatus;
 #if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6873) \
-	|| defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6853)
+	|| defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833)
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		comp->regs_pa + DISP_AAL_DRE_FLT_FORCE(0),
 	    DRE_REG_2(gain[0], 0, gain[1], 14), ~0);
@@ -1532,7 +1533,7 @@ static void disp_aal_update_dre3_sram(struct mtk_ddp_comp *comp,
 	unsigned long flags;
 	int dre_blk_x_num, dre_blk_y_num;
 	unsigned int read_value;
-	int hist_apb, hist_int;
+	int hist_apb = 0, hist_int = 0;
 	void __iomem *dre3_va = mtk_aal_dre3_va(comp);
 
 	if (check_sram) {
@@ -1574,7 +1575,7 @@ static void disp_aal_update_dre3_sram(struct mtk_ddp_comp *comp,
 
 static void disp_aal_dre3_irq_handle(struct mtk_ddp_comp *comp)
 {
-	int hist_apb, hist_int;
+	int hist_apb = 0, hist_int = 0;
 	void __iomem *dre3_va = mtk_aal_dre3_va(comp);
 
 	/* Only process AAL0 in single module state */
@@ -2102,7 +2103,8 @@ static void mtk_aal_prepare(struct mtk_ddp_comp *comp)
 			DISP_AAL_SHADOW_CTRL, AAL_BYPASS_SHADOW);
 	}
 #else
-#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6833)
 	/* Bypass shadow register and read shadow register */
 	mtk_ddp_write_mask_cpu(comp, AAL_BYPASS_SHADOW,
 		DISP_AAL_SHADOW_CTRL, AAL_BYPASS_SHADOW);
@@ -2247,7 +2249,8 @@ void disp_aal_on_start_of_frame(void)
 	if (aal_sram_method != AAL_SRAM_SOF)
 		return;
 
-	AALIRQ_LOG("[SRAM] g_aal_dre_config(%d) in SOF", g_aal_dre_config);
+	AALIRQ_LOG("[SRAM] g_aal_dre_config(%d) in SOF",
+			atomic_read(&g_aal_dre_config));
 	if (spin_trylock_irqsave(&g_aal_clock_lock, flags)) {
 		if (atomic_read(&aal_data->is_clock_on) != 1)
 			AALIRQ_LOG("clock is off\n");
@@ -2431,6 +2434,14 @@ static const struct mtk_disp_aal_data mt6853_aal_driver_data = {
 	.bitShift = 16,
 };
 
+static const struct mtk_disp_aal_data mt6833_aal_driver_data = {
+	.support_shadow = false,
+	.aal_dre_hist_start = 1536,
+	.aal_dre_hist_end   = 4604,
+	.aal_dre_gain_start = 4608,
+	.aal_dre_gain_end   = 6780,
+	.bitShift = 16,
+};
 
 static const struct of_device_id mtk_disp_aal_driver_dt_match[] = {
 	{ .compatible = "mediatek,mt6885-disp-aal",
@@ -2439,6 +2450,8 @@ static const struct of_device_id mtk_disp_aal_driver_dt_match[] = {
 	  .data = &mt6873_aal_driver_data},
 	{ .compatible = "mediatek,mt6853-disp-aal",
 	  .data = &mt6853_aal_driver_data},
+	{ .compatible = "mediatek,mt6833-disp-aal",
+	  .data = &mt6833_aal_driver_data},
 	{},
 };
 

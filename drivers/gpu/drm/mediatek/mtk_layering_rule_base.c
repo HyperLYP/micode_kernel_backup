@@ -1204,6 +1204,8 @@ static int get_layer_weight(int disp_idx,
 		bpp = HRT_UINT_BOUND_BPP;
 #ifdef CONFIG_MTK_HDMI_SUPPORT
 	if (disp_idx == HRT_SECONDARY) {
+		/* To Be Impl */
+#if 0
 		struct disp_session_info dispif_info;
 
 		/* For seconary display, set the weight 4K@30 as 2K@60.	*/
@@ -1220,6 +1222,7 @@ static int get_layer_weight(int disp_idx,
 			weight /= 2;
 
 		return weight * bpp;
+#endif
 	}
 #endif
 
@@ -1535,11 +1538,17 @@ static int mtk_lye_get_comp_id(int disp_idx, struct drm_device *drm_dev,
 {
 	uint16_t ovl_mapping_tb = l_rule_ops->get_mapping_table(
 		drm_dev, disp_idx, DISP_HW_OVL_TB, 0);
+	struct mtk_drm_private *priv = drm_dev->dev_private;
 
 	/* TODO: The component ID should be changed by ddp path and platforms */
 	if (disp_idx == 0) {
 		if (HRT_GET_FIRST_SET_BIT(ovl_mapping_tb) >= layer_map_idx)
 			return DDP_COMPONENT_DMDP_RDMA0;
+		/* When open VDS path switch feature, primary OVL have OVL0 only */
+		else if (mtk_drm_helper_get_opt(priv->helper_opt,
+			MTK_DRM_OPT_VDS_PATH_SWITCH) &&
+			priv->need_vds_path_switch)
+			return DDP_COMPONENT_OVL0;
 		else if (HRT_GET_FIRST_SET_BIT(
 				 ovl_mapping_tb -
 				 HRT_GET_FIRST_SET_BIT(ovl_mapping_tb)) >=
@@ -1547,8 +1556,20 @@ static int mtk_lye_get_comp_id(int disp_idx, struct drm_device *drm_dev,
 			return DDP_COMPONENT_OVL0_2L;
 		else
 			return DDP_COMPONENT_OVL0;
-	} else
+	}
+#if defined(CONFIG_MACH_MT6885)
+	else if (disp_idx == 1)
 		return DDP_COMPONENT_OVL2_2L;
+	else
+		return DDP_COMPONENT_OVL1_2L;
+#else
+	/* When open VDS path switch feature, vds OVL is OVL0_2L */
+	else if (mtk_drm_helper_get_opt(priv->helper_opt,
+		MTK_DRM_OPT_VDS_PATH_SWITCH))
+		return DDP_COMPONENT_OVL0_2L;
+	else
+		return DDP_COMPONENT_OVL2_2L;
+#endif
 }
 
 static int mtk_lye_get_lye_id(int disp_idx, struct drm_device *drm_dev,
@@ -1609,8 +1630,9 @@ static void clear_layer(struct drm_mtk_layering_info *disp_info)
 		else
 			c->layer_caps |= MTK_DISP_CLIENT_CLEAR_LAYER;
 
-		if ((c->src_width < c->dst_width ||
+		if ((c->src_width < c->dst_width &&
 		     c->src_height < c->dst_height) &&
+		     get_layering_opt(LYE_OPT_RPO) &&
 		    top < disp_info->gles_tail[di]) {
 			c->layer_caps |= MTK_DISP_RSZ_LAYER;
 			l_rule_info->addon_scn[di] = ONE_SCALING;
@@ -1647,7 +1669,7 @@ static int _dispatch_lye_blob_idx(struct drm_mtk_layering_info *disp_info,
 	int prev_comp_id = -1;
 	int i;
 	int clear_idx = -1;
-#if defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833)
 	int no_compress_layer_num = 0;
 #endif
 
@@ -1700,7 +1722,7 @@ static int _dispatch_lye_blob_idx(struct drm_mtk_layering_info *disp_info,
 				ext_cnt = 0;
 			comp_state.ext_lye_id = LYE_NORMAL;
 		}
-#if defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833)
 		if (disp_idx == 0 &&
 			(comp_state.comp_id == DDP_COMPONENT_OVL0_2L) &&
 			!is_extended_layer(layer_info) &&
@@ -1718,7 +1740,7 @@ static int _dispatch_lye_blob_idx(struct drm_mtk_layering_info *disp_info,
 		plane_idx++;
 		prev_comp_id = comp_state.comp_id;
 	}
-#if defined(CONFIG_MACH_MT6853)
+#if defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833)
 	if (disp_idx == 0) {
 		HRT_SET_NO_COMPRESS_FLAG(disp_info->hrt_num,
 				no_compress_layer_num);
@@ -2306,11 +2328,22 @@ static int get_crtc_num(
 		crtc_num = 2;
 		break;
 	case MTK_DRM_SESSION_TRIPLE_DL:
-		crtc_num = 1;
+		crtc_num = 3;
 		break;
 	default:
 		crtc_num = 0;
 		break;
+	}
+
+	/*
+	 * when CRTC 0 disabled, disp_mode[0] would be 0,
+	 * but it might still exist other display.
+	 * Thus traverse each CRTC's disp_mode for
+	 * active CRTC number
+	 */
+	if (crtc_num == 0) {
+		for (i = 0 ; i < 3; i++)
+			crtc_num += !!disp_info_user->disp_mode[i];
 	}
 
 	/* check input config number */
@@ -2904,9 +2937,6 @@ static int gen_hrt_pattern(struct drm_device *dev)
 }
 #endif
 
-bool already_free;
-bool second_query;
-
 /**** UT Program end ****/
 int mtk_layering_rule_ioctl(struct drm_device *dev, void *data,
 			    struct drm_file *file_priv)
@@ -2914,19 +2944,9 @@ int mtk_layering_rule_ioctl(struct drm_device *dev, void *data,
 	struct drm_mtk_layering_info *disp_info_user = data;
 	int ret;
 
-	/*free fb buf in second query valid*/
-	if (second_query && !already_free) {
-		mtk_drm_fb_gem_release(dev);
-		free_fb_buf();
-		already_free = true;
-	}
-
 	ret = layering_rule_start(disp_info_user, 0, dev);
 	if (ret < 0)
 		DDPPR_ERR("layering_rule_start error:%d\n", ret);
-
-	if (!second_query)
-		second_query = true;
 
 	return 0;
 }

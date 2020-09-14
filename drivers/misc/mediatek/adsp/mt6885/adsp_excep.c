@@ -49,6 +49,9 @@ static inline u32 dump_adsp_shared_memory(void *buf, size_t size, int id)
 	void *mem_addr = adsp_get_reserve_mem_virt(id);
 	size_t mem_size = adsp_get_reserve_mem_size(id);
 
+	if (!mem_addr)
+		return 0;
+
 	return copy_from_buffer(buf, size, mem_addr, mem_size, 0, -1);
 }
 
@@ -57,6 +60,9 @@ static inline u32 copy_from_adsp_shared_memory(void *buf, u32 offset,
 {
 	void *mem_addr = adsp_get_reserve_mem_virt(id);
 	size_t mem_size = adsp_get_reserve_mem_size(id);
+
+	if (!mem_addr)
+		return 0;
 
 	return copy_from_buffer(buf, -1, mem_addr, mem_size, offset, size);
 }
@@ -184,14 +190,18 @@ static void adsp_exception_dump(struct adsp_exception_control *ctrl)
 
 	n += snprintf(detail + n, ADSP_AED_STR_LEN - n, "%s %s\n",
 		      pdata->name, aed_type);
-	n += snprintf(detail + n, ADSP_AED_STR_LEN - n,
-		      "adsp pc=0x%08x,exccause=0x%x,excvaddr=0x%x\n",
-		      coredump->pc, coredump->exccause, coredump->excvaddr);
-	n += snprintf(detail + n, ADSP_AED_STR_LEN - n,
-		      "CRDISPATCH_KEY:ADSP exception/%s\n",
-		      coredump->task_name);
-	n += snprintf(detail + n, ADSP_AED_STR_LEN - n, "%s",
-		      coredump->assert_log);
+	if (coredump) {
+		n += snprintf(detail + n, ADSP_AED_STR_LEN - n,
+			      "adsp pc=0x%08x,exccause=0x%x,excvaddr=0x%x\n",
+			      coredump->pc,
+			      coredump->exccause,
+			      coredump->excvaddr);
+		n += snprintf(detail + n, ADSP_AED_STR_LEN - n,
+			      "CRDISPATCH_KEY:ADSP exception/%s\n",
+			      coredump->task_name);
+		n += snprintf(detail + n, ADSP_AED_STR_LEN - n, "%s",
+			      coredump->assert_log);
+	}
 	pr_info("%s", detail);
 
 	/* adsp aed api, only detail information available*/
@@ -325,12 +335,18 @@ void get_adsp_misc_buffer(unsigned long *vaddr, unsigned long *size)
 	for (id = 0; id < ADSP_CORE_TOTAL; id++) {
 		w_pos = 0;
 		pdata = get_adsp_core_by_id(id);
+		if (!pdata)
+			goto ERROR;
+
 		ctrl = pdata->log_ctrl;
 		addr = (void *)ctrl;
+		if (!addr)
+			goto ERROR;
+
 		buf_info = (struct buffer_info_s *)(addr + ctrl->info_ofs);
 
 		if (!ctrl->inited)
-			return;
+			goto ERROR;
 
 		memcpy_fromio(&w_pos, &buf_info->w_pos, sizeof(w_pos));
 
@@ -356,6 +372,12 @@ void get_adsp_misc_buffer(unsigned long *vaddr, unsigned long *size)
 	/* return value */
 	*vaddr = (unsigned long)buf;
 	*size = len;
+	return;
+
+ERROR:
+	/* return value */
+	*vaddr = (unsigned long)buf;
+	*size = 0;
 }
 EXPORT_SYMBOL(get_adsp_misc_buffer);
 

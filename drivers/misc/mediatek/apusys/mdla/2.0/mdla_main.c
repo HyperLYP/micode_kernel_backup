@@ -121,7 +121,7 @@ struct mdla_dev_worker mdla_dev_workers = {
 struct mdla_dev mdla_devices[] = {
 	{
 		.mdlaid = 0,
-		.mdla_dde_zero_skip_count = 0,
+		.mdla_zero_skip_count = 0,
 		.mdla_e1_detect_count = 0,
 		.async_cmd_id = 0,
 		.cmd_lock = __MUTEX_INITIALIZER(mdla_devices[0].cmd_lock),
@@ -137,7 +137,7 @@ struct mdla_dev mdla_devices[] = {
 	},
 	{
 		.mdlaid = 1,
-		.mdla_dde_zero_skip_count = 0,
+		.mdla_zero_skip_count = 0,
 		.mdla_e1_detect_count = 0,
 		.async_cmd_id = 0,
 		.cmd_lock = __MUTEX_INITIALIZER(mdla_devices[1].cmd_lock),
@@ -231,7 +231,7 @@ static const struct file_operations fops = {
 };
 
 
-void mdla_reset_lock(int core, int res)
+void mdla_reset_lock(unsigned int core, int res)
 {
 	mdla_reset(core, res);
 
@@ -601,10 +601,7 @@ int apusys_mdla_handler(int type,
 			(struct mdla_run_cmd_sync *)cmd_hnd->kva;
 		bool enable_preempt =
 			(dev->dev_type == APUSYS_DEVICE_MDLA_RT) ? false : true;
-		u32 preempt_level_support = PRIORITY_LEVEL;
 
-		if (preempt_level_support == 1)
-			enable_preempt = false;
 		retval = mdla_run_command_sync(
 			&cmd_data->req,
 			mdla_info,
@@ -703,9 +700,7 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 {
 	long retval = 0;
 	struct ioctl_malloc malloc_data;
-#if 1
 	struct ioctl_perf perf_data;
-#endif
 
 	switch (command) {
 	case IOCTL_MALLOC:
@@ -762,6 +757,8 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(cmd_data))) {
 			return -EFAULT;
 		}
+		if (cmd_data.mdla_id >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 		mdla_cmd_debug("%s: RUN_CMD_SYNC: mva=0x%08x, phys_to_virt=%p\n",
 			__func__,
 			cmd_data.req.mva,
@@ -811,6 +808,8 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 		perf_data.handle = pmu_counter_alloc(perf_data.mdlaid,
 			perf_data.interface, perf_data.event);
 		if (copy_to_user((void *) arg, &perf_data, sizeof(perf_data)))
@@ -821,6 +820,8 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 		perf_data.event = pmu_counter_event_get(perf_data.mdlaid,
 			perf_data.handle);
 		if (copy_to_user((void *) arg, &perf_data, sizeof(perf_data)))
@@ -831,6 +832,8 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 		perf_data.counter = pmu_counter_get(perf_data.mdlaid,
 			perf_data.handle, 0);
 
@@ -842,6 +845,8 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 		pmu_counter_free(perf_data.mdlaid, perf_data.handle);
 
 		break;
@@ -850,6 +855,8 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 		perf_data.start = pmu_get_perf_start(perf_data.mdlaid, 0);
 		if (copy_to_user((void *) arg, &perf_data, sizeof(perf_data)))
 			return -EFAULT;
@@ -859,6 +866,8 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 		perf_data.end = pmu_get_perf_end(perf_data.mdlaid, 0);
 		if (copy_to_user((void *) arg, &perf_data, sizeof(perf_data)))
 			return -EFAULT;
@@ -868,18 +877,19 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 		perf_data.start = pmu_get_perf_cycle(perf_data.mdlaid, 0);
 		if (copy_to_user((void *) arg, &perf_data, sizeof(perf_data)))
 			return -EFAULT;
 		break;
 	case IOCTL_PERF_RESET_CNT:
-
-
 		if (copy_from_user(&perf_data, (void *) arg,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
-
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 		mutex_lock(&mdla_devices[perf_data.mdlaid].cmd_lock);
 		mutex_lock(&mdla_devices[perf_data.mdlaid].power_lock);
 
@@ -896,6 +906,8 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
 
 		mutex_lock(&mdla_devices[perf_data.mdlaid].cmd_lock);
 		mutex_lock(&mdla_devices[perf_data.mdlaid].power_lock);
@@ -912,6 +924,10 @@ static long mdla_ioctl(struct file *filp, unsigned int command,
 				sizeof(perf_data))) {
 			return -EFAULT;
 		}
+		if (perf_data.mdlaid >= MTK_MDLA_MAX_NUM)
+			return -EFAULT;
+		if (perf_data.mode >= CMD_MODE_MAX)
+			return -EFAULT;
 		mutex_lock(&mdla_devices[perf_data.mdlaid].cmd_lock);
 		mutex_lock(&mdla_devices[perf_data.mdlaid].power_lock);
 

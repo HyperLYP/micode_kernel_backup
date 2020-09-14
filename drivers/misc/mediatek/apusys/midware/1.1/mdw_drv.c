@@ -34,15 +34,17 @@
 #include "mdw_rsc.h"
 #include "mdw_sched.h"
 #include "mdw_tag.h"
+#include "mdw_sysfs.h"
 
 /* define */
 #define APUSYS_DEV_NAME "apusys"
+//#define MDW_LOAD_FW_SUPPORT
 
 /* global variable */
 static dev_t mdw_devt;
 static struct cdev *mdw_cdev;
 static struct class *mdw_class;
-struct device *g_mdw_device;
+struct device *mdw_device;
 
 /* function declaration */
 static int mdw_open(struct inode *, struct file *);
@@ -92,7 +94,7 @@ static int mdw_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	g_mdw_device = &pdev->dev;
+	mdw_device = &pdev->dev;
 
 	/* get major */
 	ret = alloc_chrdev_region(&mdw_devt, 0, 1, APUSYS_DEV_NAME);
@@ -137,16 +139,17 @@ static int mdw_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-	mdw_rsc_init();
-	mdw_mem_init();
-	mdw_tag_init();
 	mdw_dbg_init();
+	mdw_sysfs_init(mdw_device);
+	mdw_tag_init();
+	mdw_mem_init();
+	mdw_rsc_init();
 	mdw_usr_init();
 	mdw_drv_info("-\n");
 
 	return 0;
-out:
 
+out:
 	/* Release device */
 	if (dev != NULL)
 		device_destroy(mdw_class, mdw_devt);
@@ -170,10 +173,11 @@ static int mdw_remove(struct platform_device *pdev)
 	mdw_drv_info("+\n");
 
 	mdw_usr_exit();
-	mdw_dbg_exit();
-	mdw_tag_exit();
-	mdw_mem_exit();
 	mdw_rsc_exit();
+	mdw_mem_exit();
+	mdw_tag_exit();
+	mdw_sysfs_exit();
+	mdw_dbg_exit();
 
 	/* Release device */
 	device_destroy(mdw_class, mdw_devt);
@@ -256,9 +260,11 @@ static long mdw_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct apusys_ioctl_hs hs;
 	struct mdw_usr *u;
 	struct apusys_ioctl_power upwr;
-	struct apusys_ioctl_fw f;
 	struct apusys_ioctl_ucmd uc;
 	struct apusys_ioctl_sec us;
+#ifdef MDW_LOAD_FW_SUPPORT
+	struct apusys_ioctl_fw f;
+#endif
 
 	u = (struct mdw_usr *)filp->private_data;
 
@@ -284,22 +290,8 @@ static long mdw_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case APUSYS_IOCTL_MEM_ALLOC:
-		if (copy_from_user(&um, (void *)arg,
-			sizeof(struct apusys_mem))) {
-			mdw_drv_err("copy mem struct fail\n");
-			ret = -EINVAL;
-			goto out;
-		}
-
-		ret = mdw_usr_mem_alloc(&um, u);
-		if (ret)
-			goto out;
-
-		if (copy_to_user((void *)arg, &um,
-			sizeof(struct apusys_mem))) {
-			mdw_drv_err("copy mem struct to u fail\n");
-			ret = -EINVAL;
-		}
+		mdw_drv_warn("not support mem alloc\n");
+		ret = -EINVAL;
 		break;
 
 	case APUSYS_IOCTL_MEM_IMPORT:
@@ -321,8 +313,28 @@ static long mdw_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 		break;
 
+	case APUSYS_IOCTL_MEM_MAP:
+		if (copy_from_user(&um, (void *)arg,
+			sizeof(struct apusys_mem))) {
+			mdw_drv_err("copy mem struct fail\n");
+			ret = -EINVAL;
+			goto out;
+		}
+
+		ret = mdw_usr_mem_map(&um, u);
+		if (ret)
+			goto out;
+
+		if (copy_to_user((void *)arg, &um,
+			sizeof(struct apusys_mem))) {
+			mdw_drv_err("copy mem struct to u fail\n");
+			ret = -EINVAL;
+		}
+		break;
+
 	case APUSYS_IOCTL_MEM_FREE:
 	case APUSYS_IOCTL_MEM_UNIMPORT:
+	case APUSYS_IOCTL_MEM_UNMAP:
 		if (copy_from_user(&um, (void *)arg,
 			sizeof(struct apusys_mem))) {
 			mdw_drv_err("copy mem struct fail\n");
@@ -392,6 +404,7 @@ static long mdw_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case APUSYS_IOCTL_FW_LOAD:
+#ifdef MDW_LOAD_FW_SUPPORT
 		ret = copy_from_user(&f, (void *)arg,
 			sizeof(struct apusys_ioctl_fw));
 		if (ret) {
@@ -400,9 +413,14 @@ static long mdw_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 
 		ret = mdw_usr_fw(&f, APUSYS_FIRMWARE_LOAD);
+#else
+		ret = -EINVAL;
+		mdw_drv_warn("not support fw load\n");
+#endif
 		break;
 
 	case APUSYS_IOCTL_FW_UNLOAD:
+#ifdef MDW_LOAD_FW_SUPPORT
 		ret = copy_from_user(&f, (void *)arg,
 			sizeof(struct apusys_ioctl_fw));
 		if (ret) {
@@ -411,6 +429,10 @@ static long mdw_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 
 		ret = mdw_usr_fw(&f, APUSYS_FIRMWARE_UNLOAD);
+#else
+		ret = -EINVAL;
+		mdw_drv_warn("not suppot fw unload\n");
+#endif
 		break;
 
 	case APUSYS_IOCTL_USER_CMD:
@@ -440,6 +462,12 @@ static long mdw_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			sizeof(struct apusys_ioctl_sec));
 		if (ret) {
 			mdw_drv_err("copy sec struct fail\n");
+			goto out;
+		}
+
+		if (us.dev_type >= APUSYS_DEVICE_MAX || us.dev_type < 0) {
+			mdw_drv_err("invalid sec type(%d)\n", us.dev_type);
+			ret = -EINVAL;
 			goto out;
 		}
 
@@ -477,6 +505,8 @@ static long mdw_compat_ioctl(struct file *flip, unsigned int cmd,
 	case APUSYS_IOCTL_USER_CMD:
 	case APUSYS_IOCTL_SEC_DEVICE_LOCK:
 	case APUSYS_IOCTL_SEC_DEVICE_UNLOCK:
+	case APUSYS_IOCTL_MEM_MAP:
+	case APUSYS_IOCTL_MEM_UNMAP:
 	{
 		return flip->f_op->unlocked_ioctl(flip, cmd,
 					(unsigned long)compat_ptr(arg));
@@ -542,7 +572,7 @@ static void mdw_dev_release(struct device *dev)
 
 static struct platform_device mdw_dev = {
 	.name = APUSYS_DEV_NAME,
-	.id = 0,
+	.id = -1,
 	.dev = {
 			.release = mdw_dev_release,
 		},

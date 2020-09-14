@@ -49,6 +49,10 @@ uint8_t esd_retry;
 #endif				/* #if NVT_TOUCH_ESD_PROTECT */
 
 struct nvt_ts_data *ts;
+char novatek_firmware[25];
+/* For SPI mode */
+static struct pinctrl *nt36672_pinctrl;
+static struct pinctrl_state *nt36672_spi_mode_default;
 
 #if defined(CONFIG_FB)
 #ifdef _MSM_DRM_NOTIFY_H_
@@ -118,13 +122,13 @@ const struct mt_chip_conf spi_ctrdata = {
 const struct mtk_chip_config spi_ctrdata = {
 	.rx_mlsb = 1,
 	.tx_mlsb = 1,
-	.cs_pol = 0,
 	.sample_sel = 0,
 
 	.cs_setuptime = 0,
 	.cs_holdtime = 0,
 	.cs_idletime = 0,
-	.deassert_mode = 0,
+	.deassert_mode = false,
+	.tick_delay = 0,
 };
 #endif
 
@@ -1451,9 +1455,23 @@ Description:
 return:
 	Executive outcomes. 0---succeed. negative---failed
 *******************************************************/
+struct tag_videolfb {
+	u64 fb_base;
+	u32 islcmfound;
+	u32 fps;
+	u32 vram;
+	char lcmname[1];
+};
+
 static int32_t nvt_ts_probe(struct spi_device *client)
 {
 	int32_t ret = 0;
+	struct device_node *lcm_name;
+	struct tag_videolfb *videolfb_tag = NULL;
+	unsigned long size = 0;
+	char firmware_name_jdi[] = "novatek_ts_fw_jdi.bin";
+	char firmware_name_tm[] = "novatek_ts_fw_tm.bin";
+	char firmware_name[] = "novatek_ts_fw.bin";
 #if ((TOUCH_KEY_NUM > 0) || WAKEUP_GESTURE)
 	int32_t retry = 0;
 #endif
@@ -1519,6 +1537,31 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		NVT_ERR("gpio config error!\n");
 		goto err_gpio_config_failed;
 	}
+
+	/* get pinctrl handler from of node */
+	nt36672_pinctrl = devm_pinctrl_get(
+		ts->client->controller->dev.parent);
+	if (IS_ERR_OR_NULL(nt36672_pinctrl)) {
+		NVT_ERR("Failed to get pinctrl handler[need confirm]");
+		nt36672_pinctrl = NULL;
+		goto err_gpio_config_failed;
+	}
+
+	/* default spi mode */
+	nt36672_spi_mode_default = pinctrl_lookup_state(
+				nt36672_pinctrl, PINCTRL_STATE_SPI_DEFAULT);
+	if (IS_ERR_OR_NULL(nt36672_spi_mode_default)) {
+		ret = PTR_ERR(nt36672_spi_mode_default);
+		NVT_ERR("Failed to get pinctrl state:%s, r:%d",
+				PINCTRL_STATE_SPI_DEFAULT, ret);
+		nt36672_spi_mode_default = NULL;
+		goto err_pinctrl_failed;
+	}
+
+	ret = pinctrl_select_state(nt36672_pinctrl,
+					nt36672_spi_mode_default);
+	if (ret < 0)
+		NVT_ERR("Failed to select default pinstate, r:%d", ret);
 
 	mutex_init(&ts->lock);
 	mutex_init(&ts->xbuf_lock);
@@ -1627,6 +1670,36 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #endif
 
 #if BOOT_UPDATE_FIRMWARE
+	NVT_LOG("start to parse lcm name\n");
+	lcm_name = of_find_node_by_path("/chosen");
+	if (lcm_name) {
+		videolfb_tag = (struct tag_videolfb *)
+			of_get_property(lcm_name,
+			"atag,videolfb",
+			(int *)&size);
+		if (!videolfb_tag)
+			NVT_ERR("Invalid lcm name\n");
+			NVT_LOG("read lcm name : %s\n", videolfb_tag->lcmname);
+		if (strcmp("nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_jdi_lcm_drv",
+			videolfb_tag->lcmname) == 0 ||
+			strcmp("nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_jdi_hfp_lcm_drv",
+			videolfb_tag->lcmname) == 0)
+			strncpy(novatek_firmware, firmware_name_jdi, sizeof(firmware_name_jdi));
+		else if (strcmp("nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_tianma_lcm_drv",
+			videolfb_tag->lcmname) == 0)
+			strncpy(novatek_firmware, firmware_name_tm, sizeof(firmware_name_tm));
+		else if (strcmp("nt36672c_fhdp_dsi_vdo_120hz_shenchao_lcm_drv",
+			videolfb_tag->lcmname) == 0 ||
+			strcmp("nt36672c_fhdp_dsi_vdo_90hz_shenchao_lcm_drv",
+			videolfb_tag->lcmname) == 0 ||
+			strcmp("nt36672c_fhdp_dsi_vdo_60hz_shenchao_lcm_drv",
+			videolfb_tag->lcmname) == 0)
+			strncpy(novatek_firmware, firmware_name, sizeof(firmware_name));
+		else
+			strncpy(novatek_firmware, firmware_name, sizeof(firmware_name));
+		NVT_LOG("nt36672c touch fw name : %s", BOOT_UPDATE_FIRMWARE_NAME);
+	} else
+		NVT_ERR("Can't find node: chose in dts");
 	nvt_fwu_wq = alloc_workqueue("nvt_fwu_wq", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
 	if (!nvt_fwu_wq) {
 		NVT_ERR("nvt_fwu_wq create workqueue failed\n");
@@ -1770,6 +1843,9 @@ err_chipvertrim_failed:
 	mutex_destroy(&ts->lock);
 	nvt_gpio_deconfig(ts);
 err_gpio_config_failed:
+err_pinctrl_failed:
+	pinctrl_put(nt36672_pinctrl);
+	nt36672_pinctrl = NULL;
 err_spi_setup:
 err_ckeck_full_duplex:
 	spi_set_drvdata(client, NULL);

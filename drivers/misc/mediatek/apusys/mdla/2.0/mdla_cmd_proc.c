@@ -76,8 +76,14 @@ static uint32_t ws_count;
 void mdla_wakeup_source_init(void)
 {
 #ifdef CONFIG_PM_SLEEP
+	char ws_name[16];
+
+	if (snprintf(ws_name, sizeof(ws_name)-1, "mdla") < 0) {
+		pr_debug("init mdla wakeup source fail\n");
+		return;
+	}
 	ws_count = 0;
-	mdla_ws = wakeup_source_register(NULL, "mdla");
+	mdla_ws = wakeup_source_register(NULL, ws_name);
 	if (!mdla_ws)
 		pr_debug("mdla wakelock register fail!\n");
 #endif
@@ -88,7 +94,7 @@ void mdla_wakeup_source_init(void)
  * 2. setup delay power off timer
  * this function is protected by cmd_list_lock
  */
-void mdla_command_done(int core_id)
+void mdla_command_done(unsigned int core_id)
 {
 	mutex_lock(&mdla_devices[core_id].power_lock);
 	mdla_profile_stop(core_id, 1);
@@ -183,7 +189,7 @@ int mdla_run_command_sync(
 	struct mdla_scheduler *sched;
 	unsigned long flags;
 	long status;
-	int core_id;
+	unsigned int core_id;
 	/*forward compatibility temporary, This will be replaced by apusys*/
 	struct mdla_wait_cmd mdla_wt;
 	struct mdla_wait_cmd *wt = &mdla_wt;
@@ -312,7 +318,7 @@ int mdla_run_command_sync(
 	/* trace stop */
 	mdla_trace_end(core_id, 0, ce);
 	if (unlikely(mdla_timeout_dbg))
-		mdla_cmd_debug("STE dst addr:%.8x\n",
+		mdla_cmd_debug("dst addr:%.8x\n",
 			mdla_reg_read_with_mdlaid(core_id, 0xE3C));
 
 	if (unlikely(ce->fin_cid < ce->count)) {

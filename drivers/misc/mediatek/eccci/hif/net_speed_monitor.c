@@ -207,6 +207,12 @@ static int get_speed_str(u64 speed, char buf[], int size)
 		ret = snprintf(buf, size, "%llu.%03lluKbps", speed, rem);
 	} else
 		ret = snprintf(buf, size, "%llubps", speed);
+	if (ret < 0 || ret >= size) {
+		CCCI_REPEAT_LOG(-1, "Speed",
+			"%s-%d:snprintf fail,ret=%d\n",
+			__func__, __LINE__, ret);
+		return -1;
+	}
 
 	return ret;
 }
@@ -243,7 +249,7 @@ static int speed_monitor_thread(void *arg)
 	u64 delta, dl_speed, ul_speed;
 	char dl_speed_str[32];
 	char ul_speed_str[32];
-	int idx = -1;
+	int idx = 0;
 
 	s_dvfs_ref_tbl = mtk_ccci_get_dvfs_table(&s_dvfs_tbl_items_num);
 	if (s_dvfs_tbl_items_num > 0)

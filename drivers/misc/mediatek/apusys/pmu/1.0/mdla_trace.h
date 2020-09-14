@@ -22,10 +22,7 @@ extern u32 cfg_eng1;
 extern u32 cfg_eng2;
 extern u32 cfg_eng11;
 extern u8 cfg_apusys_trace;
-extern int get_power_on_status(int core_id);
-#ifndef __APUSYS_MDLA_SW_PORTING_WORKAROUND__
-extern void trace_tag_customer(const char *fmt, ...);
-#endif
+extern int get_power_on_status(unsigned int core_id);
 extern void trace_tag_begin(const char *format, ...);
 extern void trace_tag_end(void);
 #ifndef __APUSYS_MDLA_SW_PORTING_WORKAROUND__
@@ -52,7 +49,7 @@ int mdla_profile(const char *str);
 int mdla_profile_power_mode(u32 *stat);
 void mdla_dump_prof(int coreid, struct seq_file *s);
 void mdla_trace_begin(int core, struct command_entry *ce);
-void mdla_trace_iter(int core_id);
+void mdla_trace_iter(unsigned int core_id);
 int mdla_profile_start(u32 mdlaid);
 int mdla_profile_stop(u32 mdlaid, int wait);
 void mdla_trace_end(int core, int status,
@@ -93,7 +90,7 @@ static inline void mdla_dump_prof(int coreid, struct seq_file *s)
 static inline void mdla_trace_begin(int core, struct command_entry *ce)
 {
 }
-void mdla_trace_iter(int core_id)
+void mdla_trace_iter(unsigned int core_id)
 {
 }
 static inline void mdla_trace_end(int core, long status,

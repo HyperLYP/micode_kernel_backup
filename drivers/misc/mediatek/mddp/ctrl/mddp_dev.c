@@ -1,16 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * mddp_dev.c - MDDP device node API.
  *
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/cdev.h>
@@ -18,6 +10,7 @@
 #include <linux/string.h>
 
 #include "mddp_ctrl.h"
+#include "mddp_debug.h"
 #include "mddp_dev.h"
 #include "mddp_if.h"
 #include "mddp_sm.h"
@@ -29,7 +22,6 @@
 #define MDDP_DEV_MINOR_CNT              16
 #define MDDP_CLASS_NAME                 "md_direct"
 #define MDDP_DEV_NAME                   "mddp"
-#define MAX_GET_BUF_SZ                  256
 
 struct mddp_dev_rb_t {
 	struct mddp_dev_rb_t           *next;
@@ -108,16 +100,48 @@ mddp_dev_rsp_status_mapping_s[MDDP_CMCMD_RSP_CNT][2] =  {
 static uint32_t mddp_dev_major_s;
 static struct cdev mddp_cdev_s;
 struct class *mddp_dev_class_s;
+uint32_t mddp_debug_log_class_s;
+uint32_t mddp_debug_log_level_s;
 
-
-#ifdef CONFIG_MTK_ENG_BUILD
 //------------------------------------------------------------------------------
 // Sysfs APIs
 //------------------------------------------------------------------------------
 static ssize_t
+debug_log_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE,
+			"debug_log_class(%x), debug_log_level(%x)\n",
+			mddp_debug_log_class_s, mddp_debug_log_level_s);
+}
+
+static ssize_t
+debug_log_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t count)
+{
+	uint32_t                lv;
+	uint32_t                class;
+	unsigned long           value;
+
+	if (!kstrtoul(buf, 0, &value)) {
+		class = (value & MDDP_DEBUG_LOG_CLASS_MASK) >> 4;
+		if (MDDP_IS_VALID_LOG_CLASS(class))
+			mddp_debug_log_class_s = class;
+
+		lv = value & MDDP_DEBUG_LOG_LV_MASK;
+		if (MDDP_IS_VALID_LOG_LEVEL(lv))
+			mddp_debug_log_level_s = lv;
+	}
+	return count;
+}
+static DEVICE_ATTR_RW(debug_log);
+
+static ssize_t
 version_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "MDDP version(%d)\n", __MDDP_VERSION__);
+	return scnprintf(buf, PAGE_SIZE, "MDDP version(%d)\n",
+				 __MDDP_VERSION__);
 }
 static DEVICE_ATTR_RO(version);
 
@@ -132,12 +156,13 @@ state_show(struct device *dev, struct device_attribute *attr, char *buf)
 	for (idx = 0; idx < MDDP_MOD_CNT; idx++) {
 		type = mddp_sm_module_list_s[idx];
 		app = mddp_get_app_inst(type);
-		ret_num += sprintf(buf + ret_num, "type(%d), state(%d)\n",
-				   app->type, app->state);
+		ret_num += scnprintf(buf + ret_num, PAGE_SIZE - ret_num,
+					"type(%d), state(%d)\n",
+					app->type, app->state);
 
 		// NG. Failed to fill-in data!
 		if (ret_num <= 0)
-			return sprintf(buf,
+			return scnprintf(buf, PAGE_SIZE,
 				"%s: Failed to fill-in data!\n", __func__);
 	}
 
@@ -157,11 +182,13 @@ wh_statistic_show(struct device *dev, struct device_attribute *attr, char *buf)
 		return app->sysfs_callback(app,
 				MDDP_SYSFS_CMD_STATISTIC_READ, buf, 0);
 
-	return sprintf(buf, "Cannot change WH mode, mddp-wh config(%d)\n",
-					app->is_config);
+	return scnprintf(buf, PAGE_SIZE,
+				"Cannot change WH mode, mddp-wh config(%d)\n",
+				app->is_config);
 }
 static DEVICE_ATTR_RO(wh_statistic);
 
+#ifdef CONFIG_MTK_ENG_BUILD
 static ssize_t
 wh_enable_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -173,8 +200,9 @@ wh_enable_show(struct device *dev, struct device_attribute *attr, char *buf)
 		return app->sysfs_callback(app,
 				MDDP_SYSFS_CMD_ENABLE_READ, buf, 0);
 
-	return sprintf(buf, "Cannot change WH mode, mddp-wh config(%d)\n",
-		       app->is_config);
+	return scnprintf(buf, PAGE_SIZE,
+				"Cannot change WH mode, mddp-wh config(%d)\n",
+				app->is_config);
 }
 
 static ssize_t
@@ -210,18 +238,7 @@ static int32_t em_cmd_status;
 static ssize_t
 em_test_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	//int idx;
-	//int cnt = 0;
-
-#if 0
-	for (idx = 0; idx < 32; ida x += 4) {
-		cnt += sprintf(buf+cnt, "%d: %u %u %u %u.\n", idx,
-				em_cmd_buf[idx], em_cmd_buf[idx+1],
-				em_cmd_buf[idx+2], em_cmd_buf[idx+3]);
-	}
-	return cnt;
-#endif
-	return sprintf(buf, "staus:%d, cmd_buf:%s\n",
+	return scnprintf(buf, PAGE_SIZE, "staus:%d, cmd_buf:%s\n",
 			em_cmd_status, em_cmd_buf);
 }
 
@@ -239,7 +256,8 @@ em_test_store(struct device *dev,
 
 	str_len = strlen(buf);
 
-	memcpy(em_cmd_buf, buf, EM_CMD_BUF_SZ);
+	snprintf(em_cmd_buf, EM_CMD_BUF_SZ, "%.*s",
+			(int)min(count, sizeof(em_cmd_buf) - 1), buf);
 	strsep_buf_p = em_cmd_buf;
 	MDDP_SET_BUF_TERMIN(em_cmd_buf, str_len);
 
@@ -260,7 +278,8 @@ em_test_store(struct device *dev,
 	app = mddp_get_app_inst(em_cmd_app);
 	if (app->sysfs_callback) {
 		// OK.
-		memcpy(em_cmd_buf, buf, EM_CMD_BUF_SZ);
+		snprintf(em_cmd_buf, EM_CMD_BUF_SZ, "%.*s",
+				(int)min(count, sizeof(em_cmd_buf) - 1), buf);
 		MDDP_SET_BUF_TERMIN(em_cmd_buf, str_len);
 		em_cmd_status = app->sysfs_callback(app,
 						MDDP_SYSFS_EM_CMD_TEST_WRITE,
@@ -270,32 +289,37 @@ em_test_store(struct device *dev,
 
 	// NG. Failed to configure!
 	em_cmd_status = -ERANGE;
-	memcpy(em_cmd_buf, buf, EM_CMD_BUF_SZ);
+	snprintf(em_cmd_buf, EM_CMD_BUF_SZ, "%.*s",
+			(int)min(count, sizeof(em_cmd_buf) - 1), buf);
 	return count;
 
 input_param_error:
 not_support_error:
 	EM_CMD_RESET();
-	memcpy(em_cmd_buf, buf, EM_CMD_BUF_SZ);
+	snprintf(em_cmd_buf, EM_CMD_BUF_SZ, "%.*s",
+			(int)min(count, sizeof(em_cmd_buf) - 1), buf);
 	return count;
 }
 static DEVICE_ATTR_RW(em_test);
-#endif
+#endif /* MDDP_EM_SUPPORT */
+#endif /* CONFIG_MTK_ENG_BUILD */
 
 static struct attribute *mddp_attrs[] = {
 	&dev_attr_version.attr,
 	&dev_attr_state.attr,
 	&dev_attr_wh_statistic.attr,
+	&dev_attr_debug_log.attr,
 
+#ifdef CONFIG_MTK_ENG_BUILD
 	&dev_attr_wh_enable.attr,
 #ifdef MDDP_EM_SUPPORT
 	&dev_attr_em_test.attr,
+#endif
 #endif
 
 	NULL,
 };
 ATTRIBUTE_GROUPS(mddp);
-#endif
 
 //------------------------------------------------------------------------------
 // Private functions.
@@ -333,6 +357,8 @@ static void mddp_dev_rb_queue_tail(struct mddp_dev_rb_head_t *list,
 	__mddp_dev_insert(new, list->prev, (struct mddp_dev_rb_t *) list, list);
 
 	MDDP_DEV_RB_UNLOCK(list->locker);
+
+	wake_up_all(&list->read_wq);
 }
 
 static struct mddp_dev_rb_t *mddp_dev_rb_peek(
@@ -374,7 +400,8 @@ static char *__mddp_dev_devnode(struct device *dev, umode_t *mode)
 	if (!mode)
 		return NULL;
 
-	pr_info("%s: Set permission of dev node(%s).\n",
+	MDDP_C_LOG(MDDP_LL_INFO,
+			"%s: Set permission of dev node(%s).\n",
 			__func__, MDDP_DEV_NAME);
 	*mode =	0666;
 
@@ -392,9 +419,7 @@ void _mddp_dev_create_dev_node(void)
 		goto create_class_error;
 
 	mddp_dev_class_s->devnode = __mddp_dev_devnode;
-#ifdef CONFIG_MTK_ENG_BUILD
 	mddp_dev_class_s->dev_groups = mddp_groups;
-#endif
 
 	alloc_err = alloc_chrdev_region(&dev,
 			MDDP_DEV_MINOR_BASE,
@@ -424,7 +449,8 @@ cdev_add_error:
 	unregister_chrdev_region(dev, MDDP_DEV_MINOR_CNT);
 alloc_cd_error:
 create_class_error:
-	pr_notice("%s: Failed to create node, alloc_err(%d), cd_err(%d)!\n",
+	MDDP_C_LOG(MDDP_LL_ERR,
+			"%s: Failed to create node, alloc_err(%d), cd_err(%d)!\n",
 			__func__, alloc_err, cd_err);
 }
 
@@ -461,6 +487,15 @@ int32_t mddp_dev_init(void)
 	 */
 	_mddp_dev_create_dev_node();
 
+
+#ifdef CONFIG_MTK_ENG_BUILD
+	mddp_debug_log_class_s = MDDP_LC_ALL;
+	mddp_debug_log_level_s = MDDP_LL_ENG_DEF;
+#else
+	mddp_debug_log_class_s = MDDP_LC_ALL;
+	mddp_debug_log_level_s = MDDP_LL_NON_ENG_DEF;
+#endif
+
 	return 0;
 }
 
@@ -483,7 +518,8 @@ void mddp_dev_response(enum mddp_app_type_e type,
 	uint32_t                        rsp_idx;
 
 	if (msg < MDDP_CMCMD_RSP_BEGIN || msg >= MDDP_CMCMD_RSP_END) {
-		pr_notice("%s: invalid rsp msg(%d) in type(%d)!\n",
+		MDDP_C_LOG(MDDP_LL_NOTICE,
+				"%s: invalid rsp msg(%d) in type(%d)!\n",
 				__func__, msg, type);
 		return;
 	}
@@ -493,7 +529,8 @@ void mddp_dev_response(enum mddp_app_type_e type,
 
 	if (status == MDDP_DEV_EVT_NONE) {
 		// No response to upper module.
-		pr_notice("%s: No RSP, type(%d), msg(%d), is_success(%d).\n",
+		MDDP_C_LOG(MDDP_LL_NOTICE,
+				"%s: No RSP, type(%d), msg(%d), is_success(%d).\n",
 				__func__, type, msg, is_success);
 		return;
 	}
@@ -517,7 +554,7 @@ void mddp_dev_response(enum mddp_app_type_e type,
 		return;
 	}
 
-	entry->len = sizeof(dev_rsp) + data_len;
+	entry->len = sizeof(struct mddp_dev_rsp_common_t) + data_len;
 	entry->dev_rsp = dev_rsp;
 	mddp_dev_rb_queue_tail(list, entry);
 }
@@ -527,7 +564,7 @@ void mddp_dev_response(enum mddp_app_type_e type,
 //------------------------------------------------------------------------------
 int32_t mddp_dev_open(struct inode *inode, struct file *file)
 {
-	pr_info("%s: IOCTL dev open.\n", __func__);
+	MDDP_C_LOG(MDDP_LL_INFO, "%s: IOCTL dev open.\n", __func__);
 
 	if (atomic_read(&mddp_dev_open_ref_cnt_s))
 		return -EBUSY;
@@ -539,7 +576,7 @@ int32_t mddp_dev_open(struct inode *inode, struct file *file)
 
 int32_t mddp_dev_close(struct inode *inode, struct file *file)
 {
-	pr_info("%s: IOCTL dev close.\n", __func__);
+	MDDP_C_LOG(MDDP_LL_INFO, "%s: IOCTL dev close.\n", __func__);
 
 	atomic_dec(&mddp_dev_open_ref_cnt_s);
 
@@ -574,7 +611,8 @@ ssize_t mddp_dev_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 		}
 	}
 
-	pr_info("%s: IOCTL dev read, count(%zu).\n", __func__, count);
+	MDDP_C_LOG(MDDP_LL_DEBUG,
+			"%s: IOCTL dev read, count(%zu).\n", __func__, count);
 	entry = mddp_dev_rb_peek(list);
 
 	if (!entry) {
@@ -585,13 +623,16 @@ ssize_t mddp_dev_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 
 	if (count >= entry->len) {
 		if (copy_to_user(buf, entry->dev_rsp, entry->len)) {
-			pr_notice("%s: copy_to_user fail!\n", __func__);
+			MDDP_C_LOG(MDDP_LL_WARN, "%s: copy_to_user fail!\n",
+					__func__);
 			ret = -EFAULT;
 		}
 
 		entry = mddp_dev_rb_dequeue(list);
 		if (entry == NULL) {
-			pr_notice("%s: unexpected dequeue fail!\n", __func__);
+			MDDP_C_LOG(MDDP_LL_WARN,
+					"%s: unexpected dequeue fail!\n",
+					__func__);
 			ret = -EFAULT;
 			goto exit;
 		}
@@ -614,7 +655,7 @@ ssize_t mddp_dev_write(struct file *file,
 	/*
 	 * Not support WRITE.
 	 */
-	//pr_notice("%s: Receive\n", __func__);
+	MDDP_C_LOG(MDDP_LL_DEBUG, "%s: Receive\n", __func__);
 
 	return count;
 }
@@ -625,17 +666,19 @@ long mddp_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct mddp_dev_rsp_common_t           *dev_rsp;
 	long                                    ret = 0;
 	uint32_t                                data_len;
-	uint8_t                                 buf[MAX_GET_BUF_SZ] = { 0 };
-	uint32_t                                buf_len = MAX_GET_BUF_SZ;
+	uint8_t                                 buf[MDDP_MAX_GET_BUF_SZ] = {0};
+	uint32_t                                buf_len = MDDP_MAX_GET_BUF_SZ;
 	struct mddp_dev_req_act_t              *act;
 	struct mddp_dev_req_set_data_limit_t   *limit;
+	struct mddp_dev_req_set_ct_value_t     *ct_req;
 
 	/*
 	 * NG. copy_from_user fail!
 	 */
 	if (copy_from_user(&dev_req, (void __user *)arg,
 			sizeof(struct mddp_dev_req_common_t))) {
-		pr_notice("%s: copy_from_user failed!\n", __func__);
+		MDDP_C_LOG(MDDP_LL_WARN,
+				"%s: copy_from_user failed!\n", __func__);
 		ret = -EFAULT;
 		goto ioctl_error;
 	}
@@ -644,7 +687,9 @@ long mddp_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	 * NG. MCODE check fail!
 	 */
 	if (dev_req.mcode != MDDP_CTRL_MSG_MCODE) {
-		pr_notice("%s: MCODE(%d) wrong!\n", __func__, dev_req.mcode);
+		MDDP_C_LOG(MDDP_LL_WARN,
+				"%s: MCODE(%d) wrong!\n",
+				__func__, dev_req.mcode);
 		ret = -EINVAL;
 		goto ioctl_error;
 	}
@@ -688,8 +733,9 @@ long mddp_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			}
 		}
 		/* NG */
-		pr_notice("%s: ACT fail, data_len(%d), ret(%ld)!\n",
-					__func__, data_len, ret);
+		MDDP_C_LOG(MDDP_LL_ERR,
+				"%s: ACT fail, data_len(%d), ret(%ld)!\n",
+				__func__, data_len, ret);
 
 		break;
 
@@ -700,9 +746,11 @@ long mddp_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case MDDP_CMCMD_GET_OFFLOAD_STATS_REQ:
 		ret = mddp_on_get_offload_stats(dev_req.app_type,
 				buf, &buf_len);
-		pr_info("%s: ret(%ld), type(%d), buf(%p), len(%d)\n",
-			__func__, ret, dev_req.app_type, buf, buf_len);
-		pr_info("%s: get_offload_stats, rx(%llu), tx(%llu).\n",
+		MDDP_C_LOG(MDDP_LL_DEBUG,
+				"%s: ret(%ld), type(%d), buf(%p), len(%u)\n",
+				__func__, ret, dev_req.app_type, buf, buf_len);
+		MDDP_C_LOG(MDDP_LL_NOTICE,
+			"%s: get_offload_stats, rx(%llu), tx(%llu).\n",
 			__func__,
 			((struct mddp_u_data_stats_t *)buf)->total_rx_bytes,
 			((struct mddp_u_data_stats_t *)buf)->total_tx_bytes);
@@ -742,16 +790,44 @@ long mddp_dev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		break;
 
+	case MDDP_CMCMD_SET_CT_VALUE_REQ:
+		if (dev_req.data_len !=
+			sizeof(struct mddp_dev_req_set_ct_value_t)) {
+			MDDP_C_LOG(MDDP_LL_WARN,
+					"%s: arg_len(%u) of command(%u) is not expected!\n",
+					__func__,
+					dev_req.data_len, dev_req.msg);
+			ret = -EINVAL;
+			break;
+		}
+
+
+		ct_req = (struct mddp_dev_req_set_ct_value_t *)
+			&(((struct mddp_dev_req_common_t *)arg)->data);
+		buf_len = sizeof(struct mddp_dev_req_set_ct_value_t);
+		ret = copy_from_user((char *)&buf, (char *)ct_req, buf_len);
+
+		if (ret == 0)
+			ret = mddp_on_set_ct_value(dev_req.app_type,
+					buf, buf_len);
+		else
+			MDDP_C_LOG(MDDP_LL_WARN,
+					"%s: failed to copy_from_user, buf_len(%u), ret(%ld)!\n",
+					__func__, buf_len, ret);
+
+		break;
+
 	default:
-		pr_notice("%s: Invalid command(%d)!\n",
+		MDDP_C_LOG(MDDP_LL_WARN, "%s: Invalid command(%d)!\n",
 				__func__, dev_req.msg);
 		ret = -EINVAL;
 		break;
 	}
 
 ioctl_error:
-	pr_notice("%s: cmd(%d) app_type(%d), ret (%ld).\n",
-				__func__, dev_req.msg, dev_req.app_type, ret);
+	MDDP_C_LOG(MDDP_LL_INFO,
+			"%s: cmd(%d) app_type(%d), ret (%ld).\n",
+			__func__, dev_req.msg, dev_req.app_type, ret);
 	return ret;
 }
 

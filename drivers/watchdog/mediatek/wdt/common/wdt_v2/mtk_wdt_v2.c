@@ -49,7 +49,8 @@
 #include <mt-plat/upmu_common.h>
 #endif
 #include <dbgtop.h>
-#if 0
+
+#ifdef CONFIG_MTK_CPU_KORO
 #include <mtk_koro.h>
 #endif
 
@@ -76,8 +77,6 @@ __weak int mtk_dbgtop_dram_reserved(int enable)
 };
 
 __weak void dfd_workaround(void) {};
-
-__weak void mtk_koro_disable(void) {};
 
 /**---------------------------------------------------------------------
  * Sub feature switch region
@@ -669,10 +668,16 @@ void wdt_arch_reset(char mode)
 
 	mt_reg_sync_writel(wdt_mode_val, MTK_WDT_MODE);
 
+	mt_reg_sync_writel(__raw_readl(MTK_WDT_STATUS), MTK_WDT_NONRST_REG);
+	pr_info("wdt_status before %s %x\n", __func__,
+		 __raw_readl(MTK_WDT_STATUS));
+
+#ifdef CONFIG_MTK_CPU_KORO
 	if (__raw_readl(MTK_WDT_STATUS) == 0) {
 		pr_info("Normal boot disable koro\n");
 		mtk_koro_disable();
 	}
+#endif
 
 	mtk_wdt_clear_all();
 

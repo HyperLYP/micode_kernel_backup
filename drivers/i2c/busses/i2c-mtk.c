@@ -33,22 +33,15 @@
 #include <linux/of_irq.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <linux/syscore_ops.h>
 
-#if 0
-#include <mtk_cpufreq_hybrid.h>
-#endif
-#ifdef CONFIG_MTK_GPU_SPM_DVFS_SUPPORT
-#include <mtk_kbase_spm.h>
-#endif
-#ifdef CONFIG_MTK_TINYSYS_SCP_SUPPORT
-#include <scp_helper.h>
-#endif
 #include "mtk_secure_api.h"
 #include "i2c-mtk.h"
 
 static struct i2c_dma_info g_dma_regs[I2C_MAX_CHANNEL];
 static struct mt_i2c *g_mt_i2c[I2C_MAX_CHANNEL];
 static struct mtk_i2c_compatible i2c_common_compat;
+static struct mtk_i2c_pll i2c_pll_info;
 
 
 static inline void _i2c_writew(u16 value, struct mt_i2c *i2c, u16 offset)
@@ -361,72 +354,6 @@ static void mt_i2c_clock_disable(struct mt_i2c *i2c)
 #endif
 }
 
-static int i2c_get_semaphore(struct mt_i2c *i2c)
-{
-#if 0
-	int count = 100;
-#endif
-	#if 0
-	if (i2c->appm) {
-		if (cpuhvfs_get_dvfsp_semaphore(SEMA_I2C_DRV) != 0) {
-			dev_info(i2c->dev, "sema time out 2ms\n");
-			if (cpuhvfs_get_dvfsp_semaphore(SEMA_I2C_DRV) != 0) {
-				dev_info(i2c->dev, "sema time out 4ms\n");
-				i2c_dump_info(i2c);
-				WARN_ON(1);
-				return -EBUSY;
-			}
-		}
-	}
-	#endif
-
-#ifdef CONFIG_MTK_GPU_SPM_DVFS_SUPPORT
-	if (i2c->gpupm) {
-		if (dvfs_gpu_pm_spin_lock_for_vgpu() != 0) {
-			dev_info(i2c->dev, "sema time out.\n");
-			return -EBUSY;
-		}
-	}
-#endif
-
-	switch (i2c->id) {
-#if 0
-	case 0:
-		while ((get_scp_semaphore(SEMAPHORE_I2C0) != 1) && count > 0)
-			count--;
-		return count > 0 ? 0 : -EBUSY;
-	case 1:
-		while ((get_scp_semaphore(SEMAPHORE_I2C1) != 1) && count > 0)
-			count--;
-		return count > 0 ? 0 : -EBUSY;
-#endif
-	default:
-		return 0;
-	}
-}
-
-static int i2c_release_semaphore(struct mt_i2c *i2c)
-{
-	#if 0
-	if (i2c->appm)
-		cpuhvfs_release_dvfsp_semaphore(SEMA_I2C_DRV);
-	#endif
-#ifdef CONFIG_MTK_GPU_SPM_DVFS_SUPPORT
-	if (i2c->gpupm)
-		dvfs_gpu_pm_spin_unlock_for_vgpu();
-#endif
-
-	switch (i2c->id) {
-#if 0
-	case 0:
-		return release_scp_semaphore(SEMAPHORE_I2C0) == 1 ? 0 : -EBUSY;
-	case 1:
-		return release_scp_semaphore(SEMAPHORE_I2C1) == 1 ? 0 : -EBUSY;
-#endif
-	default:
-		return 0;
-	}
-}
 static void free_i2c_dma_bufs(struct mt_i2c *i2c)
 {
 	dma_free_coherent(i2c->adap.dev.parent, PAGE_SIZE,
@@ -1052,12 +979,7 @@ static int mt_i2c_do_transfer(struct mt_i2c *i2c)
 			i2c_writel_dma(I2C_DMA_WARM_RST, i2c, OFFSET_RST);
 			udelay(5);
 		}
-#ifdef CONFIG_MTK_LM_MODE
-		if ((i2c->dev_comp->dma_support == 1) && (enable_4G())) {
-			i2c_writel_dma(0x1, i2c, OFFSET_TX_MEM_ADDR2);
-			i2c_writel_dma(0x1, i2c, OFFSET_RX_MEM_ADDR2);
-		}
-#endif
+
 		if (i2c->op == I2C_MASTER_RD) {
 			i2c_writel_dma(I2C_DMA_INT_FLAG_NONE,
 				i2c, OFFSET_INT_FLAG);
@@ -1378,21 +1300,8 @@ static int __mt_i2c_transfer(struct mt_i2c *i2c,
 			}
 		}
 
-		/* Use HW semaphore to protect device access between
-		 * AP and SPM, or SCP
-		 */
-		if (i2c_get_semaphore(i2c) != 0) {
-			dev_info(i2c->dev, "get hw semaphore failed.\n");
-			return -EBUSY;
-		}
 		ret = mt_i2c_do_transfer(i2c);
-		/* Use HW semaphore to protect device access between
-		 * AP and SPM, or SCP
-		 */
-		if (i2c_release_semaphore(i2c) != 0) {
-			dev_info(i2c->dev, "release hw semaphore failed.\n");
-			ret = -EBUSY;
-		}
+
 		if (ret < 0)
 			goto err_exit;
 		if (i2c->op == I2C_MASTER_WRRD)
@@ -1814,6 +1723,7 @@ static int mt_i2c_probe(struct platform_device *pdev)
 		return -EINVAL;
 
 	i2c->dev_comp = of_id->data;
+	i2c->i2c_pll_info = &i2c_pll_info;
 	i2c->adap.dev.of_node = pdev->dev.of_node;
 	i2c->dev = &i2c->adap.dev;
 	i2c->adap.dev.parent = &pdev->dev;
@@ -1863,6 +1773,38 @@ static int mt_i2c_probe(struct platform_device *pdev)
 	else
 		dev_dbg(&pdev->dev, "i2c%d has the relevant pal clk.\n",
 			i2c->id);
+	if (i2c->i2c_pll_info->clk_mux == NULL) {
+		i2c->i2c_pll_info->clk_mux = devm_clk_get(&pdev->dev, "mux");
+		if (IS_ERR(i2c->i2c_pll_info->clk_mux)) {
+			i2c->i2c_pll_info->clk_mux = NULL;
+			dev_info(&pdev->dev, "cannot get mux clock\n");
+		} else
+			dev_info(&pdev->dev,
+				"i2c%d has the relevant clk_mux clk.\n",
+				i2c->id);
+	}
+	if (i2c->i2c_pll_info->clk_p_main == NULL) {
+		i2c->i2c_pll_info->clk_p_main =
+			devm_clk_get(&pdev->dev, "p_main");
+		if (IS_ERR(i2c->i2c_pll_info->clk_p_main)) {
+			i2c->i2c_pll_info->clk_p_main = NULL;
+			dev_info(&pdev->dev, "cannot get p_main clock\n");
+		} else
+			dev_info(&pdev->dev,
+				"i2c%d has the relevant clk_p_main clk.\n",
+				i2c->id);
+	}
+	if (i2c->i2c_pll_info->clk_p_univ == NULL) {
+		i2c->i2c_pll_info->clk_p_univ =
+			devm_clk_get(&pdev->dev, "p_univ");
+		if (IS_ERR(i2c->i2c_pll_info->clk_p_univ)) {
+			i2c->i2c_pll_info->clk_p_univ = NULL;
+			dev_info(&pdev->dev, "cannot get p_univ clock\n");
+		} else
+			dev_info(&pdev->dev,
+				"i2c%d has the relevant clk_p_univ clk.\n",
+				i2c->id);
+	}
 #endif
 
 	if (i2c->have_pmic) {
@@ -1933,6 +1875,67 @@ static int mt_i2c_remove(struct platform_device *pdev)
 
 
 MODULE_DEVICE_TABLE(of, mt_i2c_match);
+
+void mt_i2c_pll_resume(void)
+{
+
+#if !defined(CONFIG_MT_I2C_FPGA_ENABLE)
+	if (i2c_pll_info.clk_mux && i2c_pll_info.clk_p_univ) {
+		pr_info("i2c main pll switch to univ pll\n");
+		clk_prepare_enable(i2c_pll_info.clk_mux);
+		clk_set_parent(i2c_pll_info.clk_mux, i2c_pll_info.clk_p_univ);
+		clk_disable_unprepare(i2c_pll_info.clk_mux);
+	} else {
+		pr_info("i2c no need switch top pll\n");
+	}
+#endif
+}
+
+int mt_i2c_pll_suspend(void)
+{
+#if !defined(CONFIG_MT_I2C_FPGA_ENABLE)
+	int ret = 0;
+	const char *parent;
+
+	if (i2c_pll_info.clk_mux && i2c_pll_info.clk_p_main) {
+		pr_info("i2c univ pll switch to main pll\n");
+		ret = clk_prepare_enable(i2c_pll_info.clk_mux);
+		if (ret) {
+			pr_info("enable i2c clk_mux fail(%d)\n", ret);
+			return ret;
+		}
+		parent =
+			__clk_get_name(clk_get_parent(i2c_pll_info.clk_mux));
+		pr_info("i2c before parent: %s\n", parent);
+		ret = clk_set_parent(i2c_pll_info.clk_mux,
+			i2c_pll_info.clk_p_main);
+		if (ret) {
+			pr_info("set i2c clk_p_main fail(%d)\n", ret);
+			goto err_clk_set_main;
+		}
+		parent =
+			__clk_get_name(clk_get_parent(i2c_pll_info.clk_mux));
+		pr_info("i2c after parent: %s\n", parent);
+		clk_disable_unprepare(i2c_pll_info.clk_mux);
+	} else {
+		pr_info("i2c no need switch top pll\n");
+	}
+
+	return ret;
+
+err_clk_set_main:
+	clk_disable_unprepare(i2c_pll_info.clk_mux);
+	return ret;
+#else
+	return 0;
+#endif
+}
+
+
+static struct syscore_ops mtk_i2c_syscore_ops = {
+	.resume = mt_i2c_pll_resume,
+	.suspend = mt_i2c_pll_suspend,
+};
 
 #ifdef CONFIG_PM_SLEEP
 static int mt_i2c_suspend_noirq(struct device *dev)
@@ -2037,6 +2040,8 @@ static s32 __init mt_i2c_init(void)
 		pr_info("Mapp dma regs successfully.\n");
 	if (!mt_i2c_parse_comp_data())
 		pr_info("Get compatible data from dts successfully.\n");
+
+	register_syscore_ops(&mtk_i2c_syscore_ops);
 
 	pr_info("%s: driver as platform device\n", __func__);
 	return platform_driver_register(&mt_i2c_driver);

@@ -223,6 +223,7 @@ static void vpu_mesg_init(struct vpu_device *vd)
 		return;
 	memset(msg, 0, vd->wb_log_data);
 	msg->level_mask = (1 << VPU_DBG_MSG_LEVEL_CTRL);
+	vpu_iova_sync_for_device(vd->dev, &vd->iova_work);
 }
 
 static void vpu_mesg_clr(struct vpu_device *vd)
@@ -241,6 +242,7 @@ static void vpu_mesg_clr(struct vpu_device *vd)
 	if (data)
 		memset(data, 0,
 		       vd->wb_log_data - sizeof(struct vpu_message_ctrl));
+	vpu_iova_sync_for_device(vd->dev, &vd->iova_work);
 }
 
 static int vpu_mesg_level_set(void *data, u64 val)
@@ -270,6 +272,7 @@ static int vpu_mesg_level_set(void *data, u64 val)
 		msg->level_mask ^= (1 << level);
 	else
 		msg->level_mask = 0;
+	vpu_iova_sync_for_device(vd->dev, &vd->iova_work);
 	return 0;
 }
 
@@ -608,7 +611,7 @@ void vpu_seq_boost(struct seq_file *s, int boost)
 static uint64_t
 vpu_debug_cmd_entry_seq(struct seq_file *s, struct vpu_cmd_ctl *c, int prio)
 {
-	int i;
+	unsigned int i;
 
 	seq_printf(s, "priority %d: #%llu: ", prio, c->exe_cnt);
 	for (i = 0; vc_str[i].n; i++) {
@@ -657,7 +660,7 @@ int vpu_debug_cmd_seq(struct seq_file *s, struct vpu_device *vd, int prio,
 
 const char *vpu_debug_cmd_str(int cmd)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; vc_str[i].n; i++) {
 		if (cmd == vc_str[i].t)
@@ -902,6 +905,9 @@ int vpu_init_dev_debug(struct platform_device *pdev, struct vpu_device *vd)
 	int ret = 0;
 	struct dentry *droot;
 
+	vpu_dmp_init(vd);
+	vpu_mesg_init(vd);
+
 	if (!vpu_drv->droot)
 		return -ENODEV;
 
@@ -918,9 +924,6 @@ int vpu_init_dev_debug(struct platform_device *pdev, struct vpu_device *vd)
 		&vd->pw_off_latency);
 	debugfs_create_u64("cmd_timeout", 0660, droot,
 		&vd->cmd_timeout);
-
-	vpu_dmp_init(vd);
-	vpu_mesg_init(vd);
 
 	VPU_DEBUGFS_CREATE(algo);
 	VPU_DEBUGFS_CREATE(dump);

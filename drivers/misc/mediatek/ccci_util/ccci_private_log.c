@@ -34,7 +34,7 @@
 /* Ring buffer part, this type log is block read, used for temp debug purpose */
 /******************************************************************************/
 #define CCCI_LOG_BUF_SIZE 4096	/* must be power of 2 */
-#define CCCI_LOG_MAX_WRITE 512
+#define CCCI_LOG_MAX_WRITE 4096
 
 /*extern u64 local_clock(void); */
 
@@ -82,6 +82,12 @@ int ccci_log_write(const char *fmt, ...)
 						this_cpu,
 						current->pid,
 						current->comm);
+	if (write_len < 0) {
+		pr_notice("%s-%d:snprintf fail,write_len = %d\n",
+			__func__, __LINE__, write_len);
+		write_len = 0;
+	} else if (write_len >= CCCI_LOG_MAX_WRITE)
+		write_len = CCCI_LOG_MAX_WRITE - 1;
 
 	va_start(args, fmt);
 	write_len +=
@@ -146,6 +152,12 @@ int ccci_log_write_raw(unsigned int set_flags, const char *fmt, ...)
 					(unsigned long)ts_nsec,
 					rem_nsec / 1000, state,
 					this_cpu);
+		if (write_len < 0) {
+			pr_notice("%s-%d:snprintf fail,write_len = %d\n",
+				__func__, __LINE__, write_len);
+			write_len = 0;
+		} else if (write_len >= CCCI_LOG_MAX_WRITE)
+			write_len = CCCI_LOG_MAX_WRITE - 1;
 	} else
 		write_len = 0;
 
@@ -282,13 +294,14 @@ static const struct file_operations ccci_log_fops = {
 #define CCCI_REPEAT_BUF			(4096*32)
 #define CCCI_HISTORY_BUF		(4096*128)
 #define CCCI_REG_DUMP_BUF		(4096*64 * 2)
+#define CCCI_DPMA_DRB_BUF		(1024*16)
 
-#define MD3_CCCI_INIT_SETTING_BUF   (4096*2)
-#define MD3_CCCI_BOOT_UP_BUF                (4096*16)
-#define MD3_CCCI_NORMAL_BUF                 (4096*2)
-#define MD3_CCCI_REPEAT_BUF                 (4096*32)
-#define MD3_CCCI_REG_DUMP_BUF               (4096*32)
-#define MD3_CCCI_HISTORY_BUF                (4096*32)
+#define MD3_CCCI_INIT_SETTING_BUF   (64)
+#define MD3_CCCI_BOOT_UP_BUF                (64)
+#define MD3_CCCI_NORMAL_BUF                 (64)
+#define MD3_CCCI_REPEAT_BUF                 (64)
+#define MD3_CCCI_REG_DUMP_BUF               (64)
+#define MD3_CCCI_HISTORY_BUF                (64)
 
 struct ccci_dump_buffer {
 	void *buffer;
@@ -315,6 +328,7 @@ static struct ccci_dump_buffer repeat_ctlb[2];
 static struct ccci_dump_buffer reg_dump_ctlb[2];
 static struct ccci_dump_buffer history_ctlb[2];
 static struct ccci_dump_buffer ke_dump_ctlb[2];
+static struct ccci_dump_buffer drb_dump_ctlb[2];
 static int buff_bind_md_id[5];
 static int md_id_bind_buf_id[5];
 static int buff_en_bit_map;
@@ -362,6 +376,8 @@ static struct buffer_node node_array[2][CCCI_DUMP_MAX+1] = {
 		CCCI_DUMP_ATTR_RING, CCCI_DUMP_HISTORY},
 		{&ke_dump_ctlb[0], 32*1024,
 		CCCI_DUMP_ATTR_RING, CCCI_DUMP_REGISTER},
+		{&drb_dump_ctlb[0], CCCI_DPMA_DRB_BUF,
+		CCCI_DUMP_ATTR_RING, CCCI_DUMP_DPMA_DRB},
 	},
 	{
 		{&init_setting_ctlb[1], MD3_CCCI_INIT_SETTING_BUF,
@@ -378,6 +394,8 @@ static struct buffer_node node_array[2][CCCI_DUMP_MAX+1] = {
 		CCCI_DUMP_ATTR_RING, CCCI_DUMP_HISTORY},
 		{&ke_dump_ctlb[1], 1*1024,
 		CCCI_DUMP_ATTR_RING, CCCI_DUMP_REGISTER},
+		{&drb_dump_ctlb[1], 64,
+		CCCI_DUMP_ATTR_RING, CCCI_DUMP_DPMA_DRB},
 	}
 };
 
@@ -405,7 +423,7 @@ int ccci_dump_write(int md_id, int buf_type,
 	if (unlikely(buf_type >= CCCI_DUMP_MAX))
 		return -2;
 	buf_id = buff_bind_md_id[md_id];
-	if (buf_id == -1)
+	if (buf_id < 0 || buf_id > 2 || buf_type < 0)
 		return -3;
 	if (unlikely(node_array[buf_id][buf_type].index != buf_type))
 		return -4;
@@ -446,6 +464,12 @@ int ccci_dump_write(int md_id, int buf_type,
 						this_cpu,
 						current->pid,
 						current->comm);
+		if (write_len < 0) {
+			pr_notice("%s-%d:snprintf fail,write_len = %d\n",
+				__func__, __LINE__, write_len);
+			write_len = 0;
+		} else if (write_len >= CCCI_LOG_MAX_WRITE)
+			write_len = CCCI_LOG_MAX_WRITE - 1;
 	}
 
 	va_start(args, fmt);
@@ -534,6 +558,9 @@ static void format_separate_str(char str[], int type)
 		break;
 	case CCCI_DUMP_REGISTER:
 		sep_str = "[0]REGISTER LOG REGION";
+		break;
+	case CCCI_DUMP_DPMA_DRB:
+		sep_str = "[0]DPMAIF DRB REGION";
 		break;
 	default:
 		sep_str = "[0]Unsupport REGION";
@@ -794,7 +821,7 @@ static void ccci_dump_buffer_init(void)
 	struct buffer_node *node_ptr;
 	struct ccci_dump_buffer *ptr;
 
-	ccci_dump_proc = proc_create("ccci_dump", 0444, NULL, &ccci_dump_fops);
+	ccci_dump_proc = proc_create("ccci_dump", 0440, NULL, &ccci_dump_fops);
 	if (ccci_dump_proc == NULL) {
 		pr_notice("[ccci0/util]fail to create proc entry for dump\n");
 		return;
@@ -1062,6 +1089,12 @@ int ccci_event_log(const char *fmt, ...)
 			this_cpu,
 			current->pid,
 			current->comm);
+	if (write_len < 0) {
+		pr_notice("%s-%d:snprintf fail,write_len = %d\n",
+			__func__, __LINE__, write_len);
+		write_len = 0;
+	} else if (write_len >= CCCI_LOG_MAX_WRITE)
+		write_len = CCCI_LOG_MAX_WRITE - 1;
 
 	va_start(args, fmt);
 	write_len += vsnprintf(temp_log
@@ -1140,7 +1173,7 @@ void ccci_log_init(void)
 {
 	struct proc_dir_entry *ccci_log_proc;
 
-	ccci_log_proc = proc_create("ccci_log", 0444, NULL, &ccci_log_fops);
+	ccci_log_proc = proc_create("ccci_log", 0440, NULL, &ccci_log_fops);
 	if (ccci_log_proc == NULL) {
 		pr_notice("[ccci0/util]fail to create proc entry for log\n");
 		return;

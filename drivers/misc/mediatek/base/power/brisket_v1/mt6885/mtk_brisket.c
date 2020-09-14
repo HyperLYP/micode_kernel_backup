@@ -210,7 +210,7 @@ static int brisket_reserve_memory_dump(char *buf, unsigned int log_offset)
 	return 0;
 }
 
-#define EEM_TEMPSPARE0		0x112788F0
+#define EEM_TEMPSPARE0		0x11278F20
 #define brisket_read(addr)		__raw_readl((void __iomem *)(addr))
 #define brisket_write(addr, val)	mt_reg_sync_writel(val, addr)
 
@@ -320,10 +320,17 @@ static ssize_t brisket_pllclken_proc_write(struct file *file,
 	if (copy_from_user(buf, buffer, count))
 		goto out;
 
+	/* coverity check */
+	if (!buf)
+		return -ENOMEM;
+
+	if (sizeof(buf) >= PAGE_SIZE)
+		goto out;
+
 	buf[count] = '\0';
 
 	/* parameter check */
-	if (kstrtou32(buf, 0, &brisket_pllclken)) {
+	if (kstrtou32((const char *)buf, 0, &brisket_pllclken)) {
 		brisket_debug("bad argument!! Should input 1 arguments.\n");
 		goto out;
 	}
@@ -387,10 +394,17 @@ static ssize_t brisket_bren_proc_write(struct file *file,
 	if (copy_from_user(buf, buffer, count))
 		goto out;
 
+	/* coverity check */
+	if (!buf)
+		return -ENOMEM;
+
+	if (sizeof(buf) >= PAGE_SIZE)
+		goto out;
+
 	buf[count] = '\0';
 
 	/* parameter check */
-	if (kstrtou32(buf, 0, &brisket_bren)) {
+	if (kstrtou32((const char *)buf, 0, &brisket_bren)) {
 		brisket_debug("bad argument!! Should input 1 arguments.\n");
 		goto out;
 	}

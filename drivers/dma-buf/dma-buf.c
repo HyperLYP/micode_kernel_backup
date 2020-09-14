@@ -55,42 +55,20 @@ static char *dmabuffs_dname(struct dentry *dentry, char *buffer, int buflen)
 	size_t ret = 0;
 
 	dmabuf = dentry->d_fsdata;
-	mutex_lock(&dmabuf->lock);
+	spin_lock(&dmabuf->name_lock);
 	if (dmabuf->name)
 		ret = strlcpy(name, dmabuf->name, DMA_BUF_NAME_LEN);
-	mutex_unlock(&dmabuf->lock);
+	spin_unlock(&dmabuf->name_lock);
 
 	return dynamic_dname(dentry, buffer, buflen, "/%s:%s",
 			     dentry->d_name.name, ret > 0 ? name : "");
 }
 
-static const struct dentry_operations dma_buf_dentry_ops = {
-	.d_dname = dmabuffs_dname,
-};
-
-static struct vfsmount *dma_buf_mnt;
-
-static struct dentry *dma_buf_fs_mount(struct file_system_type *fs_type,
-		int flags, const char *name, void *data)
-{
-	return mount_pseudo(fs_type, "dmabuf:", NULL, &dma_buf_dentry_ops,
-			DMA_BUF_MAGIC);
-}
-
-static struct file_system_type dma_buf_fs_type = {
-	.name = "dmabuf",
-	.mount = dma_buf_fs_mount,
-	.kill_sb = kill_anon_super,
-};
-
-static int dma_buf_release(struct inode *inode, struct file *file)
+static void dma_buf_release(struct dentry *dentry)
 {
 	struct dma_buf *dmabuf;
 
-	if (!is_dma_buf_file(file))
-		return -EINVAL;
-
-	dmabuf = file->private_data;
+	dmabuf = dentry->d_fsdata;
 
 	BUG_ON(dmabuf->vmapping_counter);
 
@@ -115,8 +93,27 @@ static int dma_buf_release(struct inode *inode, struct file *file)
 
 	module_put(dmabuf->owner);
 	kfree(dmabuf);
-	return 0;
 }
+
+static const struct dentry_operations dma_buf_dentry_ops = {
+	.d_dname = dmabuffs_dname,
+	.d_release = dma_buf_release,
+};
+
+static struct vfsmount *dma_buf_mnt;
+
+static struct dentry *dma_buf_fs_mount(struct file_system_type *fs_type,
+		int flags, const char *name, void *data)
+{
+	return mount_pseudo(fs_type, "dmabuf:", NULL, &dma_buf_dentry_ops,
+			DMA_BUF_MAGIC);
+}
+
+static struct file_system_type dma_buf_fs_type = {
+	.name = "dmabuf",
+	.mount = dma_buf_fs_mount,
+	.kill_sb = kill_anon_super,
+};
 
 static int dma_buf_mmap_internal(struct file *file, struct vm_area_struct *vma)
 {
@@ -342,8 +339,10 @@ static long dma_buf_set_name(struct dma_buf *dmabuf, const char __user *buf)
 		kfree(name);
 		goto out_unlock;
 	}
+	spin_lock(&dmabuf->name_lock);
 	kfree(dmabuf->name);
 	dmabuf->name = name;
+	spin_unlock(&dmabuf->name_lock);
 
 out_unlock:
 	mutex_unlock(&dmabuf->lock);
@@ -405,14 +404,13 @@ static void dma_buf_show_fdinfo(struct seq_file *m, struct file *file)
 	/* Don't count the temporary reference taken inside procfs seq_show */
 	seq_printf(m, "count:\t%ld\n", file_count(dmabuf->file) - 1);
 	seq_printf(m, "exp_name:\t%s\n", dmabuf->exp_name);
-	mutex_lock(&dmabuf->lock);
+	spin_lock(&dmabuf->name_lock);
 	if (dmabuf->name)
 		seq_printf(m, "name:\t%s\n", dmabuf->name);
-	mutex_unlock(&dmabuf->lock);
+	spin_unlock(&dmabuf->name_lock);
 }
 
 static const struct file_operations dma_buf_fops = {
-	.release	= dma_buf_release,
 	.mmap		= dma_buf_mmap_internal,
 	.llseek		= dma_buf_llseek,
 	.poll		= dma_buf_poll,
@@ -557,6 +555,7 @@ struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info)
 	dmabuf->size = exp_info->size;
 	dmabuf->exp_name = exp_info->exp_name;
 	dmabuf->owner = exp_info->owner;
+	spin_lock_init(&dmabuf->name_lock);
 	init_waitqueue_head(&dmabuf->poll);
 	dmabuf->cb_excl.poll = dmabuf->cb_shared.poll = &dmabuf->poll;
 	dmabuf->cb_excl.active = dmabuf->cb_shared.active = 0;
@@ -1205,6 +1204,7 @@ static int dma_buf_debug_show(struct seq_file *s, void *unused)
 	int count = 0, attach_count, shared_count, i;
 	size_t size = 0;
 
+	kasan_disable_current();
 	ret = mutex_lock_interruptible(&db_list.lock);
 
 	if (ret)
@@ -1279,6 +1279,7 @@ static int dma_buf_debug_show(struct seq_file *s, void *unused)
 	seq_printf(s, "\nTotal %d objects, %zu bytes\n", count, size);
 
 	mutex_unlock(&db_list.lock);
+	kasan_enable_current();
 	return 0;
 }
 

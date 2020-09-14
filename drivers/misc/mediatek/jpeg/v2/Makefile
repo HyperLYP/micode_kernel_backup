@@ -65,19 +65,11 @@ ifeq ($(CONFIG_MACH_MT6767),y)
   ccflags-y += -DPLATFORM_MT6768
 endif
 
-ifeq ($(CONFIG_MACH_MT6885),y)
+ifeq (y, $(filter y,$(CONFIG_MACH_MT6885) $(CONFIG_MACH_MT6893)))
   ccflags-y += -DJPEG_HYBRID_DEC_DRIVER
 endif
 
-ifneq ($(CONFIG_MACH_MT6885),y)
-  ccflags-y += -DJPEG_ENC_DRIVER
-endif
-
-ifeq ($(CONFIG_MACH_MT6893),y)
-  ccflags-y += -DJPEG_HYBRID_DEC_DRIVER
-endif
-
-ifneq ($(CONFIG_MACH_MT6893),y)
+ifeq (,$(filter y,$(CONFIG_MACH_MT6885) $(CONFIG_MACH_MT6893)))
   ccflags-y += -DJPEG_ENC_DRIVER
 endif
 
@@ -88,6 +80,14 @@ endif
 ifeq ($(CONFIG_MACH_MT8173),y)
   ccflags-y += -DJPEG_DEC_DRIVER
   ccflags-y += -DJPEG_PM_DOMAIN_ENABLE
+endif
+
+ifeq ($(CONFIG_MACH_MT8168),y)
+  ccflags-y += -DJPEG_ENC_DRIVER
+  ccflags-y += -DJPEG_PM_DOMAIN_ENABLE
+ifeq ($(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT),y)
+  ccflags-y += -DCONFIG_MTK_SEC_JPEG_SUPPORT
+endif
 endif
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/smi/

@@ -179,19 +179,24 @@ int32_t cmdq_sec_init_session_unlocked(struct cmdqSecContextStruct *handle)
 			if (status < 0)
 				break;
 #endif
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+			status = cmdq_sec_mtee_open_session(
+				&handle->mtee, handle->mtee_iwcMessage);
+			if (status < 0)
+				break;
+#endif
 			handle->state = IWC_CONTEXT_INITED;
 		}
 
 		if (handle->state < IWC_WSM_ALLOCATED) {
+#ifdef CMDQ_SECURE_TEE_SUPPORT
 			if (handle->iwcMessage) {
 				CMDQ_ERR(
 					"[SEC]SESSION_INIT: wsm message is not NULL\n");
 				status = -EINVAL;
 				break;
 			}
-
 			/* allocate world shared memory */
-#ifdef CMDQ_SECURE_TEE_SUPPORT
 			status = cmdq_sec_allocate_wsm(&handle->tee,
 				&handle->iwcMessage,
 				sizeof(struct iwcCmdqMessage_t),
@@ -199,19 +204,39 @@ int32_t cmdq_sec_init_session_unlocked(struct cmdqSecContextStruct *handle)
 				sizeof(struct iwcCmdqMessageEx_t),
 				&handle->iwcMessageEx2,
 				sizeof(struct iwcCmdqMessageEx2_t));
-#endif
 			if (status < 0)
 				break;
+#endif
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+#ifndef CMDQ_LATE_INIT_SUPPORT
+			if (handle->mtee_iwcMessage) {
+				CMDQ_ERR(
+					"[SEC]SESSION_INIT: mtee wsm message is not NULL\n");
+				status = -EINVAL;
+				break;
+			}
+#endif
+			/* allocate world shared memory */
+			status = cmdq_sec_mtee_allocate_wsm(&handle->mtee,
+				&handle->mtee_iwcMessage,
+				sizeof(struct iwcCmdqMessage_t),
+				&handle->mtee_iwcMessageEx,
+				sizeof(struct iwcCmdqMessageEx_t),
+				&handle->mtee_iwcMessageEx2,
+				sizeof(struct iwcCmdqMessageEx2_t));
+			if (status < 0)
+				break;
+#endif
 			handle->state = IWC_WSM_ALLOCATED;
 		}
 
-		/* open a secure session */
 #ifdef CMDQ_SECURE_TEE_SUPPORT
+		/* open a secure session */
 		status = cmdq_sec_open_session(&handle->tee,
 			handle->iwcMessage);
-#endif
 		if (status < 0)
 			break;
+#endif
 		handle->state = IWC_SES_OPENED;
 
 		CMDQ_PROF_END(current->pid, "CMDQ_SEC_INIT");
@@ -234,16 +259,23 @@ void cmdq_sec_deinit_session_unlocked(struct cmdqSecContextStruct *handle)
 		case IWC_SES_OPENED:
 #ifdef CMDQ_SECURE_TEE_SUPPORT
 			cmdq_sec_close_session(&handle->tee);
-#endif
 			/* continue next clean-up */
+#endif
 		case IWC_WSM_ALLOCATED:
 #ifdef CMDQ_SECURE_TEE_SUPPORT
 			cmdq_sec_free_wsm(&handle->tee, &handle->iwcMessage);
+#endif
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+			cmdq_sec_mtee_free_wsm(
+				&handle->mtee, &handle->mtee_iwcMessage);
 #endif
 			/* continue next clean-up */
 		case IWC_CONTEXT_INITED:
 #ifdef CMDQ_SECURE_TEE_SUPPORT
 			cmdq_sec_deinit_context(&handle->tee);
+#endif
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+			cmdq_sec_mtee_close_session(&handle->mtee);
 #endif
 			/* continue next clean-up */
 			break;
@@ -491,6 +523,7 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 		}
 	}
 
+#ifndef CMDQ_TABLET_ENABLE
 	/* do not gen irq */
 	last_inst = &iwc->command.pVABase[iwc->command.commandSize / 4 - 4];
 	if (last_inst[0] == 0x1 && last_inst[1] == 0x40000000)
@@ -498,6 +531,7 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 	else
 		CMDQ_ERR("fail to find eoc with 0x%08x%08x\n",
 			last_inst[1], last_inst[0]);
+#endif
 
 	/* cookie */
 	iwc->command.waitCookie = task->secData.waitCookie;
@@ -609,10 +643,14 @@ s32 cmdq_sec_setup_context_session(struct cmdqSecContextStruct *handle)
 	s32 status;
 
 	/* init iwc parameter */
+	if (handle->state == IWC_INIT) {
 #ifdef CMDQ_SECURE_TEE_SUPPORT
-	if (handle->state == IWC_INIT)
 		cmdq_sec_setup_tee_context(&handle->tee);
 #endif
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+		cmdq_sec_mtee_setup_context(&handle->mtee);
+#endif
+	}
 
 	/* init secure session */
 	status = cmdq_sec_init_session_unlocked(handle);
@@ -736,6 +774,11 @@ int32_t cmdq_sec_handle_session_reply_unlocked(
 	int32_t iwcRsp;
 	struct cmdqSecCancelTaskResultStruct *pCancelResult = NULL;
 
+	if (!pIwc) {
+		CMDQ_ERR("pIwc NULL pointer\n");
+		return -EINVAL;
+	}
+
 	/* get secure task execution result */
 	iwcRsp = (pIwc)->rsp;
 	status = iwcRsp;
@@ -824,13 +867,11 @@ CmdqSecFillIwcCB cmdq_sec_get_iwc_msg_fill_cb_by_iwc_command(
 
 static s32 cmdq_sec_send_context_session_message(
 	struct cmdqSecContextStruct *handle, u32 iwc_command,
-	struct cmdqRecStruct *task, s32 thread, void *data)
+	struct cmdqRecStruct *task, s32 thread, void *data, const bool mtee)
 {
 	s32 status;
-#ifdef CMDQ_SECURE_TEE_SUPPORT
-	const s32 timeout_ms = 3 * 1000;
-#endif
 	struct iwcCmdqMessage_t *iwc;
+	void *tmp_iwc = NULL, *tmp_iwc_ex = NULL, *tmp_iwc_ex2 = NULL;
 
 	const CmdqSecFillIwcCB fill_iwc_cb =
 		cmdq_sec_get_iwc_msg_fill_cb_by_iwc_command(iwc_command);
@@ -839,11 +880,24 @@ static s32 cmdq_sec_send_context_session_message(
 		__func__, iwc_command, task, handle->state);
 
 	do {
+#ifdef CMDQ_SECURE_TEE_SUPPORT
+		if (!mtee) {
+			tmp_iwc = handle->iwcMessage;
+			tmp_iwc_ex = handle->iwcMessageEx;
+			tmp_iwc_ex2 = handle->iwcMessageEx2;
+		}
+#endif
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+		if (mtee) {
+			tmp_iwc = handle->mtee_iwcMessage;
+			tmp_iwc_ex = handle->mtee_iwcMessageEx;
+			tmp_iwc_ex2 = handle->mtee_iwcMessageEx2;
+		}
+#endif
+
 		/* fill message bufer */
 		status = fill_iwc_cb(iwc_command, task, thread,
-			(void *)(handle->iwcMessage),
-			(void *)(handle->iwcMessageEx),
-			(void *)(handle->iwcMessageEx2));
+			tmp_iwc, tmp_iwc_ex, tmp_iwc_ex2);
 
 		if (status) {
 			CMDQ_ERR(
@@ -853,14 +907,31 @@ static s32 cmdq_sec_send_context_session_message(
 			break;
 		}
 
-		iwc = (struct iwcCmdqMessage_t *)handle->iwcMessage;
-
+		iwc = (struct iwcCmdqMessage_t *)tmp_iwc;
 
 		/* send message */
 #ifdef CMDQ_SECURE_TEE_SUPPORT
-		status = cmdq_sec_execute_session(&handle->tee, iwc_command,
-			timeout_ms, iwc->iwcex_available & (1 << CMDQ_IWC_MSG1),
-			iwc->iwcex_available & (1 << CMDQ_IWC_MSG2));
+		if (!mtee)
+			status = cmdq_sec_execute_session(
+				&handle->tee, iwc_command, 3 * 1000,
+				iwc->iwcex_available & (1 << CMDQ_IWC_MSG1),
+				iwc->iwcex_available & (1 << CMDQ_IWC_MSG2));
+#endif
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+		if (mtee) {
+			if (iwc_command == CMD_CMDQ_TL_PATH_RES_ALLOCATE) {
+				status = cmdq_sec_mtee_allocate_shared_memory(
+					&handle->mtee,
+					iwc->pathResource.shareMemoyPA,
+					iwc->pathResource.size);
+				if (status)
+					break;
+			}
+			status = cmdq_sec_mtee_execute_session(
+				&handle->mtee, iwc_command, 3 * 1000,
+				iwc->iwcex_available & (1 << CMDQ_IWC_MSG1),
+				iwc->iwcex_available & (1 << CMDQ_IWC_MSG2));
+		}
 #endif
 		if (status) {
 			CMDQ_ERR(
@@ -872,13 +943,16 @@ static s32 cmdq_sec_send_context_session_message(
 		handle->state = IWC_SES_ON_TRANSACTED;
 
 		status = cmdq_sec_handle_session_reply_unlocked(
-			handle->iwcMessage, iwc_command, task, data);
+			tmp_iwc, iwc_command, task, data);
 	} while (0);
 
 	if (status < 0)
 		CMDQ_ERR(
 			"[SEC]%s leave cmd:%d task:0x%p state:%d status:%d\n",
 			__func__, iwc_command, task, handle->state, status);
+
+	CMDQ_LOG("[SEC]%s leave cmd:%d task:0x%p state:%d status:%d\n",
+		__func__, iwc_command, task, handle->state, status);
 
 	return status;
 }
@@ -1056,7 +1130,8 @@ static void cmdq_sec_irq_notify_stop(void)
 }
 
 int32_t cmdq_sec_submit_to_secure_world_async_unlocked(uint32_t iwcCommand,
-	struct cmdqRecStruct *pTask, int32_t thread, void *data, bool throwAEE)
+	struct cmdqRecStruct *pTask, int32_t thread, void *data, bool throwAEE,
+	const bool mtee)
 {
 	const int32_t tgid = current->tgid;
 	const int32_t pid = current->pid;
@@ -1112,15 +1187,23 @@ int32_t cmdq_sec_submit_to_secure_world_async_unlocked(uint32_t iwcCommand,
 		tEntrySec = sched_clock();
 
 		status = cmdq_sec_send_context_session_message(handle,
-			iwcCommand, pTask, thread, data);
+			iwcCommand, pTask, thread, data, mtee);
 
 		tExitSec = sched_clock();
 		CMDQ_GET_TIME_IN_US_PART(tEntrySec, tExitSec, duration);
 		cmdq_sec_track_task_record(iwcCommand, pTask, &tEntrySec,
 			&tExitSec);
 
-		cmdq_sec_handle_attach_status(pTask, iwcCommand,
-			handle->iwcMessage, status, &dispatch_mod);
+#ifdef CMDQ_SECURE_TEE_SUPPORT
+		if (!mtee)
+			cmdq_sec_handle_attach_status(pTask, iwcCommand,
+				handle->iwcMessage, status, &dispatch_mod);
+#endif
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+		if (mtee)
+			cmdq_sec_handle_attach_status(pTask, iwcCommand,
+				handle->mtee_iwcMessage, status, &dispatch_mod);
+#endif
 
 		/* release resource */
 #if !(CMDQ_OPEN_SESSION_ONCE)
@@ -1192,7 +1275,7 @@ int32_t cmdq_sec_init_allocate_resource_thread(void *data)
 	cmdq_sec_lock_secure_path();
 
 	gCmdqSecContextHandle = NULL;
-	status = cmdq_sec_allocate_path_resource_unlocked(false);
+	status = cmdq_sec_allocate_path_resource_unlocked(false, false);
 
 	cmdq_sec_unlock_secure_path();
 
@@ -1213,11 +1296,9 @@ s32 cmdq_sec_insert_backup_cookie(struct cmdq_pkt *pkt)
  */
 s32 cmdq_sec_insert_backup_cookie_instr(struct cmdqRecStruct *task, s32 thread)
 {
-	struct cmdq_client *cl = cmdq_helper_mbox_client(thread);
-	struct cmdq_sec_thread *sec_thread = (
-		(struct mbox_chan *)cl->chan)->con_priv;
-	const u32 regAddr = (u32)(sec_thread->gce_pa + CMDQ_THR_BASE +
-		CMDQ_THR_SIZE * thread + CMDQ_THR_EXEC_CNT_PA);
+	struct cmdq_client *cl;
+	struct cmdq_sec_thread *sec_thread;
+	u32 regAddr;
 	struct ContextStruct *context = cmdq_core_get_context();
 	u64 addrCookieOffset = CMDQ_SEC_SHARED_THR_CNT_OFFSET + thread *
 		sizeof(u32);
@@ -1234,10 +1315,19 @@ s32 cmdq_sec_insert_backup_cookie_instr(struct cmdqRecStruct *task, s32 thread)
 	CMDQ_VERBOSE("backup secure cookie for thread:%d task:0x%p\n",
 		thread, task);
 
+	cl = cmdq_helper_mbox_client(thread);
+	if (!cl) {
+		CMDQ_ERR("no client, thread:%d\n", thread);
+		return -EINVAL;
+	}
+	sec_thread = ((struct mbox_chan *)cl->chan)->con_priv;
+	regAddr = (u32)(sec_thread->gce_pa + CMDQ_THR_BASE +
+		CMDQ_THR_SIZE * thread + CMDQ_THR_EXEC_CNT_PA);
+
 	err = cmdq_pkt_read(task->pkt, cmdq_helper_mbox_base(), regAddr,
 		CMDQ_THR_SPR_IDX1);
 	if (err != 0) {
-		CMDQ_ERR("fail to read pkt:%#p reg:%#x err:%d\n",
+		CMDQ_ERR("fail to read pkt:%p reg:%#x err:%d\n",
 			task->pkt, regAddr, err);
 		return err;
 	}
@@ -1254,7 +1344,7 @@ s32 cmdq_sec_insert_backup_cookie_instr(struct cmdqRecStruct *task, s32 thread)
 	err = cmdq_pkt_write_indriect(task->pkt, cmdq_helper_mbox_base(),
 		WSMCookieAddr, CMDQ_THR_SPR_IDX1, ~0);
 	if (err < 0) {
-		CMDQ_ERR("fail to write pkt:%#p wsm:%#llx err:%d\n",
+		CMDQ_ERR("fail to write pkt:%p wsm:%#llx err:%d\n",
 			task->pkt, WSMCookieAddr, err);
 		return err;
 	}
@@ -1495,6 +1585,7 @@ int32_t cmdq_sec_create_shared_memory(
 
 	CMDQ_LOG("%s\n", __func__);
 
+#ifndef CMDQ_TABLET_ENABLE
 	/* allocate non-cachable memory */
 	pVA = cmdq_core_alloc_hw_buffer(cmdq_dev_get(), size, &PA,
 		GFP_KERNEL);
@@ -1505,6 +1596,13 @@ int32_t cmdq_sec_create_shared_memory(
 		kfree(handle);
 		return -ENOMEM;
 	}
+#else
+	if (cmdq_sec_trustzone_create_share_memory(&pVA,
+			(u32 *)(&PA), size) != 0) {
+		kfree(handle);
+		return -ENOMEM;
+	}
+#endif
 
 	/* update memory information */
 	handle->size = size;
@@ -1539,7 +1637,8 @@ int32_t cmdq_sec_exec_task_async_unlocked(
 
 	CMDQ_MSG("%s handle:0x%p thread:%d\n", __func__, handle, thread);
 	status = cmdq_sec_submit_to_secure_world_async_unlocked(
-		CMD_CMDQ_TL_SUBMIT_TASK, handle, thread, NULL, true);
+		CMD_CMDQ_TL_SUBMIT_TASK, handle, thread, NULL, true,
+		handle->secData.mtee);
 	if (status < 0) {
 		/* Error status print */
 		CMDQ_ERR("%s[%d]\n", __func__, status);
@@ -1568,7 +1667,7 @@ int32_t cmdq_sec_cancel_error_task_unlocked(
 
 	status = cmdq_sec_submit_to_secure_world_async_unlocked(
 		CMD_CMDQ_TL_CANCEL_TASK,
-		pTask, thread, (void *)pResult, true);
+		pTask, thread, (void *)pResult, true, pTask->secData.mtee);
 	return status;
 #else
 	CMDQ_ERR("secure path not support\n");
@@ -1578,30 +1677,34 @@ int32_t cmdq_sec_cancel_error_task_unlocked(
 
 #ifdef CMDQ_SECURE_PATH_SUPPORT
 static atomic_t gCmdqSecPathResource = ATOMIC_INIT(0);
+static atomic_t gCmdqSecPathResourceMtee = ATOMIC_INIT(0);
 #endif
 
-int32_t cmdq_sec_allocate_path_resource_unlocked(bool throwAEE)
+int32_t cmdq_sec_allocate_path_resource_unlocked(
+	bool throwAEE, const bool mtee)
 {
 #ifdef CMDQ_SECURE_PATH_SUPPORT
 	int32_t status = 0;
 
-	CMDQ_MSG("[SEC]%s throwAEE: %s",
-		__func__, throwAEE ? "true" : "false");
+	CMDQ_MSG("[SEC]%s throwAEE: %s mtee:%d",
+		__func__, throwAEE ? "true" : "false", mtee);
 
-	if (atomic_cmpxchg(&gCmdqSecPathResource, 0, 1) != 0) {
+	if (atomic_cmpxchg(mtee ?
+		&gCmdqSecPathResourceMtee : &gCmdqSecPathResource, 0, 1) != 0) {
 		/* has allocated successfully */
 		return status;
 	}
 
 	status = cmdq_sec_submit_to_secure_world_async_unlocked(
 		CMD_CMDQ_TL_PATH_RES_ALLOCATE, NULL,
-		CMDQ_INVALID_THREAD, NULL, throwAEE);
+		CMDQ_INVALID_THREAD, NULL, throwAEE, mtee);
 	if (status) {
 		/* Error status print */
 		CMDQ_ERR("%s[%d] reset context\n", __func__, status);
 
 		/* in fail case, we want function alloc again */
-		atomic_set(&gCmdqSecPathResource, 0);
+		atomic_set(mtee ?
+			&gCmdqSecPathResourceMtee : &gCmdqSecPathResource, 0);
 	}
 
 	if (status)
@@ -1807,7 +1910,7 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 		"-->EXEC: pkt:0x%p on thread:%d begin va:0x%p\n",
 		handle->pkt, thread_id, buf->va_base);
 	cmdq_long_string(long_msg, &msg_offset, &msg_max_size,
-		" command size:%d bufferSize:%zu scenario:%d flag:0x%llx\n",
+		" command size:%zu bufferSize:%zu scenario:%d flag:0x%llx\n",
 		handle->pkt->cmd_buf_size, handle->pkt->buf_size,
 		handle->scenario, handle->engineFlag);
 	CMDQ_MSG("%s", long_msg);
@@ -1842,7 +1945,8 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 		handle->trigger = sched_clock();
 
 		/* setup whole patah */
-		status = cmdq_sec_allocate_path_resource_unlocked(true);
+		status = cmdq_sec_allocate_path_resource_unlocked(
+			true, handle->secData.mtee);
 		if (status) {
 			CMDQ_ERR("[SEC]%s failed status:%d\n",
 				__func__, status);
@@ -1894,6 +1998,7 @@ static s32 cmdq_sec_exec_task_async_work(struct cmdqRecStruct *handle,
 		CMDQ_ERR("unable to allocate task\n");
 		return -ENOMEM;
 	}
+	handle->pkt->task_alloc = true;
 
 	/* update task's thread info */
 	handle->thread = thread->idx;
@@ -1924,7 +2029,7 @@ static int cmdq_mbox_send_data(struct mbox_chan *chan, void *data)
 
 static bool cmdq_sec_thread_timeout_excceed(struct cmdq_sec_thread *thread)
 {
-	struct cmdq_task *task;
+	struct cmdq_task *task = NULL;
 	struct cmdqRecStruct *handle;
 	u64 duration, now, timeout;
 	s32 i, last_idx;
@@ -2064,7 +2169,7 @@ static void cmdq_sec_thread_irq_handle_by_cookie(
 		 */
 		thread->wait_cookie = 0;
 		thread->task_cnt = 0;
-		*va = 0;
+		CMDQ_REG_SET32(va, 0);
 
 		spin_unlock_irqrestore(&cmdq_sec_task_list_lock, flags);
 		return;
@@ -2301,6 +2406,10 @@ static int cmdq_probe(struct platform_device *pdev)
 	cmdq_msg("cmdq device: addr:0x%p va:0x%p irq:%d",
 		dev, cmdq->base, cmdq->irq);
 
+#ifdef CONFIG_MTK_IN_HOUSE_TEE_SUPPORT
+	cmdq_sec_alloc_iwc_buffer();
+#endif
+
 	return 0;
 }
 
@@ -2339,5 +2448,36 @@ static __init int cmdq_init(void)
 
 	return 0;
 }
-
 arch_initcall(cmdq_init);
+
+static s32 __init cmdq_late_init(void)
+{
+#ifdef CMDQ_LATE_INIT_SUPPORT
+	struct cmdqSecContextStruct *handle;
+
+	gCmdqSecContextHandle = cmdq_sec_context_handle_create(current->tgid);
+	handle = gCmdqSecContextHandle;
+	CMDQ_LOG("handle:%p %p\n", gCmdqSecContextHandle, handle);
+
+	handle->mtee_iwcMessage = kzalloc(
+		sizeof(struct iwcCmdqMessage_t), GFP_KERNEL);
+	if (!handle->mtee_iwcMessage)
+		return -ENOMEM;
+
+	handle->mtee_iwcMessageEx = kzalloc(
+		sizeof(struct iwcCmdqMessageEx_t), GFP_KERNEL);
+	if (!handle->mtee_iwcMessageEx)
+		return -ENOMEM;
+
+	handle->mtee_iwcMessageEx2 = kzalloc(
+		sizeof(struct iwcCmdqMessageEx2_t), GFP_KERNEL);
+	if (!handle->mtee_iwcMessageEx2)
+		return -ENOMEM;
+	CMDQ_LOG("iwc:%p(%#lx) ex:%p(%#lx) ex2:%p(%#lx)\n",
+		handle->mtee_iwcMessage, sizeof(struct iwcCmdqMessage_t),
+		handle->mtee_iwcMessageEx, sizeof(struct iwcCmdqMessageEx_t),
+		handle->mtee_iwcMessageEx2, sizeof(struct iwcCmdqMessageEx2_t));
+#endif
+	return 0;
+}
+late_initcall(cmdq_late_init);

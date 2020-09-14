@@ -2461,9 +2461,18 @@ static void __mt_gpufreq_set(
 		__mt_gpufreq_clock_switch(freq_new);
 		g_cur_opp_freq = __mt_gpufreq_get_cur_freq();
 
+		gpu_assert(g_cur_opp_freq == freq_new,
+			GPU_FREQ_EXCEPTION,
+			"Clock switch failing: %d -> %d (target: %d)\n",
+			freq_old, g_cur_opp_freq, freq_new);
 	} else {
 		__mt_gpufreq_clock_switch(freq_new);
 		g_cur_opp_freq = __mt_gpufreq_get_cur_freq();
+
+		gpu_assert(g_cur_opp_freq == freq_new,
+			GPU_FREQ_EXCEPTION,
+			"Clock switch failing: %d -> %d (target: %d)\n",
+			freq_old, g_cur_opp_freq, freq_new);
 
 		while (g_cur_opp_vgpu != vgpu_new) {
 			sb_idx = g_opp_sb_idx_down[g_cur_opp_idx] > idx_new ?
@@ -2600,7 +2609,7 @@ static void __mt_gpufreq_clock_switch(unsigned int freq_new)
 	dds = __mt_gpufreq_calculate_dds(freq_new, posdiv_power);
 	pll = (0x80000000) | (posdiv_power << POSDIV_SHIFT) | dds;
 
-#ifndef CONFIG_MTK_FREQ_HOPPING
+#if (!defined(CONFIG_MTK_FREQ_HOPPING)) || !MT_GPUFREQ_DVFS_HOPPING_ENABLE
 	/* force parking if FHCTL not ready */
 	parking = true;
 #else

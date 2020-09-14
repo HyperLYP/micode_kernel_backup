@@ -81,7 +81,7 @@ enum DVFS_VOLTAGE vcore_opp_map[NR_APU_VCORE_OPP] = {
 	DVFS_VOLT_00_575000_V   // VCORE_OPP_3
 };
 #endif /* CONFIG_MACH_MT6873 */
-#ifdef CONFIG_MACH_MT6885
+#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893)
 #define NR_APU_VCORE_OPP (4)
 static unsigned int apu_vcore_bw_opp_tab[NR_APU_VCORE_OPP] = {
 	20400, /* 3733 Mhz -> 0.725v */
@@ -336,7 +336,7 @@ void apu_qos_off(void)
 
 static void update_cmd_qos(struct qos_bound *qos_info, struct cmd_qos *cmd_qos)
 {
-	int idx = 0, qos_smi_idx = 0;
+	unsigned int idx = 0, qos_smi_idx = 0;
 
 	/* sample device has no BW */
 	if (cmd_qos->core < NR_APU_QOS_ENGINE)
@@ -345,6 +345,12 @@ static void update_cmd_qos(struct qos_bound *qos_info, struct cmd_qos *cmd_qos)
 	/* sum current bw value to cmd_qos */
 	mutex_lock(&cmd_qos->mtx);
 	idx = cmd_qos->last_idx;
+
+	if (idx >= QOS_BOUND_BUF_SIZE) {
+		LOG_ERR("idx(%d) out of bound\n", idx);
+		idx = 0;
+	}
+
 	while (idx != ((qos_info->idx + 1) % MTK_QOS_BUF_SIZE)) {
 		if (cmd_qos->core < NR_APU_QOS_ENGINE)
 			cmd_qos->total_bw +=
@@ -1048,7 +1054,7 @@ void apu_qos_boost_end(void)
  * create qos workqueue for count bandwidth
  * @call at module init
  */
-void apu_qos_counter_init(void)
+void apu_qos_counter_init(struct device *dev)
 {
 	int i = 0;
 	struct engine_pm_qos_counter *counter = NULL;
@@ -1109,7 +1115,7 @@ void apu_qos_counter_init(void)
  * delete qos request
  * @call at module exit
  */
-void apu_qos_counter_destroy(void)
+void apu_qos_counter_destroy(struct device *dev)
 {
 	int i = 0;
 	struct engine_pm_qos_counter *counter = NULL;

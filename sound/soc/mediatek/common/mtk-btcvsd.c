@@ -19,8 +19,8 @@
 #define BT_CVSD_INTERRUPT	BIT(31)
 
 #define BT_CVSD_CLEAR \
-	(BT_CVSD_TX_NREADY | BT_CVSD_RX_READY | BT_CVSD_TX_UNDERFLOW |\
-	 BT_CVSD_RX_OVERFLOW | BT_CVSD_INTERRUPT)
+	(BT_CVSD_TX_NREADY | BT_CVSD_RX_READY | BT_CVSD_RX_OVERFLOW |\
+	 BT_CVSD_INTERRUPT)
 
 /* TX */
 #define SCO_TX_ENCODE_SIZE (60)
@@ -136,6 +136,7 @@ struct mtk_btcvsd_snd {
 	u8 tx_packet_buf[BTCVSD_TX_BUF_SIZE];
 	u8 rx_packet_buf[BTCVSD_RX_BUF_SIZE];
 	u8 disable_write_silence;
+	u8 write_tx:1;
 
 	enum BT_SCO_BAND band;
 };
@@ -393,6 +394,7 @@ static int btcvsd_tx_clean_buffer(struct mtk_btcvsd_snd *bt)
 	}
 
 	spin_unlock_irqrestore(&bt->tx_lock, flags);
+	bt->write_tx = 1;
 
 	return 0;
 }
@@ -464,6 +466,7 @@ int mtk_btcvsd_write_to_bt(struct mtk_btcvsd_snd *bt,
 	u8 *dst;
 	unsigned long connsys_addr_tx, ap_addr_tx;
 	bool new_ap_addr_tx = true;
+	unsigned int codec_id;
 
 	if (bt->bypass_bt_access)
 		return -EIO;
@@ -492,11 +495,14 @@ int mtk_btcvsd_write_to_bt(struct mtk_btcvsd_snd *bt,
 	spin_unlock_irqrestore(&bt->tx_lock, flags);
 
 	dst = (u8 *)ap_addr_tx;
-
-	if (!bt->tx->mute) {
+	//codec_id: 0 default, 1 CVSD codec, 2 MSBC codec
+	codec_id = (*bt->bt_reg_ctl >> 25) & 3;
+	if ((!bt->tx->mute) &&
+	    ((codec_id == 0) || codec_id == bt->band + 1)) {
 		mtk_btcvsd_snd_data_transfer(BT_SCO_DIRECT_ARM2BT,
 					     bt->tx->temp_packet_buf, dst,
 					     packet_length, packet_num);
+		bt->write_tx = 1;
 	}
 
 	/* store bt tx buffer sram info */
@@ -536,6 +542,8 @@ static irqreturn_t mtk_btcvsd_snd_irq_handler(int irq_id, void *dev)
 
 	if (__ratelimit(&_rs))
 		dev_info(bt->dev, "%s(), irq_id=%d\n", __func__, irq_id);
+
+	bt->write_tx = 0;
 
 	if (bt->bypass_bt_access)
 		goto irq_handler_exit;
@@ -670,7 +678,11 @@ static irqreturn_t mtk_btcvsd_snd_irq_handler(int irq_id, void *dev)
 	}
 
 	*bt->bt_reg_ctl &= ~BT_CVSD_CLEAR;
-
+	if (bt->tx->state == BT_SCO_STATE_IDLE || bt->write_tx == 0) {
+		*bt->bt_reg_ctl |= BT_CVSD_TX_UNDERFLOW;
+		dev_info(bt->dev, "%s(), tx underflow, state = %d, write_tx = %d\n",
+			 __func__, bt->tx->state, bt->write_tx);
+	}
 	if (bt->rx->state == BT_SCO_STATE_RUNNING ||
 	    bt->rx->state == BT_SCO_STATE_ENDING) {
 		bt->rx->wait_flag = 1;
@@ -993,7 +1005,7 @@ static int mtk_pcm_btcvsd_hw_free(struct snd_pcm_substream *substream)
 		__func__, substream->stream, bt->disable_write_silence);
 
 	if ((substream->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
-	     (bt->disable_write_silence == 0))
+	    (bt->disable_write_silence == 0))
 		btcvsd_tx_clean_buffer(bt);
 
 	return 0;

@@ -114,6 +114,7 @@ menu "Power, PMIC, Battery & Low Power related configs"
 source "drivers/misc/mediatek/pmic/Kconfig"
 source "drivers/misc/mediatek/pmic_wrap/Kconfig"
 source "drivers/misc/mediatek/power/Kconfig"
+source "drivers/misc/mediatek/subpmic/Kconfig"
 
 config MTK_BASE_POWER
 	bool "MediaTek power management"
@@ -401,6 +402,7 @@ source "drivers/misc/mediatek/Kconfig.default"
 source "drivers/misc/mediatek/timer/Kconfig"
 source "drivers/misc/mediatek/cmo/Kconfig"
 source "drivers/misc/mediatek/debug_latch/Kconfig"
+source "drivers/misc/mediatek/debug_tracer/Kconfig"
 
 config MTK_DM_VERITY_OFF
 	bool "Disable dm-verity"
@@ -439,6 +441,9 @@ source "drivers/misc/mediatek/cache-auditor/Kconfig"
 source "drivers/misc/mediatek/mcupm/Kconfig"
 source "drivers/misc/mediatek/udi/Kconfig"
 source "drivers/misc/mediatek/simtray/Kconfig"
+source "drivers/misc/mediatek/hdmi/Kconfig"
+source "drivers/misc/mediatek/otp/Kconfig"
+
 
 endmenu    # Misc
 

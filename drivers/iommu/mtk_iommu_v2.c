@@ -2765,6 +2765,9 @@ int mtk_dump_main_tlb(int m4u_id, int m4u_slave_id,
 	unsigned long flags;
 	int ret;
 
+	if (!data)
+		return 0;
+
 	spin_lock_irqsave(&data->reg_lock, flags);
 #ifdef IOMMU_POWER_CLK_SUPPORT
 	if (!data->poweron) {
@@ -2878,13 +2881,17 @@ int mtk_dump_pfh_tlb(int m4u_id,
 {
 	unsigned int regval;
 	struct mtk_iommu_data *data = mtk_iommu_get_m4u_data(m4u_id);
-	void __iomem *base = data->base;
+	void __iomem *base;
 	int result = 0;
 	int set_nr, way_nr, set, way;
 	int valid;
 	unsigned long flags;
 	int ret;
 
+	if (!data)
+		return 0;
+
+	base = data->base;
 	spin_lock_irqsave(&data->reg_lock, flags);
 #ifdef IOMMU_POWER_CLK_SUPPORT
 	if (!data->poweron) {
@@ -3052,12 +3059,16 @@ int mtk_dump_victim_tlb(int m4u_id,
 {
 	unsigned int regval;
 	struct mtk_iommu_data *data = mtk_iommu_get_m4u_data(m4u_id);
-	void __iomem *base = data->base;
+	void __iomem *base;
 	int result = 0;
 	int entry, entry_nr;
 	int valid;
 	unsigned long flags;
 	int ret;
+
+	if (!data)
+		return 0;
+	base = data->base;
 
 	spin_lock_irqsave(&data->reg_lock, flags);
 #ifdef IOMMU_POWER_CLK_SUPPORT
@@ -3317,6 +3328,8 @@ int mtk_confirm_all_invalidated(int m4u_id)
 {
 	const struct mtk_iommu_data *data = mtk_iommu_get_m4u_data(m4u_id);
 
+	if (!data)
+		return 0;
 	if (mtk_confirm_main_all_invalid(data, 0))
 		return -1;
 

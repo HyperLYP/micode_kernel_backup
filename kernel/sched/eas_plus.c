@@ -761,7 +761,9 @@ migrate_runnable_task(struct task_struct *p, int dst_cpu,
 	int moved = 0;
 	int src_cpu = cpu_of(rq);
 
-	raw_spin_lock(&p->pi_lock);
+	if (!raw_spin_trylock(&p->pi_lock))
+		return moved;
+
 	rq_lock(rq, &rf);
 
 	/* Are both target and busiest cpu online */
@@ -901,7 +903,7 @@ struct sg_state {
  * to compute what would be the energy if we decided to actually migrate that
  * task.
  */
-static void
+static int
 update_sg_util(struct task_struct *p, int dst_cpu,
 		const struct cpumask *sg_mask, struct sg_state *sg_env)
 {
@@ -914,13 +916,8 @@ update_sg_util(struct task_struct *p, int dst_cpu,
 
 	sg_env->sum_util = 0;
 	sg_env->max_util = 0;
-	sd = rcu_dereference_check_sched_domain(cpu_rq(cpu)->sd);
-	if (sd) {
-		sg = sd->groups;
-		sge = sg->sge;
-	} else
-		return;
 
+	sge = cpu_core_energy(cpu); /* for CPU */
 	/*
 	 * The capacity state of CPUs of the current rd can be driven by CPUs
 	 * of another rd if they belong to the same pd. So, account for the
@@ -931,16 +928,17 @@ update_sg_util(struct task_struct *p, int dst_cpu,
 	 * its pd list and will not be accounted by compute_energy().
 	 */
 	for_each_cpu_and(cpu, sg_mask, cpu_online_mask) {
-		unsigned long cpu_util;
+		unsigned long cpu_util, cpu_boosted_util;
 		struct task_struct *tsk = cpu == dst_cpu ? p : NULL;
 
 		cpu_util = cpu_util_without(cpu, p);
+		cpu_boosted_util = uclamp_rq_util_with(cpu_rq(cpu), cpu_util, p);
 
 		if (tsk)
 			cpu_util += task_util_est(p);
 
 		sg_env->sum_util += cpu_util;
-		sg_env->max_util = max(sg_env->max_util, cpu_util);
+		sg_env->max_util = max(sg_env->max_util, cpu_boosted_util);
 	}
 
 	/* default is max_cap if we don't find a match */
@@ -966,6 +964,8 @@ update_sg_util(struct task_struct *p, int dst_cpu,
 		"dst_cpu=%d mask=0x%lx sum_util=%lu max_util=%lu new_util=%lu (idx=%d cap=%ld volt=%ld)",
 		dst_cpu, sg_mask->bits[0], sg_env->sum_util, sg_env->max_util,
 		new_util, sg_env->cap_idx, sg_env->cap, sg_env->volt);
+
+	return 1;
 }
 
 unsigned int share_buck_lkg_idx(const struct sched_group_energy *_sge,
@@ -1099,11 +1099,13 @@ compute_energy_enhanced(struct task_struct *p, int dst_cpu,
 #else
 	cid = cpu_topology[cpu].socket_id;
 #endif
-	update_sg_util(p, dst_cpu, sg_cpus, &sg_env);
+	if (!update_sg_util(p, dst_cpu, sg_cpus, &sg_env))
+		return 0;
 
 	if (is_share_buck(cid, &share_cid)) {
 		arch_get_cluster_cpus(&share_cpus, share_cid);
-		update_sg_util(p, dst_cpu, &share_cpus, &share_env);
+		if (!update_sg_util(p, dst_cpu, &share_cpus, &share_env))
+			return 0;
 
 		total_energy += compute_energy_sg(&share_cpus, &share_env,
 							&sg_env);
@@ -1115,29 +1117,30 @@ compute_energy_enhanced(struct task_struct *p, int dst_cpu,
 }
 
 static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
-						int prev_cpu, int sync)
+					int this_cpu, int prev_cpu, int sync)
 {
 	unsigned long prev_energy = 0;
 	unsigned long prev_delta = ULONG_MAX, best_delta = ULONG_MAX;
-	int max_spare_cap_cpu_ls = prev_cpu, best_idle_cpu = -1;
-	unsigned long max_spare_cap_ls, target_cap;
+	int max_spare_cap_cpu_ls = prev_cpu;
+	unsigned long max_spare_cap_ls = 0, target_cap;
+	unsigned long sys_max_spare_cap = 0;
 	unsigned long cpu_cap, util, wake_util;
 	bool boosted, prefer_idle = false;
 	unsigned int min_exit_lat = UINT_MAX;
-	int cpu, best_energy_cpu = prev_cpu;
+	int sys_max_spare_cap_cpu = -1;
+	int best_energy_cpu = prev_cpu;
 	struct cpuidle_state *idle;
 	struct sched_domain *sd;
 	struct sched_group *sg;
 
 	if (sysctl_sched_sync_hint_enable && sync) {
-		if (cpumask_test_cpu(cpu, &p->cpus_allowed) &&
-			!cpu_isolated(cpu)) {
-			return cpu;
+		if (cpumask_test_cpu(this_cpu, &p->cpus_allowed) &&
+			!cpu_isolated(this_cpu)) {
+			return this_cpu;
 		}
 	}
 
-	cpu = smp_processor_id();
-	sd = rcu_dereference(per_cpu(sd_ea, cpu));
+	sd = rcu_dereference(per_cpu(sd_ea, this_cpu));
 	if (!sd)
 		return -1;
 
@@ -1145,7 +1148,7 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 		return -1;
 
 	prefer_idle = schedtune_prefer_idle(p);
-	boosted = schedtune_task_boost(p) > 0;
+	boosted = (schedtune_task_boost(p) > 0) || (uclamp_task_effective_util(p, UCLAMP_MIN) > 0);
 	target_cap = boosted ? 0 : ULONG_MAX;
 
 	sg = sd->groups;
@@ -1153,7 +1156,8 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 		unsigned long cur_energy = 0, cur_delta = 0;
 		unsigned long spare_cap, max_spare_cap = 0;
 		unsigned long base_energy_sg;
-		int max_spare_cap_cpu = -1;
+		int max_spare_cap_cpu = -1, best_idle_cpu = -1;
+		int cpu;
 
 		/* compute the ''base' energy of the sg, without @p*/
 		base_energy_sg = compute_energy_enhanced(p, -1, sg);
@@ -1170,6 +1174,12 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 			/* Skip CPUs that will be overutilized. */
 			wake_util = cpu_util_without(cpu, p);
 			util = wake_util + task_util_est(p);
+			cpu_cap = capacity_of(cpu);
+			spare_cap = cpu_cap - util;
+			if (spare_cap > sys_max_spare_cap) {
+				sys_max_spare_cap = spare_cap;
+				sys_max_spare_cap_cpu = cpu;
+			}
 
 			/*
 			 * Skip CPUs that cannot satisfy the capacity request.
@@ -1179,12 +1189,11 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 			 * aligned with schedutil_cpu_util().
 			 */
 			util = uclamp_rq_util_with(cpu_rq(cpu), util, p);
-			cpu_cap = capacity_of(cpu);
 			if (!fits_capacity(util, cpu_cap))
 				continue;
 
 			/* Always use prev_cpu as a candidate. */
-			if (!prefer_idle && cpu == prev_cpu) {
+			if (cpu == prev_cpu) {
 				prev_energy = compute_energy_enhanced(p,
 								prev_cpu, sg);
 				prev_delta = prev_energy - base_energy_sg;
@@ -1237,26 +1246,38 @@ static int find_energy_efficient_cpu_enhanced(struct task_struct *p,
 			}
 		}
 
+		if (prefer_idle && best_idle_cpu >= 0 &&
+					best_idle_cpu != prev_cpu) {
+			cur_energy = compute_energy_enhanced(p,
+							best_idle_cpu, sg);
+			cur_delta = cur_energy - base_energy_sg;
+			if (cur_delta < best_delta) {
+				best_delta = cur_delta;
+				best_energy_cpu = best_idle_cpu;
+			}
+		}
+
 		mt_sched_printf(sched_eas_energy_calc,
 		    "prev_cpu=%d base_energy=%lu prev_energy=%lu prev_delta=%d",
 		    prev_cpu, base_energy_sg, prev_energy, (int)prev_delta);
 
 		mt_sched_printf(sched_eas_energy_calc,
-		    "max_spare_cap_cpu=%d cur_energy=%lu cur_delta=%d",
-			max_spare_cap_cpu, cur_energy, (int)cur_delta);
+		    "max_spare_cap_cpu=%d best_idle_cpu=%d cur_energy=%lu cur_delta=%d",
+			max_spare_cap_cpu, best_idle_cpu, cur_energy, (int)cur_delta);
 
 	} while (sg = sg->next, sg != sd->groups);
-
-	if (prefer_idle)
-		return best_idle_cpu >= 0 ?
-			best_idle_cpu : max_spare_cap_cpu_ls;
 
 	/*
 	 * Pick the best CPU if prev_cpu cannot be used, or it it saves energy
 	 * used by prev_cpu.
 	 */
-	if (prev_delta == ULONG_MAX)
-		return best_energy_cpu;
+	if (prev_delta == ULONG_MAX) {
+		/* All cpu failed on !fit_capacity, use sys_max_spare_cap_cpu */
+		if (best_energy_cpu == prev_cpu)
+			return sys_max_spare_cap_cpu;
+		else
+			return best_energy_cpu;
+	}
 
 	if ((prev_delta - best_delta) > 0)
 		return best_energy_cpu;
@@ -1274,7 +1295,7 @@ static int __find_energy_efficient_cpu(struct sched_domain *sd,
 	if (num_cluster <= 2)
 		return find_energy_efficient_cpu(sd, p, cpu, prev_cpu, sync);
 	else
-		return find_energy_efficient_cpu_enhanced(p, prev_cpu, sync);
+		return find_energy_efficient_cpu_enhanced(p, cpu, prev_cpu, sync);
 }
 
 /*
@@ -1780,14 +1801,9 @@ static void task_rotate_work_func(struct work_struct *work)
 	struct task_rotate_work *wr = container_of(work,
 				struct task_rotate_work, w);
 	int ret = -1;
+	struct rq *src_rq, *dst_rq;
 
 	ret = migrate_swap(wr->src_task, wr->dst_task);
-
-	put_task_struct(wr->src_task);
-	put_task_struct(wr->dst_task);
-
-	clear_reserved(wr->src_cpu);
-	clear_reserved(wr->dst_cpu);
 
 	if (ret == 0) {
 		update_eas_uclamp_min(EAS_UCLAMP_KIR_BIG_TASK, CGROUP_TA,
@@ -1798,6 +1814,19 @@ static void task_rotate_work_func(struct work_struct *work)
 						wr->dst_task->pid,
 						true, set_uclamp);
 	}
+
+	put_task_struct(wr->src_task);
+	put_task_struct(wr->dst_task);
+
+	src_rq = cpu_rq(wr->src_cpu);
+	dst_rq = cpu_rq(wr->dst_cpu);
+
+	local_irq_disable();
+	double_rq_lock(src_rq, dst_rq);
+	src_rq->active_balance = 0;
+	dst_rq->active_balance = 0;
+	double_rq_unlock(src_rq, dst_rq);
+	local_irq_enable();
 }
 
 static void task_rotate_reset_uclamp_work_func(struct work_struct *work)
@@ -1829,6 +1858,7 @@ void task_check_for_rotation(struct rq *src_rq)
 	struct rq *dst_rq;
 	struct task_rotate_work *wr = NULL;
 	int heavy_task = 0;
+	int force = 0;
 
 	if (!sysctl_sched_rotation_enable)
 		return;
@@ -1905,35 +1935,38 @@ void task_check_for_rotation(struct rq *src_rq)
 
 	double_rq_lock(src_rq, dst_rq);
 	if (dst_rq->curr->sched_class == &fair_sched_class) {
-		get_task_struct(src_rq->curr);
-		get_task_struct(dst_rq->curr);
 
 		if (!cpumask_test_cpu(dst_cpu,
 					&(src_rq->curr)->cpus_allowed) ||
 			!cpumask_test_cpu(src_cpu,
 					&(dst_rq->curr)->cpus_allowed)) {
-			put_task_struct(src_rq->curr);
-			put_task_struct(dst_rq->curr);
 			double_rq_unlock(src_rq, dst_rq);
 			return;
 		}
 
-		mark_reserved(src_cpu);
-		mark_reserved(dst_cpu);
-		wr = &per_cpu(task_rotate_works, src_cpu);
+		if (!src_rq->active_balance && !dst_rq->active_balance) {
+			src_rq->active_balance = MIGR_ROTATION;
+			dst_rq->active_balance = MIGR_ROTATION;
 
-		wr->src_task = src_rq->curr;
-		wr->dst_task = dst_rq->curr;
+			get_task_struct(src_rq->curr);
+			get_task_struct(dst_rq->curr);
 
-		wr->src_cpu = src_cpu;
-		wr->dst_cpu = dst_cpu;
+			wr = &per_cpu(task_rotate_works, src_cpu);
+
+			wr->src_task = src_rq->curr;
+			wr->dst_task = dst_rq->curr;
+
+			wr->src_cpu = src_rq->cpu;
+			wr->dst_cpu = dst_rq->cpu;
+			force = 1;
+		}
 	}
 	double_rq_unlock(src_rq, dst_rq);
 
-	if (wr) {
+	if (force) {
 		queue_work_on(src_cpu, system_highpri_wq, &wr->w);
-		trace_sched_big_task_rotation(src_cpu, dst_cpu,
-					src_rq->curr->pid, dst_rq->curr->pid,
+		trace_sched_big_task_rotation(wr->src_cpu, wr->dst_cpu,
+					wr->src_task->pid, wr->dst_task->pid,
 					false, set_uclamp);
 	}
 }

@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #ifndef __MDDP_USAGE_H
@@ -22,11 +14,11 @@
 // Struct definition.
 // -----------------------------------------------------------------------------
 enum mddp_data_usage_cmd_e {
-	MSG_ID_MDT_SET_GLOBAL_ALERT_REQ,
-	MSG_ID_MDT_ALERT_GLOBAL_ALERT_IND,
-	MSG_ID_MDT_SET_IQUOTA_REQ,
-	MSG_ID_MDT_ALERT_IQUOTA_IND,
-	MSG_ID_MDT_DEL_IQUOTA_REQ,
+	MSG_ID_DPFM_SET_GLOBAL_ALERT_REQ,
+	MSG_ID_DPFM_ALERT_GLOBAL_ALERT_IND,
+	MSG_ID_DPFM_SET_IQUOTA_REQ,
+	MSG_ID_DPFM_ALERT_IQUOTA_IND,
+	MSG_ID_DPFM_DEL_IQUOTA_REQ,
 };
 
 struct mddp_u_data_limit_t {

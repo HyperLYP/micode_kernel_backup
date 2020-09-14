@@ -5781,13 +5781,14 @@ static enum SVP_STATE svp_state = SVP_NOMAL;
 static int svp_sum;
 
 #ifndef OPT_BACKUP_NUM
-	#define OPT_BACKUP_NUM 3
+	#define OPT_BACKUP_NUM 4
 #endif
 
 static enum DISP_HELPER_OPT opt_backup_name[OPT_BACKUP_NUM] = {
 	DISP_OPT_SMART_OVL,
 	DISP_OPT_IDLEMGR_SWTCH_DECOUPLE,
-	DISP_OPT_BYPASS_OVL
+	DISP_OPT_BYPASS_OVL,
+	DISP_OPT_OVL_SBCH
 };
 
 static int opt_backup_value[OPT_BACKUP_NUM];
@@ -8712,37 +8713,38 @@ int primary_display_lcm_ATA(void)
 	int recv_data_cnt;
 	char read_buffer[16];
 
-	memset(&read_table, 0, sizeof(struct ddp_lcm_read_cmd_table));
-	read_table.cmd[0] = 0x0A;
+	memset(&read_table, 0,
+		sizeof(struct ddp_lcm_read_cmd_table));
+		read_table.cmd[0] = 0x0A;
+
 	do_lcm_vdo_lp_read(&read_table);
+	DISPINFO("after b0 %x, b1 %x, b2 %x, b3 = %x\n",
+		read_table.data[0].byte0,
+		read_table.data[0].byte1,
+		read_table.data[0].byte2,
+		read_table.data[0].byte3);
+	DISPINFO("after b0 %x, b1 %x, b2 %x, b3 = %x\n",
+		read_table.data1[0].byte0,
+		read_table.data1[0].byte1,
+		read_table.data1[0].byte2,
+		read_table.data1[0].byte3);
 
-	DISPINFO("after b0 %x, b1 %x, b2 %x, b3 = %x\n", read_table.data[0].byte0,
-		read_table.data[0].byte1, read_table.data[0].byte2, read_table.data[0].byte3);
-
-	if (read_table.data[0].byte0 == 0x1C || read_table.data[0].byte0 == 0x1A) {
-		recv_data_cnt = read_table.data[0].byte1 + read_table.data[0].byte2 * 16;
+	if (read_table.data[0].byte0 == 0x1C) {
+		recv_data_cnt = read_table.data[0].byte1
+			+ read_table.data[0].byte2 * 16;
 		if (recv_data_cnt <= 4) {
-			memcpy((void *)read_buffer, (void *)(&read_table.data[1]), recv_data_cnt);
+			memcpy((void *)read_buffer,
+				(void *)(read_table.data1), recv_data_cnt);
 		}
-	} else if (read_table.data[0].byte0 == 0x11 || read_table.data[0].byte0 == 0x12 ||
-			read_table.data[0].byte0 == 0x21 || read_table.data[0].byte0 == 0x22) {
-		if (read_table.data[0].byte0 == 0x11 || read_table.data[0].byte0 == 0x21)
-			recv_data_cnt = 1;
-		else
-			recv_data_cnt = 2;
-		memcpy((void *)read_buffer, (void *)(&read_table.data[0].byte1), recv_data_cnt);
-	} else if (read_table.data[0].byte0 == 0x02) {
-		DISPCHECK("read return type is 0x02, re-read\n");
-	} else {
-		DISPCHECK("read return type is non-recognite: 0x%x\n", read_table.data[0].byte0);
-	}
 
-	if (read_buffer[0] == 0x9C) {
-		DISPINFO("[LCM ATA Check] [0x0A]=0x%02x\n", read_buffer[0]);
-		printk("[LCM ATA Check] [0x0A]=0x%02x\n", read_buffer[0]);
-		return 1;
+		if (read_buffer[0] == 0x9C) {
+			DISPINFO("[LCM ATA Check] [0x0A]=0x%02x\n",
+				read_buffer[0]);
+			return true;
+		}
 	}
-	return 0;
+	return false;
+
 }
 
 static int Panel_Master_primary_display_config_dsi(const char *name,

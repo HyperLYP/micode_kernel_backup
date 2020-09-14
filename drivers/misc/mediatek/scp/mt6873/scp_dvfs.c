@@ -60,6 +60,7 @@
 #include <linux/pm_qos.h>
 #include "helio-dvfsrc-opp.h"
 #include "mtk_secure_api.h"
+#include "clk-fmeter.h"
 
 #ifdef pr_fmt
 #undef pr_fmt
@@ -74,6 +75,11 @@
 #define SCP_ATF_RESOURCE_REQUEST	1
 #define SCP_VCORE_REQ_TO_DVFSRC		1
 
+struct ipi_tx_data_t {
+	unsigned int arg1;
+	unsigned int arg2;
+};
+
 /* -1:SCP DVFS OFF, 1:SCP DVFS ON */
 int scp_dvfs_flag = 1;
 
@@ -82,6 +88,14 @@ int scp_dvfs_flag = 1;
  * 0-4: SCP DVFS Debug OPP.
  */
 static int scp_dvfs_debug_flag = -1;
+
+/*
+ * -1: SCP Req init state,
+ * 0: SCP Request Release,
+ * 1-4: SCP Request source.
+ */
+static int scp_resrc_req_cmd = -1;
+static int scp_resrc_current_req = -1;
 
 static int pre_pll_sel = -1;
 static struct mt_scp_pll_t *mt_scp_pll;
@@ -99,6 +113,48 @@ static struct pm_qos_request dvfsrc_scp_vcore_req;
 
 unsigned int slp_ipi_ackdata0, slp_ipi_ackdata1;
 int slp_ipi_init_done;
+
+#ifdef ULPOSC_CALI_BY_AP
+static void __iomem *ulposc_base;
+
+#define ULPOSC2_CON0 (ulposc_base + 0x2C0)
+#define RG_OSC_CALI_MSK		0x7F
+#define RG_OSC_CALI_SHFT	0
+
+#define ULPOSC2_CON1 (ulposc_base + 0x2C4)
+#define ULPOSC2_CON2 (ulposc_base + 0x2C8)
+
+#define CAL_MIN_VAL		0
+#define CAL_MAX_VAL		RG_OSC_CALI_MSK
+
+/* calibation miss rate, unit: 1% */
+#define CAL_MIS_RATE	5
+
+#define MAX_ULPOSC_CALI_NUM	3
+struct ulposc_cali_t ulposc_cfg[MAX_ULPOSC_CALI_NUM] = {
+	{
+		.freq = CLK_OPP0,
+		.ulposc_rg0 = 0x5aa940,
+		.ulposc_rg1 = 0x3002900,
+		.ulposc_rg2 = 0x40,
+		.fmeter_id = FREQ_METER_ABIST_AD_OSC_CK_2,
+	},
+	{
+		.freq = CLK_OPP2,
+		.ulposc_rg0 = 0x3ca940,
+		.ulposc_rg1 = 0x2900,
+		.ulposc_rg2 = 0x40,
+		.fmeter_id = FREQ_METER_ABIST_AD_OSC_CK_2,
+	},
+	{
+		.freq = CLK_OPP3,
+		.ulposc_rg0 = 0x52a940,
+		.ulposc_rg1 = 0x2900,
+		.ulposc_rg2 = 0x40,
+		.fmeter_id = FREQ_METER_ABIST_AD_OSC_CK_2,
+	},
+};
+#endif /* ULPOSC_CALI_BY_AP */
 
 void scp_slp_ipi_init(void)
 {
@@ -155,9 +211,14 @@ int scp_resource_req(unsigned int req_type)
 	unsigned long ret = 0;
 
 #if SCP_ATF_RESOURCE_REQUEST
+	if (req_type < 0 || req_type >= SCP_REQ_MAX)
+		return ret;
+
 	ret = mt_secure_call(MTK_SIP_KERNEL_SCP_DVFS_CTRL,
 			req_type,
 			0, 0, 0);
+	if (!ret)
+		scp_resrc_current_req = req_type;
 #endif
 	return ret;
 }
@@ -593,13 +654,17 @@ static ssize_t mt_scp_dvfs_ctrl_proc_write(
 					loff_t *data)
 {
 	char desc[64], cmd[32];
-	int len = 0;
+	unsigned int len = 0;
 	int dvfs_opp;
 	int n;
+
+	if (count <= 0)
+		return 0;
 
 	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
 	if (copy_from_user(desc, buffer, len))
 		return 0;
+
 	desc[len] = '\0';
 
 	n = sscanf(desc, "%31s %d", cmd, &dvfs_opp);
@@ -642,11 +707,12 @@ static ssize_t mt_scp_dvfs_ctrl_proc_write(
 static int mt_scp_sleep_ctrl0_proc_show(struct seq_file *m, void *v)
 {
 	int ret;
-	unsigned int ipi_data = SLP_DBG_CMD_GET_FLAG;
+	struct ipi_tx_data_t ipi_data;
 
 	if (!slp_ipi_init_done)
 		scp_slp_ipi_init();
 
+	ipi_data.arg1 = SLP_DBG_CMD_GET_FLAG;
 	ret = mtk_ipi_send_compl(&scp_ipidev, IPI_OUT_C_SLEEP_0,
 		IPI_SEND_WAIT, &ipi_data, PIN_OUT_C_SIZE_SLEEP_0, 500);
 	if (ret != IPI_ACTION_DONE)
@@ -675,8 +741,12 @@ static ssize_t mt_scp_sleep_ctrl0_proc_write(
 {
 	char desc[64];
 	unsigned int val = 0;
-	int len = 0;
+	unsigned int len = 0;
 	int ret = 0;
+	struct ipi_tx_data_t ipi_data;
+
+	if (count <= 0)
+		return 0;
 
 	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
 	if (copy_from_user(desc, buffer, len))
@@ -689,10 +759,11 @@ static ssize_t mt_scp_sleep_ctrl0_proc_write(
 	if (kstrtouint(desc, 10, &val) == 0) {
 		if (val >= SCP_SLEEP_OFF &&
 			val <= SCP_SLEEP_NO_CONDITION) {
+			ipi_data.arg1 = val;
 			ret = mtk_ipi_send_compl(&scp_ipidev,
 						IPI_OUT_C_SLEEP_0,
 						IPI_SEND_WAIT,
-						&val,
+						&ipi_data,
 						PIN_OUT_C_SIZE_SLEEP_0,
 						500);
 			if (ret)
@@ -714,11 +785,12 @@ static ssize_t mt_scp_sleep_ctrl0_proc_write(
 static int mt_scp_sleep_ctrl1_proc_show(struct seq_file *m, void *v)
 {
 	int ret;
-	unsigned int ipi_data = SLP_DBG_CMD_GET_FLAG;
+	struct ipi_tx_data_t ipi_data;
 
 	if (!slp_ipi_init_done)
 		scp_slp_ipi_init();
 
+	ipi_data.arg1 = SLP_DBG_CMD_GET_FLAG;
 	ret = mtk_ipi_send_compl(&scp_ipidev, IPI_OUT_C_SLEEP_1,
 		IPI_SEND_WAIT, &ipi_data, PIN_OUT_C_SIZE_SLEEP_1, 500);
 	if (ret != IPI_ACTION_DONE)
@@ -747,11 +819,15 @@ static ssize_t mt_scp_sleep_ctrl1_proc_write(
 {
 	char desc[64];
 	unsigned int val = 0;
-	int len = 0;
+	unsigned int len = 0;
 	int ret = 0;
+	struct ipi_tx_data_t ipi_data;
 
 	if (!slp_ipi_init_done)
 		scp_slp_ipi_init();
+
+	if (count <= 0)
+		return 0;
 
 	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
 	if (copy_from_user(desc, buffer, len))
@@ -761,10 +837,11 @@ static ssize_t mt_scp_sleep_ctrl1_proc_write(
 	if (kstrtouint(desc, 10, &val) == 0) {
 		if (val >= SCP_SLEEP_OFF &&
 			val <= SCP_SLEEP_NO_CONDITION) {
+			ipi_data.arg1 = val;
 			ret = mtk_ipi_send_compl(&scp_ipidev,
 						IPI_OUT_C_SLEEP_1,
 						IPI_SEND_WAIT,
-						&val,
+						&ipi_data,
 						PIN_OUT_C_SIZE_SLEEP_1,
 						500);
 			if (ret != IPI_ACTION_DONE)
@@ -786,11 +863,12 @@ static ssize_t mt_scp_sleep_ctrl1_proc_write(
 static int mt_scp_sleep_cnt0_proc_show(struct seq_file *m, void *v)
 {
 	int ret;
-	unsigned int ipi_data = SLP_DBG_CMD_GET_CNT;
+	struct ipi_tx_data_t ipi_data;
 
 	if (!slp_ipi_init_done)
 		scp_slp_ipi_init();
 
+	ipi_data.arg1 = SLP_DBG_CMD_GET_CNT;
 	ret = mtk_ipi_send_compl(&scp_ipidev, IPI_OUT_C_SLEEP_0,
 		IPI_SEND_WAIT, &ipi_data, PIN_OUT_C_SIZE_SLEEP_0, 500);
 	if (ret != IPI_ACTION_DONE)
@@ -812,11 +890,15 @@ static ssize_t mt_scp_sleep_cnt0_proc_write(
 {
 	char desc[64];
 	unsigned int val = 0;
-	int len = 0;
+	unsigned int len = 0;
 	int ret = 0;
+	struct ipi_tx_data_t ipi_data;
 
 	if (!slp_ipi_init_done)
 		scp_slp_ipi_init();
+
+	if (count <= 0)
+		return 0;
 
 	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
 	if (copy_from_user(desc, buffer, len))
@@ -824,8 +906,7 @@ static ssize_t mt_scp_sleep_cnt0_proc_write(
 	desc[len] = '\0';
 
 	if (kstrtouint(desc, 10, &val) == 0) {
-		unsigned int ipi_data = SLP_DBG_CMD_RESET;
-
+		ipi_data.arg1 = SLP_DBG_CMD_RESET;
 		ret = mtk_ipi_send_compl(&scp_ipidev,
 					IPI_OUT_C_SLEEP_0,
 					IPI_SEND_WAIT,
@@ -848,11 +929,12 @@ static ssize_t mt_scp_sleep_cnt0_proc_write(
 static int mt_scp_sleep_cnt1_proc_show(struct seq_file *m, void *v)
 {
 	int ret;
-	unsigned int ipi_data = SLP_DBG_CMD_GET_CNT;
+	struct ipi_tx_data_t ipi_data;
 
 	if (!slp_ipi_init_done)
 		scp_slp_ipi_init();
 
+	ipi_data.arg1 = SLP_DBG_CMD_GET_CNT;
 	ret = mtk_ipi_send_compl(&scp_ipidev, IPI_OUT_C_SLEEP_1,
 		IPI_SEND_WAIT, &ipi_data, PIN_OUT_C_SIZE_SLEEP_1, 500);
 	if (ret != IPI_ACTION_DONE)
@@ -874,11 +956,15 @@ static ssize_t mt_scp_sleep_cnt1_proc_write(
 {
 	char desc[64];
 	unsigned int val = 0;
-	int len = 0;
+	unsigned int len = 0;
 	int ret = 0;
+	struct ipi_tx_data_t ipi_data;
 
 	if (!slp_ipi_init_done)
 		scp_slp_ipi_init();
+
+	if (count <= 0)
+		return 0;
 
 	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
 	if (copy_from_user(desc, buffer, len))
@@ -886,8 +972,7 @@ static ssize_t mt_scp_sleep_cnt1_proc_write(
 	desc[len] = '\0';
 
 	if (kstrtouint(desc, 10, &val) == 0) {
-		unsigned int ipi_data = SLP_DBG_CMD_RESET;
-
+		ipi_data.arg1 = SLP_DBG_CMD_RESET;
 		ret = mtk_ipi_send_compl(&scp_ipidev,
 					IPI_OUT_C_SLEEP_1,
 					IPI_SEND_WAIT,
@@ -899,6 +984,77 @@ static ssize_t mt_scp_sleep_cnt1_proc_write(
 				__func__, ret);
 	} else {
 		pr_info("Warning: invalid input command, val=%d\n", val);
+	}
+
+	return count;
+}
+
+/****************************
+ * show scp dvfs request
+ *****************************/
+static int mt_scp_resrc_req_proc_show(struct seq_file *m, void *v)
+{
+	if (scp_resrc_req_cmd == -1)
+		seq_puts(m, "SCP Req CMD is not configured yet.\n");
+	else if (scp_resrc_req_cmd == SCP_REQ_RELEASE)
+		seq_puts(m, "SCP Req CMD release\n");
+	else {
+		if ((scp_resrc_req_cmd & SCP_REQ_26M) == SCP_REQ_26M)
+			seq_puts(m, "SCP Req CMD: 26M on\n");
+		if ((scp_resrc_req_cmd & SCP_REQ_IFR) == SCP_REQ_IFR)
+			seq_puts(m, "SCP Req CMD: infra bus on\n");
+		if ((scp_resrc_req_cmd & SCP_REQ_SYSPLL1) == SCP_REQ_SYSPLL1)
+			seq_puts(m, "SCP Req CMD: univpll on\n");
+	}
+
+	seq_printf(m, "scp current req: %d\n", scp_resrc_current_req);
+
+	return 0;
+}
+
+/**********************************
+ * write scp dvfs request
+ ***********************************/
+static ssize_t mt_scp_resrc_req_proc_write(
+					struct file *file,
+					const char __user *buffer,
+					size_t count,
+					loff_t *data)
+{
+	char desc[64], cmd[8];
+	int req_opp = 0;
+	int len = 0;
+	int ret = 0;
+
+	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
+	if (copy_from_user(desc, buffer, len))
+		return 0;
+	desc[len] = '\0';
+
+	if (sscanf(desc, "%7s %d", cmd, &req_opp) == 2) {
+		if (strcmp(cmd, "req_on")) {
+			pr_info("invalid command %s\n", cmd);
+			return count;
+		}
+
+		if (req_opp >= 0  && req_opp < SCP_REQ_MAX) {
+			if (req_opp != scp_resrc_req_cmd) {
+				pr_info("scp_resrc_req_cmd = %d\n",
+						req_opp);
+
+				ret = scp_resource_req(req_opp);
+				if (ret)
+					pr_err("%s: SCP send req fail - %d\n",
+						__func__, ret);
+				else
+					scp_resrc_req_cmd = req_opp;
+			} else
+				pr_info("SCP Req CMD  is not changed\n");
+		} else {
+			pr_info("Warning: invalid input value %d\n", req_opp);
+		}
+	} else {
+		pr_info("Warning: invalid input number\n");
 	}
 
 	return count;
@@ -948,6 +1104,7 @@ PROC_FOPS_RW(scp_sleep_ctrl0);
 PROC_FOPS_RW(scp_sleep_ctrl1);
 PROC_FOPS_RW(scp_sleep_cnt0);
 PROC_FOPS_RW(scp_sleep_cnt1);
+PROC_FOPS_RW(scp_resrc_req);
 
 static int mt_scp_dvfs_create_procfs(void)
 {
@@ -966,6 +1123,7 @@ static int mt_scp_dvfs_create_procfs(void)
 		PROC_ENTRY(scp_sleep_ctrl1),
 		PROC_ENTRY(scp_sleep_cnt0),
 		PROC_ENTRY(scp_sleep_cnt1),
+		PROC_ENTRY(scp_resrc_req),
 	};
 
 	dir = proc_mkdir("scp_dvfs", NULL);
@@ -1008,6 +1166,210 @@ static int mt_scp_dvfs_pm_restore_early(struct device *dev)
 {
 	return 0;
 }
+
+#ifdef ULPOSC_CALI_BY_AP
+static void turn_onoff_clk_high(int id, int is_on)
+{
+	pr_debug("%s(%d, %d)\n", __func__, id, is_on);
+
+	if (is_on) {
+		/* turn on ulposc */
+		DRV_SetReg32(CLK_ENABLE, (1 << CLK_HIGH_EN_BIT));
+		if (id == ULPOSC_2)
+			DRV_ClrReg32(CLK_ON_CTRL, (1 << HIGH_CORE_DIS_SUB_BIT));
+
+		/* wait settle time */
+		udelay(150);
+
+		/* turn on CG */
+		if (id == ULPOSC_2)
+			DRV_SetReg32(CLK_HIGH_CORE, (1 << HIGH_CORE_CG_BIT));
+		else
+			DRV_SetReg32(CLK_ENABLE, (1 << CLK_HIGH_CG_BIT));
+	} else {
+		/* turn off CG */
+		if (id == ULPOSC_2)
+			DRV_ClrReg32(CLK_HIGH_CORE, (1 << HIGH_CORE_CG_BIT));
+		else
+			DRV_ClrReg32(CLK_ENABLE, (1 << CLK_HIGH_CG_BIT));
+
+		udelay(50);
+
+		/* turn off ULPOSC */
+		if (id == ULPOSC_2)
+			DRV_SetReg32(CLK_ON_CTRL, (1 << HIGH_CORE_DIS_SUB_BIT));
+		else
+			DRV_ClrReg32(CLK_ENABLE, (1 << CLK_HIGH_EN_BIT));
+	}
+
+	udelay(50);
+}
+
+static void set_ulposc_cali_value(unsigned int cali_val)
+{
+	unsigned int val;
+
+	val = DRV_Reg32(ULPOSC2_CON0) & ~(RG_OSC_CALI_MSK << RG_OSC_CALI_SHFT);
+	val = (val | ((cali_val & RG_OSC_CALI_MSK) << RG_OSC_CALI_SHFT));
+	DRV_WriteReg32(ULPOSC2_CON0, val);
+
+	udelay(50);
+}
+
+static unsigned int ulposc_cali_process(int idx)
+{
+	unsigned int target_val = 0, current_val = 0;
+	unsigned int min = CAL_MIN_VAL, max = CAL_MAX_VAL, middle;
+	unsigned int diff_by_min = 0, diff_by_max = 0xffff;
+	unsigned int cal_result = 0;
+
+	target_val = ulposc_cfg[idx].freq * 1000;
+
+	do {
+		middle = (min + max) / 2;
+		if (middle == min) {
+			pr_debug("middle(%d) == min(%d)\n", middle, min);
+			break;
+		}
+
+		set_ulposc_cali_value(middle);
+		current_val = mt_get_abist_freq(ulposc_cfg[idx].fmeter_id);
+
+		if (current_val > target_val)
+			max = middle;
+		else
+			min = middle;
+	} while (min <= max);
+
+	set_ulposc_cali_value(min);
+	current_val = mt_get_abist_freq(ulposc_cfg[idx].fmeter_id);
+	if (current_val > target_val)
+		diff_by_min = current_val - target_val;
+	else
+		diff_by_min = target_val - current_val;
+
+	set_ulposc_cali_value(max);
+	current_val = mt_get_abist_freq(ulposc_cfg[idx].fmeter_id);
+	if (current_val > target_val)
+		diff_by_max = current_val - target_val;
+	else
+		diff_by_max = target_val - current_val;
+
+	if (diff_by_min < diff_by_max)
+		cal_result = min;
+	else
+		cal_result = max;
+
+	set_ulposc_cali_value(cal_result);
+	current_val = mt_get_abist_freq(ulposc_cfg[idx].fmeter_id);
+
+	/* check if calibrated value is in the range of target value +- 4% */
+	if ((current_val < (target_val * (100 - CAL_MIS_RATE) / 100)) ||
+		(current_val > (target_val * (100 + CAL_MIS_RATE) / 100))) {
+		pr_err("calibration fail, target=%dMHz, calibrated=%dMHz\n",
+				target_val/1000, current_val/1000);
+		return 0;
+	}
+
+	pr_info("calibration done, target=%dMHz, calibrated=%dMHz\n",
+				target_val/1000, current_val/1000);
+
+	return cal_result;
+}
+
+void ulposc_cali_init(void)
+{
+	struct device_node *node;
+	int i;
+
+	pr_info("%s\n", __func__);
+
+	/* get ULPOSC base address */
+	node = of_find_compatible_node(NULL, NULL,
+			"mediatek,apmixed");
+	if (!node) {
+		pr_err("error: can't find apmixedsys node\n");
+		WARN_ON(1);
+		return;
+	}
+
+	ulposc_base = of_iomap(node, 0);
+	if (!ulposc_base) {
+		pr_err("error: iomap fail for ulposc_base\n");
+		WARN_ON(1);
+		return;
+	}
+
+	for (i = 0; i < MAX_ULPOSC_CALI_NUM; i++) {
+		/* turn off ULPOSC2 */
+		turn_onoff_clk_high(ULPOSC_2, 0);
+
+		/* init ULPOSC RGs */
+		DRV_WriteReg32(ULPOSC2_CON0, ulposc_cfg[i].ulposc_rg0);
+		DRV_WriteReg32(ULPOSC2_CON1, ulposc_cfg[i].ulposc_rg1);
+		DRV_WriteReg32(ULPOSC2_CON2, ulposc_cfg[i].ulposc_rg2);
+
+		/* turn on ULPOSC2 */
+		turn_onoff_clk_high(ULPOSC_2, 1);
+
+		pr_debug("ULPOSC2: CON0=0x%x, CON1=0x%x, CON2=0x%x\n",
+			DRV_Reg32(ULPOSC2_CON0),
+			DRV_Reg32(ULPOSC2_CON1),
+			DRV_Reg32(ULPOSC2_CON2));
+
+		ulposc_cfg[i].cali_val = (unsigned short)ulposc_cali_process(i);
+		if (!ulposc_cfg[i].cali_val) {
+			pr_err("Error: calibrate ULPOSC2 to %dM fail\n",
+					ulposc_cfg[i].freq);
+			break;
+		}
+	}
+
+	/* turn off ULPOSC2 */
+	turn_onoff_clk_high(ULPOSC_2, 0);
+}
+
+void sync_ulposc_cali_data_to_scp(void)
+{
+	int i, ret;
+	unsigned int ipi_data[2];
+	unsigned short *ptrTmp = (unsigned short *)&ipi_data[1];
+
+	if (!slp_ipi_init_done)
+		scp_slp_ipi_init();
+
+	ipi_data[0] = SLP_DBG_CMD_ULPOSC_CALI_VAL;
+
+	for (i = 0; i < MAX_ULPOSC_CALI_NUM; i++) {
+		*ptrTmp = ulposc_cfg[i].freq;
+		*(ptrTmp+1) = ulposc_cfg[i].cali_val;
+
+		pr_info("ipi to scp: freq=%d, cali_val=0x%x\n",
+			ulposc_cfg[i].freq, ulposc_cfg[i].cali_val);
+
+		ret = mtk_ipi_send_compl(&scp_ipidev,
+					IPI_OUT_C_SLEEP_0,
+					IPI_SEND_WAIT,
+					&ipi_data[0],
+					PIN_OUT_C_SIZE_SLEEP_0,
+					500);
+		if (ret != IPI_ACTION_DONE) {
+			pr_err("mtk_ipi_send_compl ULPOSC2_CALI_VAL(%d,%d) fail\n",
+					ulposc_cfg[i].freq,
+					ulposc_cfg[i].cali_val);
+			WARN_ON(1);
+		}
+	}
+
+	/* check if SCP clock is switched to ULPOSC */
+	if ((((DRV_Reg32(CLK_SW_SEL)>>CLK_SW_SEL_O_BIT) & CLK_SW_SEL_O_MASK) &
+		 (CLK_SW_SEL_O_ULPOSC_CORE | CLK_SW_SEL_O_ULPOSC_PERI)) == 0) {
+		pr_err("Error: SCP clock is not switched to ULPOSC, CLK_SW_SEL=0x%x\n",
+			DRV_Reg32(CLK_SW_SEL));
+		WARN_ON(1);
+	}
+}
+#endif /* ULPOSC_CALI_BY_AP */
 
 static int mt_scp_dvfs_pdrv_probe(struct platform_device *pdev)
 {
@@ -1171,10 +1533,12 @@ void mt_pmic_sshub_init(void)
 static int mt_scp_dump_sleep_count(void)
 {
 	int ret;
-	unsigned int ipi_data = SLP_DBG_CMD_GET_CNT;
+	struct ipi_tx_data_t ipi_data;
 
 	if (!slp_ipi_init_done)
 		scp_slp_ipi_init();
+
+	ipi_data.arg1 = SLP_DBG_CMD_GET_CNT;
 
 	ret = mtk_ipi_send_compl(&scp_ipidev, IPI_OUT_C_SLEEP_0,
 		IPI_SEND_WAIT, &ipi_data, PIN_OUT_C_SIZE_SLEEP_0, 500);

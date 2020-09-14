@@ -32,7 +32,12 @@
 
 #define CM_MGR_EMI_OPP 5
 #define CM_MGR_LOWER_OPP 6
+/* temporarily use for TRIGEAR */
+#ifdef TRIGEAR_CM
+#define CM_MGR_CPU_CLUSTER 3
+#else
 #define CM_MGR_CPU_CLUSTER 2
+#endif
 #define CM_MGR_CPU_COUNT 8
 #define CM_MGR_CPU_LIMIT 4
 
@@ -110,7 +115,7 @@ extern void dbg_cm_mgr_platform_show(struct seq_file *m);
 extern void dbg_cm_mgr_platform_write(int len, char *cmd, u32 val_1, u32 val_2);
 extern int x_ratio_enable;
 extern int cm_mgr_camera_enable;
-extern int cpu_power_ratio_up_x_camera[CM_MGR_EMI_OPP];
-extern int cpu_power_ratio_up_x[CM_MGR_EMI_OPP];
+extern unsigned int cpu_power_ratio_up_x_camera[CM_MGR_EMI_OPP];
+extern unsigned int cpu_power_ratio_up_x[CM_MGR_EMI_OPP];
 
 #endif	/* __MTK_CM_MGR_PLATFORM_H__ */

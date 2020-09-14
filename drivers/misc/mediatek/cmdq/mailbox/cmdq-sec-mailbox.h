@@ -7,11 +7,11 @@
 #define __CMDQ_SEC_MAILBOX_H__
 
 #define CMDQ_INVALID_THREAD		(-1)
-#define CMDQ_MAX_TASK_IN_SECURE_THREAD	(10)
+#define CMDQ_MAX_TASK_IN_SECURE_THREAD	(3)
 #define CMDQ_SEC_IRQ_THREAD		(15)
 
 /* Thread that are high-priority (display threads) */
-#define CMDQ_MAX_SECURE_THREAD_COUNT	(4)
+#define CMDQ_MAX_SECURE_THREAD_COUNT	(5)
 #define CMDQ_MIN_SECURE_THREAD_ID	(8)
 
 #define CMDQ_THREAD_SEC_PRIMARY_DISP	(CMDQ_MIN_SECURE_THREAD_ID)

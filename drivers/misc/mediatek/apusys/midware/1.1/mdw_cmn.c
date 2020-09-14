@@ -1,5 +1,3 @@
-#include <linux/types.h>
-#include <linux/errno.h>
 /*
  * Copyright (C) 2020 MediaTek Inc.
  *
@@ -13,6 +11,8 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/types.h>
+#include <linux/errno.h>
 #include <linux/list.h>
 #include <linux/slab.h>
 

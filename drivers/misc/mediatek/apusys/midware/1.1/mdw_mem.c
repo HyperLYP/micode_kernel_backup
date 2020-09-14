@@ -18,12 +18,11 @@
 #include "mdw_cmn.h"
 #include "mdw_mem.h"
 #include "mdw_mem_cmn.h"
+#include "reviser_export.h"
+
 
 #define APUSYS_OPTIONS_MEM_ION
 #define APUSYS_OPTIONS_MEM_VLM
-
-#define APUSYS_VLM_START 0x1D800000
-#define APUSYS_VLM_SIZE 0x100000
 
 struct mdw_mem_mgr {
 	struct list_head list;
@@ -108,7 +107,7 @@ int mdw_mem_import(struct mdw_mem *m)
 	if (!m_mgr.dops)
 		return -ENODEV;
 
-	ret = m_mgr.dops->import(&m->kmem);
+	ret = m_mgr.dops->map_iova(&m->kmem);
 	if (ret)
 		return ret;
 
@@ -125,10 +124,48 @@ int mdw_mem_unimport(struct mdw_mem *m)
 	if (!m_mgr.dops)
 		return -ENODEV;
 
-	ret = m_mgr.dops->unimport(&m->kmem);
+	ret = m_mgr.dops->unmap_iova(&m->kmem);
 	mdw_mem_list_del(m);
 
 	return ret;
+}
+
+int mdw_mem_map(struct mdw_mem *m)
+{
+	int ret = 0;
+
+	if (!m_mgr.dops)
+		return -ENODEV;
+
+	ret = m_mgr.dops->map_kva(&m->kmem);
+	if (ret)
+		goto fail_map_kva;
+
+	ret = m_mgr.dops->map_iova(&m->kmem);
+	if (ret)
+		goto fail_map_iova;
+
+	m->kmem.property = APUSYS_MEM_PROP_MAP;
+	mdw_mem_list_add(m);
+
+	return 0;
+
+fail_map_iova:
+	m_mgr.dops->unmap_kva(&m->kmem);
+fail_map_kva:
+	return ret;
+}
+
+int mdw_mem_unmap(struct mdw_mem *m)
+{
+	if (!m_mgr.dops)
+		return -ENODEV;
+
+	m_mgr.dops->unmap_iova(&m->kmem);
+	m_mgr.dops->unmap_kva(&m->kmem);
+	mdw_mem_list_del(m);
+
+	return 0;
 }
 
 int mdw_mem_flush(struct apusys_kmem *km)
@@ -200,8 +237,15 @@ unsigned int mdw_mem_get_support(void)
 
 void mdw_mem_get_vlm(unsigned int *start, unsigned int *size)
 {
-	*start = APUSYS_VLM_START;
-	*size = APUSYS_VLM_SIZE;
+	unsigned int vlm_size;
+	unsigned int vlm_addr;
+
+	reviser_get_resource_vlm(&vlm_addr, &vlm_size);
+
+	*start = vlm_addr;
+	*size = vlm_size;
+
+	//mdw_drv_info("reviser vlm_addr(0x%x) vlm_size(0x%x)\n", vlm_addr, vlm_size);
 }
 
 int mdw_mem_init(void)

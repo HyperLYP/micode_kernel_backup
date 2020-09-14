@@ -682,6 +682,18 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 	if (usb_disabled())
 		return -ENODEV;
 
+	if (of_device_is_compatible(node, "mediatek,mt67xx-xhci")) {
+		ret = device_rename(dev, node->name);
+		if (ret)
+			dev_info(&pdev->dev, "failed to rename\n");
+		else {
+			/* fix uaf(use after free) issue: backup pdev->name,
+			 * device_rename will free pdev->name
+			 */
+			pdev->name = pdev->dev.kobj.name;
+		}
+	}
+
 	driver = &xhci_mtk_hc_driver;
 	mtk = devm_kzalloc(dev, sizeof(*mtk), GFP_KERNEL);
 	if (!mtk)
@@ -702,8 +714,10 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 
 	mtk->sys_clk = devm_clk_get(dev, "sys_ck");
 	if (IS_ERR(mtk->sys_clk)) {
-		dev_err(dev, "fail to get sys_ck\n");
-		return PTR_ERR(mtk->sys_clk);
+		if (PTR_ERR(mtk->sys_clk) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+
+		mtk->sys_clk = NULL;
 	}
 
 	/*
@@ -957,7 +971,13 @@ static int __maybe_unused xhci_mtk_suspend(struct device *dev)
 
 	xhci_mtk_host_disable(mtk);
 	xhci_mtk_phy_power_off(mtk);
+#if IS_ENABLED(CONFIG_MTK_UAC_POWER_SAVING)
+	if (xhci->msram_virt_addr)
+		xhci_mtk_clks_disable(mtk);
+#else
 	xhci_mtk_clks_disable(mtk);
+#endif
+
 	usb_wakeup_enable(mtk);
 	return 0;
 }
@@ -970,7 +990,12 @@ static int __maybe_unused xhci_mtk_resume(struct device *dev)
 
 	xhci_info(xhci, "%s\n", __func__);
 	usb_wakeup_disable(mtk);
+#if IS_ENABLED(CONFIG_MTK_UAC_POWER_SAVING)
+	if (xhci->msram_virt_addr)
+		xhci_mtk_clks_enable(mtk);
+#else
 	xhci_mtk_clks_enable(mtk);
+#endif
 	xhci_mtk_phy_power_on(mtk);
 	xhci_mtk_host_enable(mtk);
 

@@ -84,9 +84,8 @@ static int mdw_mem_ion_map_kva(struct apusys_kmem *mem)
 
 	/* import fd */
 	ion_hnd = ion_import_dma_buf_fd(ion_ma.client, mem->fd);
-
 	if (IS_ERR_OR_NULL(ion_hnd))
-		return -ENOMEM;
+		return -EINVAL;
 
 	/* map kernel va*/
 	buffer = ion_map_kernel(ion_ma.client, ion_hnd);
@@ -108,6 +107,9 @@ static int mdw_mem_ion_map_kva(struct apusys_kmem *mem)
 	return 0;
 
 fail_map_kernel:
+	mdw_drv_err("mem(%d/0x%llx/0x%x/%d/0x%x/0x%llx/0x%llx)\n",
+			mem->fd, mem->uva, mem->iova, mem->size,
+			mem->iova_size, mem->khandle, mem->kva);
 	ion_free(ion_ma.client, ion_hnd);
 	return ret;
 }
@@ -126,7 +128,7 @@ static int mdw_mem_ion_map_iova(struct apusys_kmem *mem)
 	ion_hnd = ion_import_dma_buf_fd(ion_ma.client, mem->fd);
 
 	if (IS_ERR_OR_NULL(ion_hnd))
-		return -ENOMEM;
+		return -EINVAL;
 
 	/* use get_iova replace config_buffer & get_phys*/
 	memset((void *)&mm_data, 0, sizeof(struct ion_mm_data));
@@ -157,6 +159,9 @@ static int mdw_mem_ion_map_iova(struct apusys_kmem *mem)
 	return ret;
 
 free_import:
+	mdw_drv_err("mem(%d/0x%llx/0x%x/%d/0x%x/0x%llx/0x%llx)\n",
+			mem->fd, mem->uva, mem->iova, mem->size,
+			mem->iova_size, mem->khandle, mem->kva);
 	ion_free(ion_ma.client, ion_hnd);
 	return ret;
 }
@@ -217,51 +222,12 @@ static int mdw_mem_ion_unmap_kva(struct apusys_kmem *mem)
 
 static int mdw_mem_ion_alloc(struct apusys_kmem *mem)
 {
-	int ret = 0;
-
-	ret = mdw_mem_ion_map_iova(mem);
-	if (ret)
-		goto fail_map_iova;
-
-	ret = mdw_mem_ion_map_kva(mem);
-	if (ret)
-		goto fail_map_kva;
-
-	return 0;
-
-fail_map_kva:
-	mdw_mem_ion_unmap_iova(mem);
-fail_map_iova:
-	return ret;
+	return -ENOMEM;
 }
 
 static int mdw_mem_ion_free(struct apusys_kmem *mem)
 {
-	int ret = 0;
-
-	ret = mdw_mem_ion_unmap_kva(mem);
-	if (ret) {
-		mdw_drv_err("unmap kva fail\n");
-		ret = -ENOMEM;
-	}
-
-	ret = mdw_mem_ion_unmap_iova(mem);
-	if (ret) {
-		mdw_drv_err("unmap iova fail\n");
-		ret = -ENOMEM;
-	}
-
-	return ret;
-}
-
-static int mdw_mem_ion_import(struct apusys_kmem *mem)
-{
-	return mdw_mem_ion_map_iova(mem);
-}
-
-static int mdw_mem_ion_unimport(struct apusys_kmem *mem)
-{
-	return mdw_mem_ion_unmap_iova(mem);
+	return -ENOMEM;
 }
 
 static int mdw_mem_ion_flush(struct apusys_kmem *mem)
@@ -346,8 +312,6 @@ struct mdw_mem_ops *mdw_mem_ion_init(void)
 
 	ion_ma.ops.alloc = mdw_mem_ion_alloc;
 	ion_ma.ops.free = mdw_mem_ion_free;
-	ion_ma.ops.import = mdw_mem_ion_import;
-	ion_ma.ops.unimport = mdw_mem_ion_unimport;
 	ion_ma.ops.flush = mdw_mem_ion_flush;
 	ion_ma.ops.invalidate = mdw_mem_ion_invalidate;
 	ion_ma.ops.map_kva = mdw_mem_ion_map_kva;

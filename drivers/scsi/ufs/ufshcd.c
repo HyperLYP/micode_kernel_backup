@@ -193,6 +193,8 @@ struct ufs_pm_lvl_states ufs_pm_lvl_states[] = {
 	{UFS_POWERDOWN_PWR_MODE, UIC_LINK_OFF_STATE},
 };
 
+#define DID_FATAL 0xFFFF
+
 /* MTK PATCH: For reference of ufs_pm_lvl_states array size from outside */
 const int ufs_pm_lvl_states_size = ARRAY_SIZE(ufs_pm_lvl_states);
 
@@ -248,6 +250,8 @@ static struct ufs_dev_fix ufs_fixups[] = {
 	/* MTK PATCH */
 	UFS_FIX(UFS_VENDOR_SKHYNIX, UFS_ANY_MODEL,
 		UFS_DEVICE_QUIRK_LIMITED_RPMB_MAX_RW_SIZE),
+	UFS_FIX(UFS_VENDOR_MICRON, UFS_ANY_MODEL,
+		UFS_DEVICE_QUIRK_VCC_OFF_DELAY),
 
 	/* MTK PATCH */
 	UFS_FIX(UFS_VENDOR_TOSHIBA, "THGJFCT0T44BAKLA",
@@ -620,6 +624,8 @@ void ufshcd_print_all_err_hist(struct ufs_hba *hba,
 		m, buff, size);
 	ufshcd_print_err_hist(hba, &hba->ufs_stats.perf_warn, "perf_warn",
 		m, buff, size);
+	ufshcd_print_err_hist(hba, &hba->ufs_stats.ocs_err_status,
+			      "ocs_err_status", m, buff, size);
 }
 
 static void ufshcd_print_host_regs(struct ufs_hba *hba)
@@ -5338,6 +5344,66 @@ ufshcd_scsi_cmd_status(struct ufshcd_lrb *lrbp, int scsi_status)
 	return result;
 }
 
+static int ufshcd_is_resp_upiu_valid(struct ufs_hba *hba,
+				      struct ufshcd_lrb *lrbp, int index)
+{
+	u32 word;
+	u8 val;
+	bool err = false;
+
+	if (hba->ufshcd_state != UFSHCD_STATE_OPERATIONAL)
+		return 0;
+
+	word = be32_to_cpu(lrbp->ucd_rsp_ptr->header.dword_0);
+
+	/* Check tag anyway */
+	val = word & 0xff;
+	if (val != lrbp->task_tag || val != index) {
+		dev_info(hba->dev, "inv. tag, upiu: 0x%x, lrbp: 0x%x, outstanding: 0x%x, cmd: 0x%x\n",
+			 val, lrbp->task_tag, index, lrbp->cmd->cmnd[0]);
+		err = true;
+	}
+
+	if (!err) {
+		val = lrbp->cmd->cmnd[0];
+		if (val != READ_10 && val != WRITE_10 &&
+		    val != SYNCHRONIZE_CACHE)
+			return 0;
+	}
+
+	val = (word & 0x00ff0000) >> 16;
+	if (val) {
+		dev_info(hba->dev, "inv. flag: 0x%x\n", val);
+		err = true;
+	}
+
+	val = (word & 0x0000ff00) >> 8;
+	if (val != lrbp->lun) {
+		dev_info(hba->dev, "inv. lun: upiu: 0x%x, lrbp: 0x%x\n",
+			 val, lrbp->lun);
+		err = true;
+	}
+
+	if (lrbp->ucd_rsp_ptr->sr.residual_transfer_count) {
+		dev_info(hba->dev, "inv. rtc: 0x%x\n",
+			 lrbp->ucd_rsp_ptr->sr.residual_transfer_count);
+		err = true;
+	}
+
+	if (lrbp->ucd_rsp_ptr->sr.reserved[0]) {
+		dev_info(hba->dev, "inv. reserved[0]: 0x%x\n",
+			 lrbp->ucd_rsp_ptr->sr.reserved[0]);
+		err = true;
+	}
+
+	if (err) {
+		hba->invalid_resp_upiu = true;
+		return (DID_FATAL << 16);
+	}
+
+	return 0;
+}
+
 /**
  * ufshcd_transfer_rsp_status - Get overall status of the response
  * @hba: per adapter instance
@@ -5346,7 +5412,8 @@ ufshcd_scsi_cmd_status(struct ufshcd_lrb *lrbp, int scsi_status)
  * Returns result of the command to notify SCSI midlayer
  */
 static inline int
-ufshcd_transfer_rsp_status(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
+ufshcd_transfer_rsp_status(struct ufs_hba *hba, struct ufshcd_lrb *lrbp,
+			   int index)
 {
 	int result = 0;
 	int scsi_status;
@@ -5361,6 +5428,9 @@ ufshcd_transfer_rsp_status(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 		hba->ufs_stats.last_hibern8_exit_tstamp = ktime_set(0, 0);
 		switch (result) {
 		case UPIU_TRANSACTION_RESPONSE:
+			result = ufshcd_is_resp_upiu_valid(hba, lrbp, index);
+			if (result)
+				return result;
 			/*
 			 * get the response UPIU result to extract
 			 * the SCSI command status
@@ -5469,13 +5539,14 @@ static void ufshcd_uic_cmd_compl(struct ufs_hba *hba, u32 intr_status)
  * @hba: per adapter instance
  * @completed_reqs: requests to complete
  */
-static void __ufshcd_transfer_req_compl(struct ufs_hba *hba,
+static int __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 					unsigned long completed_reqs)
 {
 	struct ufshcd_lrb *lrbp;
 	struct scsi_cmnd *cmd;
 	int result;
 	int index;
+	u32 ocs_err_status;
 	/* MTK PATCH: for completion notification feature */
 
 	for_each_set_bit(index, &completed_reqs, hba->nutrs) {
@@ -5486,8 +5557,12 @@ static void __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 			ufshcd_cond_add_cmd_trace(hba, index,
 				UFS_TRACE_COMPLETED);
 			ufs_mtk_biolog_transfer_req_compl(index);
-			result = ufshcd_transfer_rsp_status(hba, lrbp);
+			result = ufshcd_transfer_rsp_status(hba, lrbp, index);
 			scsi_dma_unmap(cmd);
+
+			if (result == (DID_FATAL << 16))
+				return result;
+
 			cmd->result = result;
 #ifdef CONFIG_MTK_UFS_LBA_CRC16_CHECK
 			if (!result && !ufshcd_eh_in_progress(hba)) {
@@ -5513,7 +5588,6 @@ static void __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 						__LINE__, DB_OPT_FS_IO_LOG,
 						"ufs_mtk_di", "crc16 fail");
 					#endif
-					ufs_mtk_dbg_start_trace(hba);
 				}
 			}
 #endif
@@ -5541,6 +5615,12 @@ static void __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 			hba->clk_scaling.active_reqs--;
 	}
 
+	ocs_err_status = ufshcd_readl(hba, REG_UFS_MTK_OCS_ERR_STATUS);
+	if (ocs_err_status) {
+		ufshcd_update_reg_hist(&hba->ufs_stats.ocs_err_status,
+				       ocs_err_status);
+	}
+
 	/* clear corresponding bits of completed commands */
 	hba->outstanding_reqs ^= completed_reqs;
 	ufs_mtk_biolog_check(hba->outstanding_reqs);
@@ -5551,16 +5631,18 @@ static void __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 
 	/* we might have free'd some tags above */
 	wake_up(&hba->dev_cmd.tag_wq);
+	return 0;
 }
 
 /**
  * ufshcd_transfer_req_compl - handle SCSI and query command completion
  * @hba: per adapter instance
  */
-static void ufshcd_transfer_req_compl(struct ufs_hba *hba)
+static int ufshcd_transfer_req_compl(struct ufs_hba *hba)
 {
 	unsigned long completed_reqs;
 	u32 tr_doorbell;
+	int ret;
 
 	/* Resetting interrupt aggregation counters first and reading the
 	 * DOOR_BELL afterward allows us to handle all the completed requests.
@@ -5575,7 +5657,9 @@ static void ufshcd_transfer_req_compl(struct ufs_hba *hba)
 	tr_doorbell = ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_DOOR_BELL);
 	completed_reqs = tr_doorbell ^ hba->outstanding_reqs;
 
-	__ufshcd_transfer_req_compl(hba, completed_reqs);
+	ret = __ufshcd_transfer_req_compl(hba, completed_reqs);
+
+	return ret;
 }
 
 /**
@@ -6100,6 +6184,12 @@ skip_err_handling:
 out:
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 	ufshcd_scsi_unblock_requests(hba);
+
+	if (needs_reset && hba->invalid_resp_upiu) {
+		hba->invalid_resp_upiu = false;
+		ufshcd_vops_abort_handler(hba, -1, __FILE__, __LINE__);
+	}
+
 	ufshcd_release(hba);
 
 	if (rpm_put == true)
@@ -6413,6 +6503,8 @@ static void ufshcd_tmc_handler(struct ufs_hba *hba)
  */
 static void ufshcd_sl_intr(struct ufs_hba *hba, u32 intr_status)
 {
+	int err;
+
 	hba->errors = UFSHCD_ERROR_MASK & intr_status;
 
 	if (ufshcd_is_auto_hibern8_error(hba, intr_status))
@@ -6427,8 +6519,13 @@ static void ufshcd_sl_intr(struct ufs_hba *hba, u32 intr_status)
 	if (intr_status & UTP_TASK_REQ_COMPL)
 		ufshcd_tmc_handler(hba);
 
-	if (intr_status & UTP_TRANSFER_REQ_COMPL)
-		ufshcd_transfer_req_compl(hba);
+	if (intr_status & UTP_TRANSFER_REQ_COMPL) {
+		err = ufshcd_transfer_req_compl(hba);
+		if (err) {
+			hba->errors |= INT_FATAL_ERRORS;
+			ufshcd_check_errors(hba);
+		}
+	}
 }
 
 /**
@@ -6447,19 +6544,6 @@ static irqreturn_t ufshcd_intr(int irq, void *__hba)
 	int retries = hba->nutrs;
 
 	spin_lock(hba->host->host_lock);
-	/* MTK PATCH */
-	if (unlikely(hba->clk_gating.state == CLKS_OFF)) {
-		/* trigger kernel panic if clock is not enabled */
-		dev_err(hba->dev, "%s: clock not on.\n");
-#if defined(CONFIG_MTK_GIC_EXT)
-		mt_irq_dump_status(irq);
-#endif
-		ufshcd_generic_log(hba,
-			0, 0, __LINE__, NULL,
-			UFS_TRACE_GENERIC);
-		BUG();
-	}
-
 	intr_status = ufshcd_readl(hba, REG_INTERRUPT_STATUS);
 
 	/*
@@ -6563,6 +6647,7 @@ static int ufshcd_issue_tm_cmd(struct ufs_hba *hba, int lun_id, int task_id,
 	task_req_upiup->input_param2 = cpu_to_be32(task_id);
 
 	ufshcd_vops_res_ctrl(hba, UFS_RESCTL_CMD_SEND);
+	ufs_mtk_auto_hiber8_quirk_handler(hba, false);
 	ufshcd_vops_setup_task_mgmt(hba, free_slot, tm_function);
 
 	/* send command to the controller */
@@ -7171,7 +7256,7 @@ static void ufshcd_init_icc_levels(struct ufs_hba *hba)
 int ufshcd_rpmb_security_out(struct scsi_device *sdev,
 			 struct rpmb_frame *frames, u32 cnt)
 {
-	struct scsi_sense_hdr sshdr;
+	struct scsi_sense_hdr sshdr = {0};
 	u32 trans_len = cnt * sizeof(struct rpmb_frame);
 	int reset_retries = SEC_PROTOCOL_RETRIES_ON_RESET;
 	int ret;
@@ -7194,8 +7279,7 @@ retry:
 				     NULL);
 
 	if (ret && scsi_sense_valid(&sshdr) &&
-	    sshdr.sense_key == UNIT_ATTENTION &&
-	    sshdr.asc == 0x29 && sshdr.ascq == 0x00)
+	    sshdr.sense_key == UNIT_ATTENTION)
 		/*
 		 * Device reset might occur several times,
 		 * give it one more chance
@@ -7220,7 +7304,7 @@ retry:
 int ufshcd_rpmb_security_in(struct scsi_device *sdev,
 			struct rpmb_frame *frames, u32 cnt)
 {
-	struct scsi_sense_hdr sshdr;
+	struct scsi_sense_hdr sshdr = {0};
 	u32 alloc_len = cnt * sizeof(struct rpmb_frame);
 	int reset_retries = SEC_PROTOCOL_RETRIES_ON_RESET;
 	int ret;
@@ -7243,8 +7327,7 @@ retry:
 				     NULL);
 
 	if (ret && scsi_sense_valid(&sshdr) &&
-	    sshdr.sense_key == UNIT_ATTENTION &&
-	    sshdr.asc == 0x29 && sshdr.ascq == 0x00)
+	    sshdr.sense_key == UNIT_ATTENTION)
 		/*
 		 * Device reset might occur several times,
 		 * give it one more chance
@@ -8991,6 +9074,9 @@ static int ufshcd_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	ufshcd_set_reg_state(hba, UFS_REG_SUSPEND_SET_LPM); /* MTK PATCH */
 	ufshcd_vreg_set_lpm(hba);
 
+	if (hba->dev_quirks & UFS_DEVICE_QUIRK_VCC_OFF_DELAY)
+		mdelay(5);
+
 disable_clks:
 	/*
 	 * Call vendor specific suspend callback. As these callbacks may access
@@ -9565,7 +9651,7 @@ void ufshcd_remove(struct ufs_hba *hba)
 	ufsf_tw_release(&hba->ufsf);
 #endif
 #if defined(CONFIG_SCSI_SKHPB)
-	if (hba->card->wmanufacturerid == UFS_VENDOR_SKHYNIX)
+	if (hba->card && hba->card->wmanufacturerid == UFS_VENDOR_SKHYNIX)
 		skhpb_release(hba, SKHPB_NEED_INIT);
 #endif
 

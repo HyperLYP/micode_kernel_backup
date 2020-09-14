@@ -86,11 +86,13 @@ static void mdw_tag_seq_cmd(struct seq_file *s, struct mdw_tag *t)
 {
 	char status[8];
 
-	if (t->d.cmd.done)
-		snprintf(status, sizeof(status)-1, "%s", "done");
-	else
-		snprintf(status, sizeof(status)-1, "%s", "start");
-
+	if (t->d.cmd.done) {
+		if (snprintf(status, sizeof(status)-1, "%s", "done") < 0)
+			return;
+	} else {
+		if (snprintf(status, sizeof(status)-1, "%s", "start") < 0)
+			return;
+	}
 	seq_printf(s, "%s,", status);
 	seq_printf(s, "pid=%d,tgid=%d,cmd_uid=0x%llx,cmd_id=0x%llx,sc_idx=%d,total_sc=%u,",
 		t->d.cmd.pid, t->d.cmd.tgid, t->d.cmd.uid,
@@ -148,7 +150,7 @@ int mdw_tag_init(void)
 		return -ENOMEM;
 
 	ret = apu_tp_init(mdw_tp_tbl);
-	if (!ret)
+	if (ret)
 		pr_info("%s: unable to register\n", __func__);
 
 	return ret;

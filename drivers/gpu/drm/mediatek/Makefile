@@ -40,10 +40,27 @@ mediatek-drm-y := mtk_drm_drv.o \
 		  mtk_disp_pmqos.o \
 		  mtk_disp_dsc.o \
 		  mtk_drm_arr.o \
-		  mtk_dmdp_aal.o
+		  mtk_disp_merge.o \
+		  mtk_dmdp_aal.o \
+		  mtk_fbconfig_kdebug.o
 
 ifeq ($(CONFIG_DRM_MEDIATEK_DEBUG_FS),y)
 mediatek-drm-y += mtk_drm_debugfs.o
+endif
+
+ifeq ($(CONFIG_MTK_HDMI_SUPPORT), y)
+obj-y += mtk_dp_intf.o \
+	mtk_dp.o \
+	mtk_dp_hal.o \
+	mtk_dp_debug.o
+
+ifeq (yy, $(CONFIG_MTK_TEE_GP_SUPPORT)$(CONFIG_TRUSTONIC_TEE_SUPPORT))
+obj-y += ca/
+ccflags-y += -DDPTX_HDCP_ENABLE
+obj-y += mtk_dp_hdcp1x.o \
+	mtk_dp_hdcp2.o
+endif
+
 endif
 
 mediatek-drm-$(CONFIG_DRM_FBDEV_EMULATION) += mtk_drm_fbdev.o
@@ -78,27 +95,15 @@ ccflags-$(CONFIG_MTK_CMDQ_MBOX_EXT) += -I$(srctree)/drivers/misc/mediatek/cmdq/m
 subdir-ccflags-y += -I$(srctree)/drivers/staging/android/ion/ \
 		    -I$(srctree)/drivers/staging/android/ion/mtk
 
-ccflags-$(CONFIG_MACH_MT6885) += -DDRM_MMPATH
+ifeq (y, $(filter y, $(CONFIG_MACH_MT6885) $(CONFIG_MACH_MT6893) $(CONFIG_MACH_MT6873) $(CONFIG_MACH_MT6853)))
+ccflags-y += -DDRM_MMPATH
+ccflags-y += -DNOT_SUPPORT_CABC_HW
+ccflags-y += -DDISP_MDP_COLOR_ON
+ccflags-y += -DCCORR_SUPPORT
+endif
 
-ccflags-$(CONFIG_MACH_MT6885) += -DNOT_SUPPORT_CABC_HW
-
-ccflags-$(CONFIG_MACH_MT6885) += -DDISP_MDP_COLOR_ON
-
-ccflags-$(CONFIG_MACH_MT6885) += -DCCORR_SUPPORT
-
-ccflags-$(CONFIG_MACH_MT6893) += -DDRM_MMPATH
-
-ccflags-$(CONFIG_MACH_MT6893) += -DNOT_SUPPORT_CABC_HW
-
-ccflags-$(CONFIG_MACH_MT6893) += -DDISP_MDP_COLOR_ON
-
-ccflags-$(CONFIG_MACH_MT6893) += -DCCORR_SUPPORT
-
-ccflags-$(CONFIG_MACH_MT6873) += -DDRM_MMPATH
-
-ccflags-$(CONFIG_MACH_MT6873) += -DNOT_SUPPORT_CABC_HW
-
-ccflags-$(CONFIG_MACH_MT6873) += -DDISP_MDP_COLOR_ON
-
-ccflags-$(CONFIG_MACH_MT6873) += -DCCORR_SUPPORT
-
+ifeq (y, $(filter y, $(CONFIG_MACH_MT6833)))
+ccflags-y += -DNOT_SUPPORT_CABC_HW
+ccflags-y += -DDISP_MDP_COLOR_ON
+ccflags-y += -DCCORR_SUPPORT
+endif

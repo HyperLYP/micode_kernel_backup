@@ -99,16 +99,22 @@ enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
 	struct device *pdevice = gimgsensor_device;
 	char str_regulator_name[LENGTH_FOR_SNPRINTF];
 	int i = 0;
+	int ret = 0;
 	gimgsensor.status.oc = 0;
 
 	if (enable) {
 		mdelay(5);
 		for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++) {
-			snprintf(str_regulator_name,
+			ret = snprintf(str_regulator_name,
 					sizeof(str_regulator_name),
 					"cam%d_%s",
 					sensor_idx,
 					regulator_control[i].pregulator_type);
+			if (ret < 0) {
+				pr_info(
+				"[regulator]%s error, ret = %d", __func__, ret);
+				return IMGSENSOR_RETURN_ERROR;
+			}
 			preg = regulator_get(pdevice, str_regulator_name);
 			if (preg && regulator_is_enabled(preg)) {
 				pmic_enable_interrupt(
@@ -130,11 +136,16 @@ enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
 		/* Disable interrupt before power off */
 
 		for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++) {
-			snprintf(str_regulator_name,
+			ret = snprintf(str_regulator_name,
 					sizeof(str_regulator_name),
 					"cam%d_%s",
 					sensor_idx,
 					regulator_control[i].pregulator_type);
+			if (ret < 0) {
+				pr_info(
+				"[regulator]%s error, ret = %d", __func__, ret);
+				return IMGSENSOR_RETURN_ERROR;
+			}
 			preg = regulator_get(pdevice, str_regulator_name);
 			if (preg) {
 				pmic_enable_interrupt(
@@ -254,13 +265,11 @@ static enum IMGSENSOR_RETURN regulator_set(
 
 	reg_type_offset = REGULATOR_TYPE_VCAMA;
 
-	pregulator =
-		preg->pregulator[sensor_idx][
-			reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
+	pregulator = preg->pregulator[(unsigned int)sensor_idx][
+		reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
 
-	enable_cnt =
-		&preg->enable_cnt[sensor_idx][
-			reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
+	enable_cnt = &preg->enable_cnt[(unsigned int)sensor_idx][
+		reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
 
 	if (pregulator) {
 		if (pin_state != IMGSENSOR_HW_PIN_STATE_LEVEL_0) {

@@ -354,8 +354,8 @@ struct FDVT_REQUEST_STRUCT {
 	unsigned int caller_id; /* caller thread ID */
 	/* to judge it belongs to which frame package */
 	unsigned int enque_req_num;
-	signed int frame_wr_idx; /* Frame write Index */
-	signed int frame_rd_idx; /* Frame read Index */
+	unsigned int frame_wr_idx; /* Frame write Index */
+	unsigned int frame_rd_idx; /* Frame read Index */
 	enum FDVT_FRAME_STATUS_ENUM
 	fdvt_frame_status[MAX_FDVT_FRAME_REQUEST];
 	struct fdvt_config frame_config[MAX_FDVT_FRAME_REQUEST];
@@ -563,8 +563,8 @@ pr_debug(IRQTAG fmt, ##args)
 	struct SV_LOG_STR *src = &sv_log[irq];\
 	char *ptr;\
 	unsigned int i;\
-	signed int ppb = 0;\
-	signed int log_t = 0;\
+	unsigned int ppb = 0;\
+	unsigned int log_t = 0;\
 	unsigned int index = 0;\
 	if (ppb_in > 1) {\
 		ppb = 1;\
@@ -1668,10 +1668,18 @@ static signed int config_secure_fdvt_hw(struct fdvt_config *basic_config)
 
 #if 0
 	if (basic_config->FDVT_IS_SECURE != 0)
-		cmdq_sec_pkt_set_data(pkt, 1LL << CMDQ_SEC_FDVT, 1LL << CMDQ_SEC_FDVT, CMDQ_SEC_ISP_FDVT, CMDQ_METAEX_FD);
+		cmdq_sec_pkt_set_data(pkt,
+			1LL << CMDQ_SEC_FDVT,
+			1LL << CMDQ_SEC_FDVT,
+			CMDQ_SEC_ISP_FDVT,
+			CMDQ_METAEX_FD);
 #else
 	if (basic_config->FDVT_IS_SECURE != 0) {
-		cmdq_sec_pkt_set_data(pkt, 1LL << CMDQ_SEC_FDVT, 1LL << CMDQ_SEC_FDVT, CMDQ_SEC_KERNEL_CONFIG_GENERAL, CMDQ_METAEX_FD);
+		cmdq_sec_pkt_set_data(pkt,
+			1LL << CMDQ_SEC_FDVT,
+			1LL << CMDQ_SEC_FDVT,
+			CMDQ_SEC_ISP_FDVT,
+			CMDQ_METAEX_FD);
 #ifdef CMDQ_MTEE
 		cmdq_sec_pkt_set_mtee(pkt, true);
 		if (atomic_cmpxchg(&m4u_gz_init, 0, 1) == 0)
@@ -1726,21 +1734,21 @@ static signed int config_secure_fdvt_hw(struct fdvt_config *basic_config)
 		cmdq_sec_pkt_write_reg(pkt,
 			FDVT_RS_CON_BASE_ADR_HW,
 			basic_config->FDVT_RSCON_BASE_ADR,
-			CMDQ_IWC_H_2_MVA,
+			CMDQ_IWC_PH_2_MVA,
 			0,
 			basic_config->FDVT_RSCON_BUFSIZE,
 			M4U_PORT_L20_IPE_FDVT_RDA_DISP);
 		cmdq_sec_pkt_write_reg(pkt,
 			FDVT_FD_CON_BASE_ADR_HW,
 			basic_config->FDVT_FD_CON_BASE_ADR,
-			CMDQ_IWC_H_2_MVA,
+			CMDQ_IWC_PH_2_MVA,
 			0,
 			basic_config->FDVT_FD_CON_BUFSIZE,
 			M4U_PORT_L20_IPE_FDVT_RDA_DISP);
 		cmdq_sec_pkt_write_reg(pkt,
 			FDVT_YUV2RGB_CON_BASE_ADR_HW,
 			basic_config->FDVT_YUV2RGBCON_BASE_ADR,
-			CMDQ_IWC_H_2_MVA,
+			CMDQ_IWC_PH_2_MVA,
 			0,
 			basic_config->FDVT_YUV2RGBCON_BUFSIZE,
 			M4U_PORT_L20_IPE_FDVT_RDA_DISP);
@@ -1762,7 +1770,7 @@ static signed int config_secure_fdvt_hw(struct fdvt_config *basic_config)
 		cmdq_sec_pkt_write_reg(pkt,
 			FDVT_FD_CON_BASE_ADR_HW,
 			basic_config->FDVT_FD_POSE_CON_BASE_ADR,
-			CMDQ_IWC_H_2_MVA,
+			CMDQ_IWC_PH_2_MVA,
 			0,
 			basic_config->FDVT_FD_POSE_CON_BUFSIZE,
 			M4U_PORT_L20_IPE_FDVT_RDA_DISP);
@@ -1783,21 +1791,21 @@ static signed int config_secure_fdvt_hw(struct fdvt_config *basic_config)
 		cmdq_sec_pkt_write_reg(pkt,
 			FDVT_RS_CON_BASE_ADR_HW,
 			basic_config->FDVT_RSCON_BASE_ADR,
-			CMDQ_IWC_H_2_MVA,
+			CMDQ_IWC_PH_2_MVA,
 			0,
 			basic_config->FDVT_RSCON_BUFSIZE,
 			M4U_PORT_L20_IPE_FDVT_RDA_DISP);
 		cmdq_sec_pkt_write_reg(pkt,
 			FDVT_FD_CON_BASE_ADR_HW,
 			basic_config->FDVT_FD_CON_BASE_ADR,
-			CMDQ_IWC_H_2_MVA,
+			CMDQ_IWC_PH_2_MVA,
 			0,
 			basic_config->FDVT_FD_CON_BUFSIZE,
 			M4U_PORT_L20_IPE_FDVT_RDA_DISP);
 		cmdq_sec_pkt_write_reg(pkt,
 			FDVT_YUV2RGB_CON_BASE_ADR_HW,
 			basic_config->FDVT_YUV2RGBCON_BASE_ADR,
-			CMDQ_IWC_H_2_MVA,
+			CMDQ_IWC_PH_2_MVA,
 			0,
 			basic_config->FDVT_YUV2RGBCON_BUFSIZE,
 			M4U_PORT_L20_IPE_FDVT_RDA_DISP);
@@ -4263,7 +4271,7 @@ static ssize_t fdvt_reg_write(struct file *file, const char __user *buffer,
 			      size_t count, loff_t *data)
 {
 	char desc[128];
-	int len = 0;
+	unsigned int len = 0;
 	/*char *pEnd;*/
 	char addrSzBuf[24];
 	char valSzBuf[24];

@@ -20,7 +20,6 @@
 #include "mdla.h"
 #include "mdla_hw_reg.h"
 #include "mdla_trace.h"
-#include "mdla_decoder.h"
 #include "met_mdlasys_events.h"
 #include "apusys_trace.h"
 #include <linux/kallsyms.h>
@@ -90,6 +89,10 @@ void mdla_trace_end(int core, int status, struct command_entry *ce)
 	len = snprintf(buf, sizeof(buf),
 		"mdla-%d|tid:%d,fin_id:%d,preempted:%d",
 		core, task_pid_nr(current), ce->fin_cid, status);
+
+	if (len >= TRACE_LEN)
+		len = TRACE_LEN - 1;
+
 #ifndef __APUSYS_MDLA_SW_PORTING_WORKAROUND__
 	trace_async_tag(0, buf);
 #endif
@@ -148,7 +151,7 @@ static void mdla_profile_register_read(int core_id)
 	mdla_profile_pmu_counter(core_id);
 }
 
-void mdla_trace_iter(int core_id)
+void mdla_trace_iter(unsigned int core_id)
 {
 	mutex_lock(&mdla_devices[core_id].power_lock);
 	if (cfg_timer_en)
@@ -160,13 +163,6 @@ void mdla_trace_iter(int core_id)
 /* restore trace settings after reset */
 int mdla_profile_reset(int core_id, const char *str)
 {
-	if (!cfg_apusys_trace)
-		goto out;
-#ifndef __APUSYS_MDLA_SW_PORTING_WORKAROUND__
-	trace_tag_customer("C|%d|mdla-%d,reset:%s|0",
-			  task_pid_nr(current), core_id, str);
-#endif
-out:
 	return 0;
 }
 

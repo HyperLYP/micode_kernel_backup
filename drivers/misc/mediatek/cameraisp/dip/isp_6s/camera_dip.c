@@ -59,7 +59,7 @@
 #endif
 
 #ifndef EP_CODE_MARK_CMDQ
-#include <cmdq_helper_ext.h>
+#include <mdp_cmdq_helper_ext.h>
 #endif
 
 #include <cmdq-util.h>
@@ -886,8 +886,8 @@ pr_debug(IRQTag fmt,  ##args)
 	struct SV_LOG_STR *pSrc = &gSvLog[irq]; \
 	char *ptr; \
 	unsigned int i; \
-	signed int ppb = 0; \
-	signed int logT = 0; \
+	unsigned int ppb = 0; \
+	unsigned int logT = 0; \
 	if (ppb_in > 1) {\
 		ppb = 1; \
 	} else{\
@@ -2656,9 +2656,12 @@ static signed int DIP_Dump_IMGSYS_DIP_Reg(void)
 			DIP_RD32(dipRegBasAddr + 0x994));
 
 		/* LCEI DMA*/
-		cmdq_util_err("lcei: 0x%x14D0(0x%x)-0x%x14DC(0x%x)",
+		cmdq_util_err("lcei: 0x%x14D0(0x%x)-0x%x14D4(0x%x)",
 			DipDumpTL[DIPNo].region,
 			DIP_RD32(dipRegBasAddr + 0x04D0),
+			DipDumpTL[DIPNo].region,
+			DIP_RD32(dipRegBasAddr + 0x04D4));
+		cmdq_util_err("lcei: 0x%x14DC(0x%x)",
 			DipDumpTL[DIPNo].region,
 			DIP_RD32(dipRegBasAddr + 0x04DC));
 		cmdq_util_err("lcei: 0x%x14E0(0x%x)-0x%x14E4(0x%x)",
@@ -4858,7 +4861,7 @@ int DIP_Vsync_cnt[2] = {0, 0};
  * update current idnex to working frame
  **************************************************************/
 static signed int DIP_P2_BufQue_Update_ListCIdx
-	(enum DIP_P2_BUFQUE_PROPERTY property,
+	(enum DIP_P2_BUFQUE_PROPERTY enum_property,
 	enum DIP_P2_BUFQUE_LIST_TAG listTag)
 {
 	signed int ret = 0;
@@ -4866,7 +4869,16 @@ static signed int DIP_P2_BufQue_Update_ListCIdx
 	signed int cnt = 0;
 	bool stop = false;
 	int i = 0;
+	unsigned int property = 0;
 	enum DIP_P2_BUF_STATE_ENUM cIdxSts = DIP_P2_BUF_STATE_NONE;
+
+	if (enum_property >= DIP_P2_BUFQUE_PROPERTY_NUM ||
+		enum_property < DIP_P2_BUFQUE_PROPERTY_DIP) {
+		LOG_ERR("property err(%d)\n", enum_property);
+		return -EINVAL;
+	}
+
+	property = (unsigned int)enum_property;
 
 	switch (listTag) {
 	case DIP_P2_BUFQUE_LIST_TAG_UNIT:
@@ -4963,7 +4975,7 @@ static signed int DIP_P2_BufQue_Update_ListCIdx
  *
  **************************************************************/
 static signed int DIP_P2_BufQue_Erase
-	(enum DIP_P2_BUFQUE_PROPERTY property,
+	(enum DIP_P2_BUFQUE_PROPERTY enum_property,
 	enum DIP_P2_BUFQUE_LIST_TAG listTag,
 	signed int idx)
 {
@@ -4972,6 +4984,15 @@ static signed int DIP_P2_BufQue_Erase
 	int i = 0;
 	signed int cnt = 0;
 	int tmpIdx = 0;
+	unsigned int property = 0;
+
+	if (enum_property >= DIP_P2_BUFQUE_PROPERTY_NUM ||
+		enum_property < DIP_P2_BUFQUE_PROPERTY_DIP) {
+		LOG_ERR("property err(%d)\n", enum_property);
+		return -EINVAL;
+	}
+
+	property = (unsigned int)enum_property;
 
 	switch (listTag) {
 	case DIP_P2_BUFQUE_LIST_TAG_PACKAGE:
@@ -5088,13 +5109,14 @@ static signed int DIP_P2_BufQue_GetMatchIdx
 {
 	int idx = -1;
 	int i = 0;
-	int property;
+	unsigned int property = 0;
 
-	if (param.property >= DIP_P2_BUFQUE_PROPERTY_NUM) {
+	if (param.property >= DIP_P2_BUFQUE_PROPERTY_NUM ||
+		param.property < DIP_P2_BUFQUE_PROPERTY_DIP) {
 		LOG_ERR("property err(%d)\n", param.property);
-		return idx;
+		return -EINVAL;
 	}
-	property = param.property;
+	property = (unsigned int)param.property;
 
 	switch (matchType) {
 	case DIP_P2_BUFQUE_MATCH_TYPE_WAITDQ:
@@ -5296,13 +5318,20 @@ static inline unsigned int DIP_P2_BufQue_WaitEventState(
 {
 	unsigned int ret = MFALSE;
 	signed int index = -1;
-	enum DIP_P2_BUFQUE_PROPERTY property;
+	unsigned int property = 0;
 
-	if (param.property >= DIP_P2_BUFQUE_PROPERTY_NUM) {
+	if (param.property >= DIP_P2_BUFQUE_PROPERTY_NUM ||
+		param.property < DIP_P2_BUFQUE_PROPERTY_DIP) {
 		LOG_ERR("property err(%d)\n", param.property);
-		return ret;
+		return -EINVAL;
 	}
-	property = param.property;
+
+	if ((*idx) < 0) {
+		LOG_ERR("idx err(%d)\n", *idx);
+		return -EINVAL;
+	}
+
+	property = (unsigned int)param.property;
 	/*  */
 	switch (type) {
 	case DIP_P2_BUFQUE_MATCH_TYPE_WAITDQ:
@@ -5373,14 +5402,15 @@ static signed int DIP_P2_BufQue_CTRL_FUNC(
 	int i = 0, q = 0;
 	int idx =  -1, idx2 =  -1;
 	signed int restTime = 0;
-	int property;
+	unsigned int property = 0;
 
-	if (param.property >= DIP_P2_BUFQUE_PROPERTY_NUM) {
+	if (param.property >= DIP_P2_BUFQUE_PROPERTY_NUM ||
+		param.property < DIP_P2_BUFQUE_PROPERTY_DIP) {
 		LOG_ERR("property err(%d)\n", param.property);
-		ret = -EFAULT;
-		return ret;
+		return -EINVAL;
 	}
-	property = param.property;
+
+	property = (unsigned int)param.property;
 
 	switch (param.ctrl) {
 	/* signal that a specific buffer is enqueued */
@@ -8308,10 +8338,10 @@ static signed int __init DIP_Init(void)
 	/* Register DIP callback */
 	LOG_DBG("register dip callback for MDP");
 	cmdqCoreRegisterCB(CMDQ_GROUP_ISP,
-			   DIP_MDPClockOnCallback,
+			   NULL,
 			   DIP_MDPDumpCallback,
 			   DIP_MDPResetCallback,
-			   DIP_MDPClockOffCallback);
+			   NULL);
 	/* Register GCE callback for dumping DIP register */
 	LOG_DBG("register dip callback for GCE");
 	cmdqCoreRegisterDebugRegDumpCB

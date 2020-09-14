@@ -136,6 +136,10 @@
 #define V4L2_CID_MPEG_MTK_ENCODE_RC_B_FRAME_QP \
 	(V4L2_CID_MPEG_MTK_BASE+33)
 
+#define V4L2_CID_MPEG_VIDEO_ENABLE_TSVC \
+	(V4L2_CID_MPEG_MTK_BASE+34)
+#define V4L2_CID_MPEG_MTK_ENCODE_NONREFP_FREQ \
+	(V4L2_CID_MPEG_MTK_BASE+35)
 
 /* User-class control IDs */
 
@@ -262,6 +266,11 @@ enum v4l2_colorfx {
 /* The base for the imx driver controls.
  * We reserve 16 controls for this driver. */
 #define V4L2_CID_USER_IMX_BASE			(V4L2_CID_USER_BASE + 0x1090)
+
+/* The base for the mtk-warp driver controls.
+ * We reserve 16 controls for this driver.
+ */
+#define V4L2_CID_USER_MTK_WARP_BASE		(V4L2_CID_USER_BASE + 0x10b0)
 
 /* MPEG-class control IDs */
 /* The MPEG controls are applicable to all codec controls

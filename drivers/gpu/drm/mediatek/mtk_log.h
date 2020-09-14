@@ -39,6 +39,9 @@ int mtk_dprec_logger_pr(unsigned int type, char *fmt, ...);
 			pr_info(pr_fmt(fmt), ##arg);     \
 	} while (0)
 
+#define DDPFUNC(fmt, arg...)		\
+	pr_info("[%s line:%d]"pr_fmt(fmt), __func__, __LINE__, ##arg)
+
 #define DDPDBG(fmt, arg...)                                                    \
 	do {                                                                   \
 		if (!g_detail_log)                                             \
@@ -124,7 +127,11 @@ int mtk_dprec_logger_pr(unsigned int type, char *fmt, ...);
 #define DDPAEE(string, args...)                                                \
 	do {                                                                   \
 		char str[200];                                                 \
-		snprintf(str, 199, "DDP:" string, ##args);                     \
+		int r;	\
+		r = snprintf(str, 199, "DDP:" string, ##args);                     \
+		if (r < 0) {	\
+			pr_err("snprintf error\n");	\
+		}	\
 		aee_kernel_warning_api(__FILE__, __LINE__,                     \
 				       DB_OPT_DEFAULT |                        \
 					       DB_OPT_MMPROFILE_BUFFER,        \
@@ -135,7 +142,11 @@ int mtk_dprec_logger_pr(unsigned int type, char *fmt, ...);
 #define DDPAEE(string, args...)                                                \
 	do {                                                                   \
 		char str[200];                                                 \
-		snprintf(str, 199, "DDP:" string, ##args);                     \
+		int r;	\
+		r = snprintf(str, 199, "DDP:" string, ##args);                     \
+		if (r < 0) {	\
+			pr_err("snprintf error\n");	\
+		}	\
 		pr_err("[DDP Error]" string, ##args);                          \
 	} while (0)
 #endif /* CONFIG_MTK_AEE_FEATURE */

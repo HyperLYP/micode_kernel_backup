@@ -108,6 +108,7 @@ enum mmdvfs_log_level {
 	log_limit,
 	log_smi_freq,
 	log_qos_validation,
+	log_qoslarb,
 };
 
 #define STEP_UNREQUEST -1
@@ -1192,7 +1193,7 @@ void mm_qos_update_all_request(struct plist_head *owner_list)
 	u64 profile;
 	u32 i = 0, larb_update = 0, mm_bw = 0;
 	s32 next_hrt_bw;
-	s32 cam_bw;
+	s32 cam_bw, larb_bw;
 	u32 larb_count = 0, larb_id = 0, larb_port_id = 0, larb_port_bw = 0;
 	u32 port_id = 0;
 	u32 comm, comm_port;
@@ -1379,9 +1380,13 @@ void mm_qos_update_all_request(struct plist_head *owner_list)
 #endif
 
 	/* update mm total bw */
-	for (i = 0; i < MAX_LARB_COUNT; i++)
-		mm_bw += (larb_req[i].comm_port != SMI_COMM_MASTER_NUM) ?
+	for (i = 0; i < MAX_LARB_COUNT; i++) {
+		larb_bw = (larb_req[i].comm_port != SMI_COMM_MASTER_NUM) ?
 			larb_req[i].total_bw_data : 0;
+		mm_bw += larb_bw;
+		if (log_level & 1 << log_qoslarb)
+			trace_mmqos__update_qoslarb(i, larb_bw);
+	}
 	pm_qos_update_request(&mm_bw_request, mm_bw);
 	if (log_level & 1 << log_bw)
 		pr_notice("config mm_bw=%d\n", mm_bw);
@@ -1409,6 +1414,7 @@ void mm_qos_remove_all_request(struct plist_head *owner_list)
 		pr_notice("mm_del(0x%08x)\n", req->master_id);
 		plist_del(&(req->owner_node), owner_list);
 		list_del(&(req->larb_node));
+		list_del(&(req->port_node));
 		req->init = false;
 	}
 	mutex_unlock(&bw_mutex);
@@ -1633,6 +1639,7 @@ static void mmdvfs_get_larb_node(struct device *dev, u32 larb_id)
 	const __be32 *p;
 	struct property *prop;
 	char larb_name[MAX_LARB_NAME];
+	s32 result;
 
 	if (larb_id >= MAX_LARB_COUNT) {
 		pr_notice("larb_id:%d is over MAX_LARB_COUNT:%d\n",
@@ -1640,7 +1647,9 @@ static void mmdvfs_get_larb_node(struct device *dev, u32 larb_id)
 		return;
 	}
 
-	snprintf(larb_name, MAX_LARB_NAME, "larb%d", larb_id);
+	result = snprintf(larb_name, MAX_LARB_NAME, "larb%d", larb_id);
+	if (result < 0)
+		pr_notice("snprintf fail(%d) larb_id=%d\n", result, larb_id);
 	of_property_for_each_u32(dev->of_node, larb_name, prop, p, value) {
 		if (count >= MAX_PORT_COUNT) {
 			pr_notice("port size is over (%d)\n", MAX_PORT_COUNT);
@@ -1750,8 +1759,13 @@ static void mmdvfs_get_limit_step_node(struct device *dev,
 	for (i = 0; i < limit_size; i++) {
 		limit_config->limit_steps[i] = kcalloc(MAX_FREQ_STEP,
 			sizeof(*limit_config->limit_steps[i]), GFP_KERNEL);
-		snprintf(ext_name, sizeof(ext_name) - 1,
+		result = snprintf(ext_name, sizeof(ext_name) - 1,
 			"%s_limit_%d", freq_name, i);
+		if (result < 0) {
+			pr_notice("snprint fail(%d) freq=%s id=%d\n",
+				result, freq_name, i);
+			continue;
+		}
 		pr_notice("[limit]%s-%d: %s\n", freq_name, i, ext_name);
 		mmdvfs_get_step_array_node(dev, ext_name,
 			limit_config->limit_steps[i]);

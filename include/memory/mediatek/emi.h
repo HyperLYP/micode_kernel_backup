@@ -35,19 +35,19 @@
 #define MTK_EMI_MAX_TOKEN		4
 #define MTK_EMI_MAX_CMD_LEN		256
 
+struct emi_addr_map {
+	int emi;
+	int channel;
+	int rank;
+	int bank;
+	int row;
+	int column;
+};
+
 struct reg_info_t {
 	unsigned int offset;
 	unsigned int value;
 	unsigned int leng;
-};
-
-struct emicen_dev_t {
-	unsigned int emi_cen_cnt;
-	unsigned int ch_cnt;
-	unsigned int rk_cnt;
-	unsigned long long *rk_size;
-	void __iomem **emi_cen_base;
-	void __iomem **emi_chn_base;
 };
 
 struct emimpu_dev_t {
@@ -92,7 +92,7 @@ struct emimpu_region_t {
 unsigned int mtk_emicen_get_ch_cnt(void);
 unsigned int mtk_emicen_get_rk_cnt(void);
 unsigned int mtk_emicen_get_rk_size(unsigned int rk_id);
-
+int mtk_emicen_addr2dram(unsigned long addr, struct emi_addr_map *map);
 /* mtk emidbg api */
 void mtk_emidbg_dump(void);
 
@@ -114,6 +114,7 @@ int mtk_emimpu_postclear_register(void (*clear_func)
 int mtk_emimpu_md_handling_register(void (*md_handling_func)
 	(unsigned int emi_id, struct reg_info_t *dump, unsigned int leng));
 void mtk_clear_md_violation(void);
-
+int mtk_emimpu_register_callback(irqreturn_t (*debug_dump)
+	(unsigned int emi_id, struct reg_info_t *dump, unsigned int len));
 #endif /* __EMI_H__ */
 

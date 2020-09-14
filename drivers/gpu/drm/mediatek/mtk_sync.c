@@ -164,15 +164,17 @@ static void mtk_sync_timeline_fence_release(struct dma_fence *fence)
 	struct sync_pt *pt = fence_to_sync_pt(fence);
 	struct sync_timeline *parent = dma_fence_parent(fence);
 
-	if (!list_empty(&pt->link)) {
-		unsigned long flags;
-
-		spin_lock_irqsave(fence->lock, flags);
+	if (pt) {
 		if (!list_empty(&pt->link)) {
-			list_del(&pt->link);
-			rb_erase(&pt->node, &parent->pt_tree);
+			unsigned long flags;
+
+			spin_lock_irqsave(fence->lock, flags);
+			if (!list_empty(&pt->link)) {
+				list_del(&pt->link);
+				rb_erase(&pt->node, &parent->pt_tree);
+			}
+			spin_unlock_irqrestore(fence->lock, flags);
 		}
-		spin_unlock_irqrestore(fence->lock, flags);
 	}
 
 	mtk_sync_timeline_put(parent);
@@ -196,7 +198,13 @@ static void mtk_sync_timeline_fence_value_str(
 					      char *str,
 					      int size)
 {
-	snprintf(str, size, "%d", fence->seqno);
+	int r;
+
+	r = snprintf(str, size, "%d", fence->seqno);
+	if (r < 0) {
+		/* Handle snprintf() error */
+		pr_debug("snprintf error\n");
+	}
 }
 
 static void mtk_sync_timeline_fence_timeline_value_str(struct dma_fence *fence,

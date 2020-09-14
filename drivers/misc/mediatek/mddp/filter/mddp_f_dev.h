@@ -1,14 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #ifndef _MDDP_F_DEV_H
@@ -18,10 +10,7 @@
 #define MDDP_MAX_LAN_DEV_NUM 32
 #define MDDP_MAX_WAN_DEV_NUM 8
 
-#define MDDP_USB_NETIF_ID 0x00000100 /* IPC_NETIF_ID_ETH_BEGIN */
 #define MDDP_WAN_DEV_NETIF_ID_BASE 0x00000400 /* IPC_NETIF_ID_LHIF_BEGIN */
-
-#define MDDP_USB_BRIDGE_IF_NAME "ccmni-lan"
 
 //------------------------------------------------------------------------------
 // Struct definition.

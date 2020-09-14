@@ -46,6 +46,7 @@ struct mtk_base_dsp_mem {
 	struct audio_dsp_dram dsp_ring_share_buf;
 	unsigned char ipi_payload_buf[MAX_PAYLOAD_SIZE];
 	unsigned int dsp_feature_counter;
+	int underflowed;
 };
 
 struct audio_core_flag {
@@ -101,6 +102,7 @@ struct mtk_adsp_task_attr {
 	int afe_memif_ref;
 	int adsp_feature_id;
 	int runtime_enable;
+	int ref_runtime_enable;
 	unsigned int spk_protect_in_dsp;
 };
 

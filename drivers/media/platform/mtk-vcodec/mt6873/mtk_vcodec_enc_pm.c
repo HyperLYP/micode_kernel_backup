@@ -244,8 +244,11 @@ void mtk_vcodec_enc_clock_on(struct mtk_vcodec_ctx *ctx, int core_id)
 		ret = clk_prepare_enable(pm->clk_MT_CG_VENC0);
 		if (ret)
 			mtk_v4l2_err("clk_prepare_enable CG_VENC fail %d", ret);
-	} else
+	} else {
 		mtk_v4l2_err("invalid core_id %d", core_id);
+		time_check_end(MTK_FMT_ENC, core_id, 50);
+		return;
+	}
 	time_check_end(MTK_FMT_ENC, core_id, 50);
 #endif
 
@@ -255,12 +258,7 @@ void mtk_vcodec_enc_clock_on(struct mtk_vcodec_ctx *ctx, int core_id)
 	if (core_id == MTK_VENC_CORE_0) {
 		larb_port_num = SMI_LARB7_PORT_NUM;
 		larb_id = 7;
-	} else {
-		larb_port_num = 0;
-		larb_id = 0;
-		mtk_v4l2_err("invalid core_id %d", core_id);
 	}
-
 
 	//enable 34bits port configs
 	for (i = 0; i < larb_port_num; i++) {
@@ -413,6 +411,9 @@ void mtk_venc_dvfs_begin(struct temp_job **job_list)
 	if (job->operation_rate >= 120)
 		idx = 2;
 
+	if (job->format == V4L2_PIX_FMT_HEIF)
+		idx = 3;
+
 	venc_freq = venc_freq_map[idx];
 
 	pm_qos_update_request(&venc_qos_req_f, venc_freq);
@@ -523,6 +524,7 @@ void mtk_venc_emi_bw_begin(struct temp_job **jobs)
 		boost_perc = 100;
 
 	if (job->format == V4L2_PIX_FMT_H265 ||
+		job->format == V4L2_PIX_FMT_HEIF ||
 		(job->format == V4L2_PIX_FMT_H264 &&
 		 job->visible_width >= 2160)) {
 		boost_perc = 150;
@@ -634,7 +636,8 @@ void mtk_venc_pmqos_gce_flush(struct mtk_vcodec_ctx *ctx, int core_id,
 		frame_rate = ctx->enc_params.framerate_num /
 				ctx->enc_params.framerate_denom;
 	}
-	job->operation_rate = frame_rate;
+	if (job != NULL)
+		job->operation_rate = frame_rate;
 
 	if (job_cnt == 0) {
 		// Adjust dvfs immediately

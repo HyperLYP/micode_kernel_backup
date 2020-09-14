@@ -135,6 +135,8 @@ static enum IMGSENSOR_RETURN mclk_set(
 	enum   IMGSENSOR_RETURN ret = IMGSENSOR_RETURN_SUCCESS;
 	enum MCLK_STATE state_index = MCLK_STATE_DISABLE;
 
+	if (sensor_idx < 0)
+		return IMGSENSOR_RETURN_ERROR;
 
 	if (pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
 	    pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH) {
@@ -143,6 +145,9 @@ static enum IMGSENSOR_RETURN mclk_set(
 		state_index = (pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_0)
 		? pinst->drive_current[sensor_idx]
 		: MCLK_STATE_DISABLE;
+
+		if (state_index < 0)
+			return IMGSENSOR_RETURN_ERROR;
 
 		ppinctrl_state =
 			pinst->ppinctrl_state[sensor_idx][state_index];
