@@ -35,6 +35,7 @@
 
 static struct mutex power_dvfs_mtx;
 struct apusys_dvfs_opps apusys_opps;
+static spinlock_t ipuif_lock;
 
 bool dvfs_user_support(enum DVFS_USER user)
 {
@@ -683,19 +684,26 @@ void apusys_dvfs_info(void)
 	uint8_t c_opp_index;
 	uint8_t n_opp_index;
 	unsigned long rem_nsec;
+	int ret, ret_v, ret_f = 0;
 
-	sprintf(log_str, "(u_op,T,min,max)");
-	sprintf(logv_str, "v[");
-	sprintf(logf_str, "f[");
+	ret = sprintf(log_str, "(u_op,T,min,max)");
+	ret_v = sprintf(logv_str, "v[");
+	ret_f = sprintf(logf_str, "f[");
+
+	if (ret < 0 || ret_v < 0 || ret_f < 0)
+		LOG_ERR("%s sprintf fail\n", __func__);
 
 	for (user = 0; user < APUSYS_DVFS_USER_NUM; user++) {
 		if (dvfs_user_support(user) == false)
 			continue;
-		sprintf(log_str + strlen(log_str), ",(%d,%d,%d,%d)",
+		ret = sprintf(log_str + strlen(log_str), ",(%d,%d,%d,%d)",
 			apusys_opps.driver_opp_index[user],
 			apusys_opps.thermal_opp[user],
 			apusys_opps.power_lock_min_opp[user],
 			apusys_opps.power_lock_max_opp[user]);
+
+		if (ret < 0)
+			LOG_ERR("%s sprintf fail\n", __func__);
 	}
 
 	for (domain = 0; domain < APUSYS_BUCK_DOMAIN_NUM; domain++) {
@@ -710,22 +718,29 @@ void apusys_dvfs_info(void)
 			apusys_opps.next_opp_index[domain];
 		n_opp_index = next_opp_index[domain];
 
-		sprintf(logv_str + strlen(logv_str), ",(%d,%d)",
+		ret_v = sprintf(logv_str + strlen(logv_str), ",(%d,%d)",
 			apusys_opps.opps[c_opp_index][domain].voltage / div,
 			apusys_opps.opps[n_opp_index][domain].voltage / div);
 
-		sprintf(logf_str + strlen(logf_str), ",(%d,%d)",
+		ret_f = sprintf(logf_str + strlen(logf_str), ",(%d,%d)",
 			apusys_opps.opps[c_opp_index][domain].freq / div,
 			apusys_opps.opps[n_opp_index][domain].freq / div);
+
+		if (ret_v < 0 || ret_f < 0)
+			LOG_ERR("%s sprintf fail\n", __func__);
 	}
 
 	rem_nsec = do_div(apusys_opps.id, 1000000000);
-	sprintf(log_str + strlen(log_str), "] [%5lu.%06lu]",
+	ret = sprintf(log_str + strlen(log_str), "] [%5lu.%06lu]",
 		(unsigned long)apusys_opps.id, rem_nsec / 1000);
-	sprintf(logv_str + strlen(logv_str), "] [%5lu.%06lu]",
+	ret_v = sprintf(logv_str + strlen(logv_str), "] [%5lu.%06lu]",
 		(unsigned long)apusys_opps.id, rem_nsec / 1000);
-	sprintf(logf_str + strlen(logf_str), "] [%5lu.%06lu]",
+	ret_f = sprintf(logf_str + strlen(logf_str), "] [%5lu.%06lu]",
 		(unsigned long)apusys_opps.id, rem_nsec / 1000);
+
+	if (ret < 0 || ret_v < 0 || ret_f < 0)
+		LOG_ERR("%s sprintf fail\n", __func__);
+
 	PWR_LOG_PM("APUPWR DVFS %s\n", log_str);
 	PWR_LOG_PM("APUPWR DVFS %s\n", logv_str);
 	PWR_LOG_PM("APUPWR DVFS %s\n", logf_str);
@@ -870,48 +885,59 @@ void apusys_set_opp(enum DVFS_USER user, uint8_t opp)
 #if SUPPORT_VCORE_TO_IPUIF
 void apusys_ipuif_opp_change(void)
 {
-	mutex_lock(&power_dvfs_mtx);
+	int prev_ipuif = 0, next_ipuif = 0;
 	//enum DVFS_USER user = MDLA0;	// separate from VPU0 for vcore pm_qos
 
-	if (apusys_opps.qos_apu_vcore == apusys_opps.driver_apu_vcore) {
-		PWR_LOG_INF("%s, qos_apu_vcore=%d, driver_apu_vcore=%d\n",
-			__func__, apusys_opps.qos_apu_vcore,
-			apusys_opps.driver_apu_vcore);
-
-		mutex_unlock(&power_dvfs_mtx);
-		return;
+	mutex_lock(&power_dvfs_mtx);
+	spin_lock(&ipuif_lock);
+	if (apusys_opps.qos_apu_vcore != apusys_opps.driver_apu_vcore) {
+		prev_ipuif = apusys_opps.driver_apu_vcore;
+		next_ipuif = apusys_opps.qos_apu_vcore;
+		apusys_opps.driver_apu_vcore = apusys_opps.qos_apu_vcore;
 	}
+	spin_unlock(&ipuif_lock);
+
+	/* no change and leave */
+	if (!next_ipuif && !prev_ipuif)
+		goto out;
+	else
+		PWR_LOG_INF("%s, qos_apu_vcore=%d, driver_apu_vcore=%d\n",
+			__func__, next_ipuif, prev_ipuif);
 
 	if (conn_mtcmos_on == 1) {
-		if (apusys_opps.qos_apu_vcore > apusys_opps.driver_apu_vcore) {
-			config_vcore(MDLA0, (int)volt_to_vcore_opp(
-				apusys_opps.qos_apu_vcore));
+		/* raise freq */
+		if (next_ipuif > prev_ipuif) {
+			config_vcore(MDLA0, (int)volt_to_vcore_opp(next_ipuif));
 			set_apu_clock_source(
-				volt_to_ipuif_freq(apusys_opps.qos_apu_vcore),
+				volt_to_ipuif_freq(next_ipuif),
 				V_VCORE);
 		} else {
 			set_apu_clock_source(
-				volt_to_ipuif_freq(apusys_opps.qos_apu_vcore),
+				volt_to_ipuif_freq(next_ipuif),
 				V_VCORE);
 			config_vcore(MDLA0, (int)volt_to_vcore_opp(
-				apusys_opps.qos_apu_vcore));
+				next_ipuif));
 		}
-		apusys_opps.driver_apu_vcore = apusys_opps.qos_apu_vcore;
+
 	} else {
 		//26M setting in conn_mtcmos off
 		//set_apu_clock_source(VCORE_OFF_FREQ, V_VCORE);
 		//buck_control
 		//config_vcore(user, volt_to_vcore_opp(VCORE_DEFAULT_VOLT));
 	}
+
+out:
 	mutex_unlock(&power_dvfs_mtx);
+
 }
 
 void apusys_set_apu_vcore(int target_volt)
 {
 	if (is_power_debug_lock == false) {
 		if (conn_mtcmos_on == 1) {
+			spin_lock(&ipuif_lock);
 			apusys_opps.qos_apu_vcore = target_volt;
-
+			spin_unlock(&ipuif_lock);
 			PWR_LOG_INF("%s, qos_apu_vcore, target_volt=%d\n",
 			__func__, target_volt);
 		}
@@ -1073,15 +1099,18 @@ int apusys_power_off(enum DVFS_USER user)
 	return ret;
 }
 
-void apusys_power_init(enum DVFS_USER user, void *init_power_data)
+int apusys_power_init(enum DVFS_USER user, void *init_power_data)
 {
 	int i = 0, j = 0;
 	struct hal_param_seg_support  seg_data;
 	enum DVFS_VOLTAGE_DOMAIN domain;
+	int ret = 0;
 
 	mutex_init(&power_dvfs_mtx);
-
-	hal_config_power(PWR_CMD_SEGMENT_CHECK, VPU0, (void *)&seg_data);
+	spin_lock_init(&ipuif_lock);
+	ret = hal_config_power(PWR_CMD_SEGMENT_CHECK, VPU0, (void *)&seg_data);
+	if (ret)
+		goto out;
 
 	if (seg_data.seg == SEGMENT_0)
 		apusys_opps.opps = dvfs_table_0;
@@ -1090,7 +1119,9 @@ void apusys_power_init(enum DVFS_USER user, void *init_power_data)
 	else
 		apusys_opps.opps = dvfs_table_1;
 
-	hal_config_power(PWR_CMD_BINNING_CHECK, VPU0, NULL);
+	ret = hal_config_power(PWR_CMD_BINNING_CHECK, VPU0, NULL);
+	if (ret)
+		goto out;
 
 	for (i = 0; i < APUSYS_DVFS_USER_NUM; i++)	{
 		seg_data.user = i;
@@ -1127,9 +1158,10 @@ void apusys_power_init(enum DVFS_USER user, void *init_power_data)
 
 	apusys_opps.power_bit_mask = 0;
 
-
-	hal_config_power(PWR_CMD_INIT_POWER, user, init_power_data);
-	PWR_LOG_INF("%s done,\n", __func__);
+	ret = hal_config_power(PWR_CMD_INIT_POWER, user, init_power_data);
+out:
+	PWR_LOG_INF("%s done ret %d\n", __func__, ret);
+	return ret;
 }
 
 

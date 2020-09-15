@@ -135,7 +135,7 @@ static void cmdq_save_op_variable_position(
 	u32 *p_new_buffer = NULL;
 	u32 *p_instr_position = NULL;
 	u32 array_num = 0;
-	u64 inst, logic_inst;
+	u64 *inst, *logic_inst;
 	u32 offset;
 
 	if (!handle)
@@ -149,6 +149,11 @@ static void cmdq_save_op_variable_position(
 			sizeof(u32);
 
 		p_new_buffer = kzalloc(array_num, GFP_KERNEL);
+		if (!p_new_buffer) {
+			CMDQ_ERR("buffer allocate failed, handle:%p index:%d\n",
+				handle, index);
+			return;
+		}
 
 		/* copy and release old buffer */
 		if (handle->replace_instr.position) {
@@ -169,14 +174,23 @@ static void cmdq_save_op_variable_position(
 	if (offset >= handle->pkt->cmd_buf_size)
 		offset = (u32)(handle->pkt->cmd_buf_size - CMDQ_INST_SIZE);
 
-	inst = *cmdq_pkt_get_va_by_offset(handle->pkt, offset);
-	logic_inst = *cmdq_pkt_get_va_by_offset(handle->pkt,
+	inst = cmdq_pkt_get_va_by_offset(handle->pkt, offset);
+	logic_inst = cmdq_pkt_get_va_by_offset(handle->pkt,
 		offset - CMDQ_INST_SIZE);
-	CMDQ_MSG(
-		"Add replace_instr: index:%u (real offset:%u) position:%u number:%u inst:0x%016llx logic:0x%016llx scenario:%d thread:%d\n",
-		index, offset, p_instr_position[handle->replace_instr.number-1],
-		handle->replace_instr.number, inst, logic_inst,
-		handle->scenario, handle->thread);
+	if (!inst || !logic_inst)
+		CMDQ_MSG(
+			"Add replace_instr: index:%u (real offset:%u) position:%u number:%u scenario:%d thread:%d\n",
+			index, offset,
+			p_instr_position[handle->replace_instr.number-1],
+			handle->replace_instr.number,
+			handle->scenario, handle->thread);
+	else
+		CMDQ_MSG(
+			"Add replace_instr: index:%u (real offset:%u) position:%u number:%u inst:0x%016llx logic:0x%016llx scenario:%d thread:%d\n",
+			index, offset,
+			p_instr_position[handle->replace_instr.number-1],
+			handle->replace_instr.number, *inst, *logic_inst,
+			handle->scenario, handle->thread);
 }
 
 static s32 cmdq_var_data_type(CMDQ_VARIABLE arg_in, u32 *arg_out,
@@ -585,6 +599,13 @@ s32 cmdq_task_duplicate(struct cmdqRecStruct *handle,
 }
 
 #ifdef CMDQ_SECURE_PATH_SUPPORT
+void cmdq_task_set_mtee(struct cmdqRecStruct *handle, const bool enable)
+{
+	handle->secData.mtee = enable;
+	CMDQ_LOG("%s handle:%p mtee:%d\n",
+		__func__, handle, handle->secData.mtee);
+}
+
 s32 cmdq_append_addr_metadata(struct cmdqRecStruct *handle,
 	const struct cmdqSecAddrMetadataStruct *pMetadata)
 {
@@ -1520,6 +1541,11 @@ s32 cmdq_op_replace_overwrite_cpr(struct cmdqRecStruct *handle, u32 index,
 	}
 
 	va = (u32 *)cmdq_pkt_get_va_by_offset(handle->pkt, offset);
+	if (!va) {
+		CMDQ_LOG("Cannot find va, handle:%p pkt:%p offset:%u\n",
+			handle, handle->pkt, offset);
+		return -EINVAL;
+	}
 	if (new_arg_a >= 0)
 		va[1] = (va[1] & 0xffff0000) | (new_arg_a & 0xffff);
 	if (new_arg_b >= 0)
@@ -1584,6 +1610,116 @@ s32 cmdq_op_write_from_data_register(struct cmdqRecStruct *handle,
 	CMDQ_ERR("func:%s failed since CMDQ doesn't support GPR\n", __func__);
 	return -EFAULT;
 #endif				/* CMDQ_GPR_SUPPORT */
+}
+
+s32 cmdq_handle_flush_cmd_buf(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf)
+{
+	return 0;
+}
+
+s32 cmdq_op_poll_ex(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf, u32 addr,
+	CMDQ_VARIABLE value, u32 mask)
+{
+	return cmdq_op_poll(handle, addr, value, mask);
+}
+
+s32 cmdq_op_read_reg_to_mem_ex(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf,
+	cmdqBackupSlotHandle backup_slot, u32 slot_index, u32 addr)
+{
+	return cmdq_op_read_reg_to_mem(handle, backup_slot, slot_index, addr);
+}
+
+s32 cmdq_op_write_reg_ex(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf, u32 addr,
+	CMDQ_VARIABLE value, u32 mask)
+{
+	return cmdq_pkt_write_value_addr(handle->pkt, addr, value, mask);
+}
+
+s32 cmdq_op_wait_ex(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf, enum cmdq_event event)
+{
+	return cmdq_op_wait(handle, event);
+}
+
+s32 cmdq_op_wait_no_clear_ex(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf, enum cmdq_event event)
+{
+	return cmdq_op_wait_no_clear(handle, event);
+}
+
+s32 cmdq_op_clear_event_ex(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf, enum cmdq_event event)
+{
+	return cmdq_op_clear_event(handle, event);
+}
+
+s32 cmdq_op_set_event_ex(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf, enum cmdq_event event)
+{
+	return cmdq_op_set_event(handle, event);
+}
+
+#define CMDQ_GET_ARG_B(arg)		(((arg) & GENMASK(31, 16)) >> 16)
+#define CMDQ_GET_ARG_C(arg)		((arg) & GENMASK(15, 0))
+s32 cmdq_op_acquire_ex(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf, enum cmdq_event event)
+{
+	s32 arg_a = cmdq_get_event_op_id(event);
+	u32 arg_b;
+
+	if (arg_a < 0 || arg_a >= CMDQ_EVENT_MAX || !handle)
+		return -EINVAL;
+
+	/*
+	 * WFE arg_b
+	 * bit 0-11: wait value
+	 * bit 15: 1 - wait, 0 - no wait
+	 * bit 16-27: update value
+	 * bit 31: 1 - update, 0 - no update
+	 */
+	arg_b = CMDQ_WFE_UPDATE | CMDQ_WFE_UPDATE_VALUE | CMDQ_WFE_WAIT;
+	return cmdq_pkt_append_command(handle->pkt, CMDQ_GET_ARG_C(arg_b),
+		CMDQ_GET_ARG_B(arg_b), arg_a,
+		0, 0, 0, 0, CMDQ_CODE_WFE);
+}
+
+s32 cmdq_op_write_from_reg_ex(struct cmdqRecStruct *handle,
+	struct cmdq_command_buffer *cmd_buf, u32 write_reg, u32 from_reg)
+{
+	s32 status;
+
+	if (!handle)
+		return -EINVAL;
+
+	do {
+		status = cmdq_op_read_reg(handle, from_reg,
+			&handle->arg_value, ~0);
+		CMDQ_CHECK_AND_BREAK_STATUS(status);
+
+		status = cmdq_op_write_reg(handle, write_reg,
+			handle->arg_value, ~0);
+	} while (0);
+
+	return status;
+}
+
+s32 cmdq_alloc_write_addr(u32 count, dma_addr_t *paStart, u32 clt, void *fp)
+{
+	return cmdqCoreAllocWriteAddress(count, paStart, clt);
+}
+
+s32 cmdq_free_write_addr(dma_addr_t paStart, u32 clt)
+{
+	return cmdqCoreFreeWriteAddress(paStart, clt);
+}
+
+s32 cmdq_free_write_addr_by_node(u32 clt, void *fp)
+{
+	return 0;
 }
 
 /* Allocate 32-bit register backup slot */
@@ -1731,24 +1867,11 @@ s32 cmdq_op_write_mem(struct cmdqRecStruct *handle,
 	cmdqBackupSlotHandle h_backup_slot, u32 slot_index, u32 value)
 {
 	const dma_addr_t dram_addr = h_backup_slot + slot_index * sizeof(u32);
-	CMDQ_VARIABLE var_mem_addr = CMDQ_TASK_TEMP_CPR_VAR;
-	s32 status;
 
 	if (!handle)
 		return -EINVAL;
 
-	do {
-		status = cmdq_op_assign(handle, &handle->arg_value, value);
-		CMDQ_CHECK_AND_BREAK_STATUS(status);
-
-		status = cmdq_op_assign(handle, &var_mem_addr, (u32)dram_addr);
-		CMDQ_CHECK_AND_BREAK_STATUS(status);
-
-		status = cmdq_append_command(handle, CMDQ_CODE_WRITE_S,
-			var_mem_addr, handle->arg_value, 1, 1);
-	} while (0);
-
-	return status;
+	return cmdq_pkt_write_value_addr(handle->pkt, dram_addr, value, ~0);
 }
 
 s32 cmdq_op_finalize_command(struct cmdqRecStruct *handle, bool loop)
@@ -2858,6 +2981,11 @@ s32 cmdq_op_rewrite_jump_c(struct cmdqRecStruct *handle,
 	if (likely(handle->scenario != CMDQ_SCENARIO_TIMER_LOOP)) {
 		va_logic = (u32 *)cmdq_pkt_get_va_by_offset(handle->pkt,
 			logic_pos);
+		if (!va_logic) {
+			CMDQ_LOG("Cannot find va, handle:%p pkt:%p pos:%u\n",
+				handle, handle->pkt, logic_pos);
+			return -EINVAL;
+		}
 		if (((logic_pos + CMDQ_INST_SIZE * 2) %
 			CMDQ_CMD_BUFFER_SIZE) == 0)
 			jump_pos = logic_pos + CMDQ_INST_SIZE * 2;
@@ -2866,6 +2994,11 @@ s32 cmdq_op_rewrite_jump_c(struct cmdqRecStruct *handle,
 
 		va_jump = (u32 *)cmdq_pkt_get_va_by_offset(handle->pkt,
 			jump_pos);
+		if (!va_jump) {
+			CMDQ_LOG("Cannot find va, handle:%p pkt:%p pos:%u\n",
+				handle, handle->pkt, jump_pos);
+			return -EINVAL;
+		}
 
 		/* reserve condition statement */
 		op = (va_logic[1] & 0xFF000000) >> 24;
@@ -2890,6 +3023,11 @@ s32 cmdq_op_rewrite_jump_c(struct cmdqRecStruct *handle,
 	} else {
 		va_jump = (u32 *)cmdq_pkt_get_va_by_offset(handle->pkt,
 			logic_pos);
+		if (!va_jump) {
+			CMDQ_LOG("Cannot find va, handle:%p pkt:%p pos:%u\n",
+				handle, handle->pkt, logic_pos);
+			return -EINVAL;
+		}
 		op = (va_jump[1] & 0xFF000000) >> 24;
 		if (op != CMDQ_CODE_JUMP_C_RELATIVE) {
 			CMDQ_ERR("fail to rewrite jump c handle:0x%p\n",

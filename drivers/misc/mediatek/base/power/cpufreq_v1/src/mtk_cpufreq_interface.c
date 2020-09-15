@@ -232,6 +232,9 @@ static int cpufreq_freq_proc_show(struct seq_file *m, void *v)
 	struct mt_cpu_dvfs *p = m->private;
 	struct pll_ctrl_t *pll_p = id_to_pll_ctrl(p->Pll_id);
 
+	if (pll_p == NULL)
+		return 0;
+
 	seq_printf(m, "%d KHz\n", pll_p->pll_ops->get_cur_freq(pll_p));
 
 	return 0;
@@ -255,6 +258,40 @@ static ssize_t cpufreq_freq_proc_write(struct file *file,
 		tag_pr_info
 		("echo khz > /proc/cpufreq/%s/cpufreq_freq\n", p->name);
 	} else {
+#ifdef CONFIG_MTK_CPU_MSSV
+		if (!cpumssv_get_state()) {
+			for (i = 0; i < p->nr_opp_tbl; i++) {
+				if (freq == p->opp_tbl[i].cpufreq_khz) {
+					found = 1;
+					break;
+				}
+			}
+		} else if (freq > 0)
+			found = 1;
+
+		if (found == 1) {
+			p->dvfs_disable_by_procfs = true;
+  #ifdef CONFIG_HYBRID_CPU_DVFS
+			if (!cpu_dvfs_is(p, MT_CPU_DVFS_CCI))
+    #ifdef SINGLE_CLUSTER
+				cpuhvfs_set_freq(cpufreq_get_cluster_id(
+					p->cpu_id), freq);
+    #else
+				cpuhvfs_set_freq(arch_get_cluster_id(
+					p->cpu_id), freq);
+    #endif
+			else
+				cpuhvfs_set_freq(MT_CPU_DVFS_CCI, freq);
+  #else
+			_mt_cpufreq_dvfs_request_wrapper(p,
+					i, MT_CPU_DVFS_NORMAL, NULL);
+  #endif
+		} else {
+			p->dvfs_disable_by_procfs = false;
+			tag_pr_info(
+		"frequency %dKHz! is not found in CPU opp table\n", freq);
+			}
+#else
 		if (freq < p->opp_tbl[p->nr_opp_tbl - 1].cpufreq_khz) {
 			if (freq != 0)
 				tag_pr_info
@@ -263,42 +300,6 @@ static ssize_t cpufreq_freq_proc_write(struct file *file,
 
 			p->dvfs_disable_by_procfs = false;
 		} else {
-#ifdef CONFIG_MTK_CPU_MSSV
-			if (!cpumssv_get_state()) {
-				for (i = 0; i < p->nr_opp_tbl; i++) {
-					if (freq == p->opp_tbl[i].cpufreq_khz) {
-						found = 1;
-						break;
-					}
-				}
-			} else
-				found = 1;
-
-			if (found == 1) {
-				p->dvfs_disable_by_procfs = true;
-  #ifdef CONFIG_HYBRID_CPU_DVFS
-				if (!cpu_dvfs_is(p, MT_CPU_DVFS_CCI))
-    #ifdef SINGLE_CLUSTER
-					cpuhvfs_set_freq(
-						cpufreq_get_cluster_id(
-						p->cpu_id), freq);
-    #else
-					cpuhvfs_set_freq(
-						arch_get_cluster_id(
-						p->cpu_id), freq);
-    #endif
-				else
-					cpuhvfs_set_freq(MT_CPU_DVFS_CCI, freq);
-  #else
-				_mt_cpufreq_dvfs_request_wrapper(p,
-					i, MT_CPU_DVFS_NORMAL, NULL);
-  #endif
-			} else {
-				p->dvfs_disable_by_procfs = false;
-				tag_pr_info(
-		"frequency %dKHz! is not found in CPU opp table\n", freq);
-			}
-#else
 			for (i = 0; i < p->nr_opp_tbl; i++) {
 				if (freq == p->opp_tbl[i].cpufreq_khz) {
 					found = 1;
@@ -323,8 +324,8 @@ static ssize_t cpufreq_freq_proc_write(struct file *file,
 			("frequency %dKHz! is not found in CPU opp table\n",
 					    freq);
 			}
-#endif
 		}
+#endif
 	}
 
 	free_page((unsigned long)buf);
@@ -340,6 +341,8 @@ static int cpufreq_volt_proc_show(struct seq_file *m, void *v)
 	struct buck_ctrl_t *vsram_p = id_to_buck_ctrl(p->Vsram_buck_id);
 	unsigned long flags;
 
+	if (vproc_p == NULL || vsram_p == NULL)
+		return 0;
 	cpufreq_lock(flags);
 	seq_printf(m, "Vproc: %d uV\n",
 		vproc_p->buck_ops->get_cur_volt(vproc_p) * 10);

@@ -26,6 +26,9 @@
 #elif defined(CONFIG_MACH_MT6853)
 #include  "helio-dvfsrc-opp-mt6853.h"
 #include "dt-bindings/memory/mt6853-larb-port.h"
+#elif defined(CONFIG_MACH_MT6833)
+#include  "helio-dvfsrc-opp-mt6833.h"
+#include "dt-bindings/memory/mt6833-larb-port.h"
 #endif
 #include <linux/pm_qos.h>
 

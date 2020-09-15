@@ -294,6 +294,7 @@ extern struct LCM_DRIVER nt35695B_fhd_dsi_vdo_auo_nt50358_lcm_drv;
 extern struct LCM_DRIVER nt35695B_fhd_dsi_cmd_auo_nt50358_720p_lcm_drv;
 extern struct LCM_DRIVER nt35695B_fhd_dsi_cmd_auo_nt50358_qhd_lcm_drv;
 extern struct LCM_DRIVER ili9881c_hdp_dsi_vdo_ilitek_rt5081_lcm_drv;
+extern struct LCM_DRIVER ili9881c_hd720_td_tchd5031_6b_dsi_vdo_lcm_drv;
 extern struct LCM_DRIVER nt51021_wuxga_dsi_vdo_mt8173_lcm_drv;
 extern struct LCM_DRIVER ili9881c_hdp_dsi_vdo_ilitek_rt5081_lcm_drv_ebbg;
 extern struct LCM_DRIVER hx8394f_hd720_dsi_vdo_tianma_lcm_drv;
@@ -332,18 +333,26 @@ extern struct LCM_DRIVER sofeg01_fhdplus_dsi_cmd_samsung_lcm_drv;
 extern struct LCM_DRIVER nt36672a_fhdp_dsi_vdo_auo_cphy_lcm_drv;
 extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_auo_cphy_lcm_drv;
 extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_jdi_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_tianma_lcm_drv;
 extern struct LCM_DRIVER otm1287_wxga_dsi_vdo_auo_guoxian_lcm_drv;
 extern struct LCM_DRIVER nt35532_fhd_dsi_vdo_sharp_lcm_drv;
 extern struct LCM_DRIVER otm1901a_fhd_dsi_vdo_tpv_lcm_drv;
 extern struct LCM_DRIVER r63350a_fhd_dsi_vdo_truly_lcm_drv;
 extern struct LCM_DRIVER td4320_fhdp_dsi_vdo_auo_rt5081_lcm_drv;
+extern struct LCM_DRIVER td4330_fhdp_dsi_cmd_auo_rt5081_lcm_drv;
+extern struct LCM_DRIVER td4330_fhdp_dsi_vdo_auo_rt5081_lcm_drv;
 extern struct LCM_DRIVER nt51021h_wuxga_vdo_oncell_boe_lcm_drv;
+
 extern struct LCM_DRIVER nt36672A_fhdp_dsi_vdo_tianma_lcm_drv;
 extern struct LCM_DRIVER ft8719_fhdp_dsi_vdo_xinli_lcm_drv;
 extern struct LCM_DRIVER nt36672A_fhdp_dsi_vdo_tianma_lcm_drv_G6;
 extern struct LCM_DRIVER nt36672A_fhdp_dsi_vdo_tianma_j19_lcm_drv;
 extern struct LCM_DRIVER ft8719_fhdp_dsi_vdo_huaxing_j19_lcm_drv;
 extern struct LCM_DRIVER nt36672A_fhdp_dsi_vdo_dijing_j19_lcm_drv;
+extern struct LCM_DRIVER ft8201_wuxga_dsi_vdo_boe_lcm_drv;
+extern struct LCM_DRIVER ft8756_fhdp_dsi_vdo_auo_rt4801_lcm_drv;
+
 #ifdef BUILD_LK
 extern void mdelay(unsigned long msec);
 #endif

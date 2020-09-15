@@ -172,13 +172,16 @@ int mtk_ipi_device_register(struct mtk_ipi_device *ipidev,
 	}
 
 	for (index = 0; index < ipi_chan_count; index++) {
-		sprintf(chan_name, "%s_ipi#%d", ipidev->name, index);
+		snprintf(chan_name, RPMSG_NAME_SIZE, "%s_ipi#%d",
+			ipidev->name, index);
 		mtk_rpchan = mtk_rpmsg_create_channel(mtk_rpdev, index,
 				chan_name);
 		ipi_chan_table[index].rpchan = mtk_rpchan;
 		ipi_chan_table[index].ept =
 			rpmsg_create_ept(&(mtk_rpdev->rpdev),
 					NULL, mtk_rpchan, mtk_rpchan->info);
+		if (!ipi_chan_table[index].ept)
+			return -EINVAL;
 		ipi_chan_table[index].ipi_stage = UNUSED;
 		ipi_chan_table[index].ipi_seqno = 0;
 		atomic_set(&ipi_chan_table[index].holder, 0);
@@ -281,6 +284,7 @@ EXPORT_SYMBOL(mtk_ipi_register);
 
 int mtk_ipi_unregister(struct mtk_ipi_device *ipidev, int ipi_id)
 {
+	unsigned long flags = 0;
 	struct mtk_mbox_pin_recv *pin_recv;
 
 	if (!ipidev->ipi_inited)
@@ -291,6 +295,14 @@ int mtk_ipi_unregister(struct mtk_ipi_device *ipidev, int ipi_id)
 		return IPI_UNAVAILABLE;
 
 	mutex_lock(&ipidev->mutex_ipi_reg);
+
+	/* Drop the ipi and reset the record */
+	complete(&pin_recv->notify);
+
+	spin_lock_irqsave(&ipidev->lock_monitor, flags);
+	ipidev->table[ipi_id].ipi_stage = UNUSED;
+	ipidev->table[ipi_id].ipi_seqno = 0;
+	spin_unlock_irqrestore(&ipidev->lock_monitor, flags);
 
 	pin_recv->mbox_pin_cb = NULL;
 	pin_recv->pin_buf = NULL;

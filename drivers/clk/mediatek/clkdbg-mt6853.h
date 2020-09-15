@@ -14,7 +14,6 @@
 #ifndef __DRV_CLKDBG_MT6758_H
 #define __DRV_CLKDBG_MT6758_H
 
-#include "clk-mtk.h"
 enum dbg_sys_id {
 	topckgen,
 	infracfg_ao,
@@ -52,9 +51,6 @@ enum dbg_sys_id {
 
 extern void subsys_if_on(void);
 
-extern unsigned int mt_get_ckgen_freq(unsigned int ID);
-extern unsigned int mt_get_abist_freq(unsigned int ID);
-
 /*ram console api*/
 #ifdef CONFIG_MTK_RAM_CONSOLE
 extern void aee_rr_rec_clk(int id, u32 val);
@@ -64,8 +60,5 @@ extern const char * const *get_mt6853_all_clk_names(void);
 extern void print_enabled_clks_once(void);
 extern void print_subsys_reg(enum dbg_sys_id id);
 extern int get_sw_req_vcore_opp(void);
-extern int mtk_clk_check_muxes(const struct mtk_mux *muxes,
-		int num,
-		struct clk_onecell_data *clk_data);
 
 #endif	/* __DRV_CLKDBG_MT6758_H */

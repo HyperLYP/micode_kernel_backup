@@ -96,6 +96,11 @@ struct cmdq_sec_data {
 	s32 response;
 	struct iwcCmdqSecStatus_t sec_status;
 
+	/* SVP HDR */
+	uint32_t mdp_extension;
+	struct readback_engine readback_engs[CMDQ_MAX_READBACK_ENG];
+	uint32_t readback_cnt;
+
 	/* MTEE */
 	bool mtee;
 };
@@ -119,4 +124,6 @@ void cmdq_sec_err_dump(struct cmdq_pkt *pkt, struct cmdq_client *client,
 /* MTEE */
 void cmdq_sec_pkt_set_mtee(struct cmdq_pkt *pkt, const bool enable);
 
+/* implementation in cmdq-sec-mailbox.c */
+void cmdq_sec_mbox_switch_normal(struct cmdq_client *cl);
 #endif

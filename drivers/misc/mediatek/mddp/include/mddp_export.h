@@ -1,23 +1,14 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * mddp_export.h - Public API/structure provided for external modules.
  *
- * Copyright (C) 2018 MediaTek Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #ifndef __MDDP_EXPORT_H
 #define __MDDP_EXPORT_H
 
 #include <linux/netdevice.h>
-#include "mddp_usb_def.h"
 
 //------------------------------------------------------------------------------
 // Struct definition.
@@ -25,7 +16,7 @@
 #define __MDDP_VERSION__            2
 #define MDDP_TAG_PATTERN            0x4646
 
-#define MAX_USB_RET_BUF_SZ          256
+#define MDDP_MAX_GET_BUF_SZ         256
 
 enum mddp_state_e {
 	MDDP_STATE_UNINIT = 0,
@@ -44,7 +35,7 @@ enum mddp_state_e {
 };
 
 enum mddp_app_type_e {
-	MDDP_APP_TYPE_USB = 0,
+	MDDP_APP_TYPE_RESERVED_1 = 0,
 	MDDP_APP_TYPE_WH,
 
 	MDDP_APP_TYPE_CNT,
@@ -80,7 +71,6 @@ struct mddp_drv_handle_t {
 
 	/* Application layer handler. */
 	union {
-		struct mddpu_drv_handle_t     *usb_handle;
 		struct mddpw_drv_handle_t     *wifi_handle;
 	};
 };
@@ -131,6 +121,7 @@ enum mddp_ctrl_msg_e {
 	MDDP_CMCMD_DEACT_REQ,
 	MDDP_CMCMD_GET_OFFLOAD_STATS_REQ,
 	MDDP_CMCMD_SET_DATA_LIMIT_REQ,
+	MDDP_CMCMD_SET_CT_VALUE_REQ,
 
 	/* CMCMD Response */
 	MDDP_CMCMD_RSP_BEGIN = 0x100,
@@ -140,6 +131,7 @@ enum mddp_ctrl_msg_e {
 	MDDP_CMCMD_DEACT_RSP,
 	MDDP_CMCMD_LIMIT_IND,
 	MDDP_CMCMD_CT_IND,
+	MDDP_CMCMD_SET_CT_VALUE_RSP,
 	MDDP_CMCMD_RSP_END,
 
 	MDDP_CMCMD_DUMMY = 0x7fff /* Mark it a 2-byte enum */
@@ -182,6 +174,11 @@ struct mddp_dev_req_deact_t {
 struct mddp_dev_req_set_data_limit_t {
 	uint8_t                 ul_dev_name[IFNAMSIZ];
 	uint64_t                limit_size; /* Bytes */
+};
+
+struct mddp_dev_req_set_ct_value_t {
+	uint32_t                udp_ct_timeout;
+	uint32_t                tcp_ct_timeout;
 };
 
 /*
@@ -239,10 +236,10 @@ struct mddp_u_data_stats_t {
  */
 struct mddp_ct_nat_table_t {
 	uint8_t                 private_ip[4];
-	uint16_t                private_port;
 	uint8_t                 target_ip[4];
-	uint16_t                target_port;
 	uint8_t                 public_ip[4];
+	uint16_t                private_port;
+	uint16_t                target_port;
 	uint16_t                public_port;
 	uint8_t                 protocol;
 	uint8_t                 reserved;

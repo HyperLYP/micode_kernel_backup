@@ -26,9 +26,9 @@
 #include "mt6779/mtk_srclken_rc_hw.h"
 #elif defined(CONFIG_MACH_MT6873)
 #include "mt6873/mtk_srclken_rc_hw.h"
-#elif defined(CONFIG_MACH_MT6885)
+#elif defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893)
 #include "mt6885/mtk_srclken_rc_hw.h"
-#elif defined(CONFIG_MACH_MT6853)
+#elif defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833)
 #include "mt6853/mtk_srclken_rc_hw.h"
 #endif
 

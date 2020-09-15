@@ -24,6 +24,7 @@
 #endif
 
 #include <linux/interrupt.h>
+#include <linux/ratelimit.h>
 
 #define CONNADP_LOG_LOUD    4
 #define CONNADP_LOG_DBG     3
@@ -141,8 +142,11 @@ void mtk_wcn_cmb_stub_clock_fail_dump(void)
 
 int mtk_wcn_conninfra_reg_readable(void)
 {
+	static DEFINE_RATELIMIT_STATE(_rs, 5*HZ, 1);
+
 	if (unlikely(!bridge.conninfra_reg_readable_cb)) {
-		CONNADP_WARN_FUNC("reg_readable not registered\n");
+		if (__ratelimit(&_rs))
+			CONNADP_WARN_FUNC("reg_readable not registered\n");
 		return -1;
 	} else
 		return bridge.conninfra_reg_readable_cb();
@@ -150,8 +154,11 @@ int mtk_wcn_conninfra_reg_readable(void)
 
 int mtk_wcn_conninfra_is_bus_hang(void)
 {
+	static DEFINE_RATELIMIT_STATE(_rs, 5*HZ, 1);
+
 	if (unlikely(!bridge.conninfra_reg_is_bus_hang_cb)) {
-		CONNADP_WARN_FUNC("is_bus_hang not registered\n");
+		if (__ratelimit(&_rs))
+			CONNADP_WARN_FUNC("is_bus_hang not registered\n");
 		return -1;
 	} else
 		return bridge.conninfra_reg_is_bus_hang_cb();

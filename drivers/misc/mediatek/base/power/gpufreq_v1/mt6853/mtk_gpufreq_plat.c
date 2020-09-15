@@ -2406,17 +2406,19 @@ static void __mt_gpufreq_set(
 		__mt_gpufreq_clock_switch(freq_new);
 		g_cur_opp_freq = __mt_gpufreq_get_cur_freq();
 
-		if (g_cur_opp_freq < freq_new)
-			gpufreq_pr_info("Clock switch failing: %d -> %d (target: %d)\n",
-				freq_old, g_cur_opp_freq, freq_new);
+		gpu_assert(g_cur_opp_freq == freq_new,
+			GPU_FREQ_EXCEPTION,
+			"Clock switch failing: %d -> %d (target: %d)\n",
+			freq_old, g_cur_opp_freq, freq_new);
 
 	} else {
 		__mt_gpufreq_clock_switch(freq_new);
 		g_cur_opp_freq = __mt_gpufreq_get_cur_freq();
 
-		if (g_cur_opp_freq > freq_new)
-			gpufreq_pr_info("Clock switch failing: %d -> %d (target: %d)\n",
-				freq_old, g_cur_opp_freq, freq_new);
+		gpu_assert(g_cur_opp_freq == freq_new,
+			GPU_FREQ_EXCEPTION,
+			"Clock switch failing: %d -> %d (target: %d)\n",
+			freq_old, g_cur_opp_freq, freq_new);
 
 		while (g_cur_opp_vgpu != vgpu_new) {
 			sb_idx = g_opp_sb_idx_down[g_cur_opp_idx] > idx_new ?
@@ -2997,19 +2999,13 @@ static void __mt_gpufreq_init_table(void)
 		g_segment_max_opp_idx = 18;
 
 /* Special SW setting */
-#if defined(CONFIG_ARM64) && defined(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES)
-	if (strstr(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES,
-						"turbo") != NULL) {
-		gpufreq_pr_info("@%s: turbo flavor name: %s\n",
-			__func__, CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES);
-		g_segment_max_opp_idx = 0;
-	}
-	if (strstr(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES,
-						"k6853tv1") != NULL) {
-		gpufreq_pr_info("@%s: k6853tv1 flavor name: %s\n",
-			__func__, CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES);
-		g_segment_max_opp_idx = 0;
-	}
+#if defined(CONFIG_ARM64)
+#if defined(K6853TV1)
+	g_segment_max_opp_idx = 0;
+#endif
+#if defined(TURBO)
+	g_segment_max_opp_idx = 0;
+#endif
 #endif
 
 	g_segment_min_opp_idx = NUM_OF_OPP_IDX - 1;

@@ -34,6 +34,14 @@ config MTK_CPU_MSSV
 	  This config should be enabled with corresponding MCUPM setting.
 	  If unsure, say N.
 
+config MTK_CPU_KORO
+	bool "MTK CPU KORO SUPPORT"
+	---help---
+	  This kernel config can be used to enable cpu KORO support.
+	  When enable this option, system will keep cpus power on while reset.
+	  This config should be enabled depend on platform.
+	  If unsure, say N.
+
 config MTK_STATIC_POWER
 	bool "MTK STATIC POWER"
 	default n
@@ -110,6 +118,7 @@ config MTK_QOS_V2
 	default y if MACH_MT6885
 	default y if MACH_MT6873
 	default y if MACH_MT6853
+	default y if MACH_MT6893
 	select MTK_QOS_FRAMEWORK
 	---help---
 	  This version support QOS version 2.0 feature sets.

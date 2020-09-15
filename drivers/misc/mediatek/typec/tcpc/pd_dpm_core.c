@@ -1186,6 +1186,9 @@ void pd_dpm_dfp_inform_id(struct pd_port *pd_port, bool ack)
 {
 	uint32_t *payload = pd_get_msg_vdm_data_payload(pd_port);
 
+	if (!payload)
+		return;
+
 	if (ack) {
 		DPM_DBG("InformID, 0x%02x, 0x%02x, 0x%02x, 0x%02x\r\n",
 				payload[0], payload[1], payload[2], payload[3]);
@@ -1258,7 +1261,8 @@ void pd_dpm_dfp_inform_svids(struct pd_port *pd_port, bool ack)
 	if (ack) {
 		count = pd_get_msg_vdm_data_count(pd_port);
 		svid_list = pd_get_msg_vdm_data_payload(pd_port);
-
+		if (!svid_list)
+			return;
 		if (dpm_dfp_consume_svids(pd_port, svid_list, count))
 			return;
 	}
@@ -1288,8 +1292,9 @@ void pd_dpm_dfp_inform_modes(struct pd_port *pd_port, bool ack)
 		} else {
 			count = pd_get_msg_vdm_data_count(pd_port);
 			payload = pd_get_msg_vdm_data_payload(pd_port);
-			dpm_dfp_update_svid_data_modes(
-				pd_port, svid, payload, count);
+			if (payload)
+				dpm_dfp_update_svid_data_modes(
+					pd_port, svid, payload, count);
 		}
 	}
 

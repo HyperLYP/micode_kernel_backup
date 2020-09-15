@@ -18,7 +18,13 @@
 #include "apusys_device.h"
 #include "mdw_cmd.h"
 
+struct mdw_usr_mgr {
+	struct list_head list;
+	struct mutex mtx;
+};
+
 struct mdw_usr {
+	uint64_t id;
 	pid_t pid;
 	pid_t tgid;
 	char comm[TASK_COMM_LEN];
@@ -38,6 +44,7 @@ void mdw_usr_dump(struct seq_file *s);
 int mdw_usr_mem_alloc(struct apusys_mem *um, struct mdw_usr *u);
 int mdw_usr_mem_free(struct apusys_mem *um, struct mdw_usr *u);
 int mdw_usr_mem_import(struct apusys_mem *um, struct mdw_usr *u);
+int mdw_usr_mem_map(struct apusys_mem *um, struct mdw_usr *u);
 int mdw_usr_dev_sec_alloc(int type, struct mdw_usr *u);
 int mdw_usr_dev_sec_free(int type, struct mdw_usr *u);
 int mdw_usr_fw(struct apusys_ioctl_fw *f, int op);
@@ -54,4 +61,7 @@ int mdw_usr_run_cmd_sync(struct mdw_usr *u, struct apusys_ioctl_cmd *in);
 int mdw_usr_init(void);
 void mdw_usr_exit(void);
 
+
+void mdw_usr_print_mem_usage(void);
+void mdw_usr_aee_mem(void *s_file);
 #endif

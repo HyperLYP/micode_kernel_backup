@@ -78,6 +78,7 @@ struct mdw_dev_info {
 	int stop;
 	struct task_struct *thd;
 	struct completion cmplt;
+	struct completion thd_done;
 
 	struct mutex mtx;
 };
@@ -103,11 +104,10 @@ struct mdw_rsc_req {
 	uint8_t get_num[APUSYS_DEVICE_MAX]; //in
 	uint32_t total_num; //in
 	uint64_t acq_bmp; //in
+	int mode; //in
+	int policy; //in
 
 	uint32_t ready_num;
-
-	int mode;
-	int policy;
 
 	void (*cb_async)(struct mdw_rsc_req *r); //call if async
 	bool in_list;

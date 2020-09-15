@@ -166,12 +166,17 @@ static inline struct mtk_jpeg_src_buf *mtk_jpeg_vb2_to_srcbuf(
 static int mtk_jpeg_querycap(struct file *file, void *priv,
 			     struct v4l2_capability *cap)
 {
+	int ret = 0;
 	struct mtk_jpeg_dev *jpeg = video_drvdata(file);
 
 	strscpy(cap->driver, jpeg->vfd_jpeg->name, sizeof(cap->driver));
 	strscpy(cap->card, jpeg->vfd_jpeg->name, sizeof(cap->card));
-	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
+	ret = snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
 		 dev_name(jpeg->dev));
+	if (ret < 0) {
+		pr_info("Failed to querycap (%d)\n", ret);
+		return ret;
+	}
 	return 0;
 }
 static int vidioc_jpeg_s_ctrl(struct v4l2_ctrl *ctrl)
@@ -796,6 +801,8 @@ static int mtk_jpeg_s_fmt_mplane(struct mtk_jpeg_ctx *ctx,
 		pix_mp->num_planes, f_type);
 	q_data->w = pix_mp->width;
 	q_data->h = pix_mp->height;
+	q_data->align_h = pix_mp->height;
+
 	ctx->colorspace = pix_mp->colorspace;
 	ctx->ycbcr_enc = pix_mp->ycbcr_enc;
 	ctx->xfer_func = pix_mp->xfer_func;
@@ -1141,6 +1148,7 @@ static void mtk_jpeg_set_param(struct mtk_jpeg_ctx *ctx,
 	}
 	param->enc_w = q_data_src->w;
 	param->enc_h = q_data_src->h;
+	param->align_h = q_data_src->align_h;
 
 	pr_info("%s crop width %d height %d",
 		 __func__, param->enc_w, param->enc_h);
@@ -1181,8 +1189,9 @@ static void mtk_jpeg_set_param(struct mtk_jpeg_ctx *ctx,
 
 
 	param->mem_stride = q_data_src->bytesperline[0];
-	pr_info("%s mem_stride %d img_stride %d",
-		 __func__, param->mem_stride, param->img_stride);
+	pr_info("%s mem_stride %d img_stride %d align_h %d",
+		 __func__, param->mem_stride, param->img_stride,
+		  param->align_h);
 
 	param->total_encdu =
 		((padding_width >> 4) * (padding_height >> (Is420 ? 4 : 3)) *
@@ -1408,7 +1417,7 @@ static void mtk_jpeg_device_run(void *priv)
 	dst_buf = v4l2_m2m_next_dst_buf(ctx->fh.m2m_ctx);
 	if (src_buf == NULL || dst_buf == NULL) {
 		pr_info("null buffer pointer");
-		goto device_run_end;
+		return;
 	}
 	jpeg_src_buf = mtk_jpeg_vb2_to_srcbuf(src_buf);
 
@@ -1670,7 +1679,7 @@ static irqreturn_t mtk_jpeg_irq(int irq, void *priv)
 
 	if (src_buf == NULL || dst_buf == NULL) {
 		pr_info("%s null src or dst buffer\n", __func__);
-		goto irq_end;
+		return IRQ_HANDLED;
 	}
 
 	jpeg_src_buf = mtk_jpeg_vb2_to_srcbuf(src_buf);
@@ -1805,6 +1814,7 @@ static int mtk_jpeg_open(struct file *file)
 	v4l2_fh_init(&ctx->fh, vfd);
 	file->private_data = &ctx->fh;
 	v4l2_fh_add(&ctx->fh);
+	ctx->jpeg = jpeg;
 	if (jpeg->mode == MTK_JPEG_ENC) {
 		ret = mtk_jpeg_ctrls_setup(ctx);
 		if (ret) {
@@ -1814,7 +1824,7 @@ static int mtk_jpeg_open(struct file *file)
 		}
 	}
 	ctx->coreid = MTK_JPEG_MAX_NCORE;
-	ctx->jpeg = jpeg;
+
 	for (i = 0; i < jpeg->ncore; i++) {
 		if (jpeg->isused[i] == 0) {
 			ctx->coreid = i;

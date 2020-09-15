@@ -184,6 +184,13 @@ int udc_cmd_check(struct port_t *port,
 					flags);
 				/* dequeue */
 				*skb = __skb_dequeue(&port->rx_skb_list);
+				if ((*skb) == NULL) {
+					CCCI_ERROR_LOG(md_id, UDC,
+						"%s:__skb_dequeue fail\n", __func__);
+					spin_unlock_irqrestore(&port->rx_skb_list.lock,
+						flags);
+					return -1;
+				}
 				ccci_udc_com = (struct ccci_udc_comm_param_t *)
 						(*skb)->data;
 				inst_id_tmp = ccci_udc_com->udc_inst_id;
@@ -597,6 +604,10 @@ int udc_kick_handler(struct port_t *port, struct z_stream_s *zcpr,
 	}
 	/* req_des table is only 4kb */
 	req_des = req_des_base + ap_read;
+	if (req_des == NULL) {
+		CCCI_ERROR_LOG(md_id, UDC, "invalid req_des");
+		return -CMP_INST_ID_ERR;
+	}
 	/* dump req_des */
 	CCCI_NORMAL_LOG(md_id, UDC,
 		"req%d:sdu_idx(%d),buf_type(%d),seg_len(%d),phy_offset(%#x)\n",

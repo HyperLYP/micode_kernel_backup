@@ -377,6 +377,10 @@ static int port_net_init(struct port_t *port)
 	int md_id = port->md_id;
 	struct ccci_per_md *per_md_data = ccci_get_per_md_data(md_id);
 
+	if (port->md_id < 0 || port->md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(md_id, NET, "invalid MD id=%d\n", port->md_id);
+		return -EINVAL;
+	}
 	port->minor += CCCI_NET_MINOR_BASE;
 	if (port->rx_ch == CCCI_CCMNI1_RX) {
 		atomic_set(&mbim_ccmni_index[port->md_id], -1);
@@ -477,6 +481,10 @@ static int port_net_recv_skb(struct port_t *port, struct sk_buff *skb)
 
 	total_time = sched_clock();
 #endif
+	if (port->md_id < 0 || port->md_id >= MAX_MD_NUM) {
+		CCCI_ERROR_LOG(-1, NET, "invalid MD id=%d\n", port->md_id);
+		return -EINVAL;
+	}
 
 #if MD_GENERATION >= (6293)
 	skb_pull(skb, sizeof(struct lhif_header));
@@ -546,15 +554,13 @@ static void port_net_queue_state_notify(struct port_t *port, int dir,
 			return;
 		}
 	}
-	if (state == TX_FULL
 #if MD_GENERATION > (6293)
-		&& hif_empty_query(qno)
-#endif
-	) {
+	if (state == TX_FULL && hif_empty_query(qno)) {
 		if (dir == OUT)
 			spin_unlock_irqrestore(&port->flag_lock, flags);
 		return;
 	}
+#endif
 	ccmni_ops.queue_state_callback(port->md_id,
 		GET_CCMNI_IDX(port), state, is_ack);
 

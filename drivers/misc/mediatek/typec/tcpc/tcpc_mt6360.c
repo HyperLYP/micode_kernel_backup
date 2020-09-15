@@ -52,7 +52,7 @@
 
 /* #define DEBUG_GPIO	66 */
 
-#define MT6360_DRV_VERSION	"2.0.3_MTK"
+#define MT6360_DRV_VERSION	"2.0.4_MTK"
 
 #define MT6360_IRQ_WAKE_TIME	(500) /* ms */
 
@@ -573,7 +573,7 @@ static int mt6360_regmap_init(struct mt6360_chip *chip)
 {
 	struct rt_regmap_properties *props;
 	char name[32];
-	int len;
+	int len, ret;
 
 	props = devm_kzalloc(chip->dev, sizeof(*props), GFP_KERNEL);
 	if (!props)
@@ -584,7 +584,9 @@ static int mt6360_regmap_init(struct mt6360_chip *chip)
 	props->rt_regmap_mode = RT_MULTI_BYTE | RT_CACHE_DISABLE |
 				RT_IO_PASS_THROUGH | RT_DBG_GENERAL;
 
-	snprintf(name, sizeof(name), "mt6360-%02x", chip->client->addr);
+	ret = snprintf(name, sizeof(name), "mt6360-%02x", chip->client->addr);
+	if (ret < 0)
+		return -EINVAL;
 	len = strlen(name);
 	props->name = kzalloc(len + 1, GFP_KERNEL);
 	props->aliases = kzalloc(len + 1, GFP_KERNEL);
@@ -994,7 +996,9 @@ static int mt6360_init_alert(struct tcpc_device *tcpc)
 	name = devm_kzalloc(chip->dev, len + 5, GFP_KERNEL);
 	if (!name)
 		return -ENOMEM;
-	snprintf(name, PAGE_SIZE, "%s-IRQ", chip->tcpc_desc->name);
+	ret = snprintf(name, PAGE_SIZE, "%s-IRQ", chip->tcpc_desc->name);
+	if ((ret < 0) || (ret >= PAGE_SIZE - 1))
+		return -EINVAL;
 	dev_info(chip->dev, "%s name = %s, gpio = %d\n", __func__,
 		 chip->tcpc_desc->name, chip->irq_gpio);
 	ret = devm_gpio_request(chip->dev, chip->irq_gpio, name);
@@ -1045,7 +1049,7 @@ static int mt6360_init_alert(struct tcpc_device *tcpc)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0) */
 
 	ret = request_irq(chip->irq, mt6360_intr_handler, IRQF_TRIGGER_FALLING |
-			  IRQF_NO_THREAD | IRQF_NO_SUSPEND, name, chip);
+			  IRQF_NO_THREAD, name, chip);
 	if (ret < 0) {
 		dev_err(chip->dev, "%s fail to request irq%d, gpio%d (%d)\n",
 			__func__, chip->irq, chip->irq_gpio, ret);
@@ -2425,7 +2429,7 @@ static int mt6360_tcpcdev_init(struct mt6360_chip *chip, struct device *dev)
 
 	chip->tcpc_desc = desc;
 	chip->tcpc = tcpc_device_register(dev, desc, &mt6360_tcpc_ops, chip);
-	if (IS_ERR(chip->tcpc))
+	if (IS_ERR(chip->tcpc) || !chip->tcpc)
 		return -EINVAL;
 
 	/* Init tcpc_flags */
@@ -2756,6 +2760,11 @@ MODULE_DESCRIPTION("MT6360 TCPC Driver");
 MODULE_VERSION(MT6360_DRV_VERSION);
 
 /**** Release Note ****
+ * 2.0.4_MTK
+ *	(1) support mt6360 pd discard retry
+ *	(2) fix system busy when rx pending2
+ *	(3) handle mask alert event when unmask irq
+ *
  * 2.0.3_MTK
  *	(1) Single Rp as Attatched.SRC for Ellisys TD.4.9.4
  *

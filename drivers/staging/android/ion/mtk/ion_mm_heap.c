@@ -235,7 +235,7 @@ static int ion_mm_pool_total(struct ion_system_heap *heap,
 }
 
 #define MTK_GET_DOMAIN_IGNORE (DOMAIN_NUM + 1)
-static int ion_get_domain_id(int from_kernel, int *port)
+int ion_get_domain_id(int from_kernel, int *port)
 {
 	int domain_idx = 0;
 #ifdef CONFIG_MTK_IOMMU_V2
@@ -1450,8 +1450,9 @@ static int ion_mm_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
 				continue;
 			client->dbg_hnd_cnt++;
 			ION_DUMP(s,
-				 "\thandle=0x%p, buffer=0x%p, heap=%u, fd=%4d, ts: %lldms (%d)\n",
-				 handle, handle->buffer,
+				 "\thandle=0x%p (id: %d), buffer=0x%p/0x%lx, heap=%u, fd=%4d, ts: %lldms (%d)\n",
+				 handle, handle->id, handle->buffer,
+				 (unsigned long)handle->buffer,
 				 handle->buffer->heap->id,
 				 handle->dbg.fd,
 				 handle->dbg.user_ts,
@@ -1623,12 +1624,11 @@ skip_client_entry:
 
 			heapid = buffer->heap->id;
 			cam_heap = ((1 << heapid) & ION_HEAP_CAMERA_MASK);
-			bug_info =
-				(struct ion_mm_buffer_info *)buffer->priv_virt;
-			pdbg = &bug_info->dbg_info;
-
 			if (((1 << heapid) & ION_HEAP_MULTIMEDIA_MASK) ||
 			    ((1 << heapid) & ION_HEAP_CAMERA_MASK)) {
+				bug_info =
+					(struct ion_mm_buffer_info *)buffer->priv_virt;
+				pdbg = &bug_info->dbg_info;
 				if ((1 << heapid) & ION_HEAP_MULTIMEDIA_MASK) {
 					mm_size += buffer->size;
 					mm_heap = buffer->heap;
@@ -2153,10 +2153,11 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd,
 		} else if ((int)buffer->heap->type == ION_HEAP_TYPE_FB) {
 			struct ion_fb_buffer_info *buffer_info =
 			    buffer->priv_virt;
-
+			int domain_idx = ion_get_domain_id(
+				1, &param.config_buffer_param.module_id);
 			buffer_sec = buffer_info->security;
 #ifndef CONFIG_MTK_IOMMU_V2
-			if (buffer_info->MVA == 0) {
+			if (buffer_info->MVA[domain_idx] == 0) {
 #endif
 				buffer_info->module_id =
 				    param.config_buffer_param.module_id;
@@ -2165,9 +2166,9 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd,
 				buffer_info->coherent =
 				    param.config_buffer_param.coherent;
 				if (param.mm_cmd == ION_MM_CONFIG_BUFFER_EXT) {
-					buffer_info->iova_start =
+					buffer_info->iova_start[domain_idx] =
 				param.config_buffer_param.reserve_iova_start;
-					buffer_info->iova_end =
+					buffer_info->iova_end[domain_idx] =
 				param.config_buffer_param.reserve_iova_end;
 				}
 #ifndef CONFIG_MTK_IOMMU_V2

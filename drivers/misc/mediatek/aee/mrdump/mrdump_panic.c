@@ -122,7 +122,7 @@ void ipanic_recursive_ke(struct pt_regs *regs, struct pt_regs *excp_regs,
 	struct pt_regs saved_regs;
 
 	bust_spinlocks(1);
-	show_kaslr();
+	show_kaslr(false);
 #ifdef CONFIG_MTK_RAM_CONSOLE
 	aee_rr_rec_exp_type(AEE_EXP_TYPE_NESTED_PANIC);
 #endif
@@ -158,7 +158,7 @@ int mrdump_common_die(int fiq_step, int reboot_reason, const char *msg,
 	bust_spinlocks(1);
 	aee_disable_api();
 
-	show_kaslr();
+	show_kaslr(true);
 	print_modules();
 #ifdef CONFIG_MTK_RAM_CONSOLE
 	aee_rr_rec_fiq_step(fiq_step);
@@ -249,7 +249,7 @@ static __init int mrdump_parse_chosen(void)
 					       reg, ARRAY_SIZE(reg)) == 0) {
 			mrdump_sram_cb.start_addr = reg[0];
 			mrdump_sram_cb.size = reg[1];
-			pr_notice("%s: mrdump_cbaddr=%x, mrdump_cbsize=%x\n",
+			pr_notice("%s: mrdump_cbaddr=%llx, mrdump_cbsize=%llx\n",
 				  __func__, mrdump_sram_cb.start_addr,
 				  mrdump_sram_cb.size);
 		}

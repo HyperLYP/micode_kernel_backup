@@ -146,6 +146,10 @@ struct ccmni_instance {
 #endif
 	struct timespec    flush_time;
 	void               *priv_data;
+
+	/* For queue packet before ready */
+	struct workqueue_struct *worker;
+	struct delayed_work pkt_queue_work;
 };
 
 struct ccmni_ccci_ops {
@@ -192,7 +196,7 @@ struct ccmni_dev_ops {
 struct md_tag_packet {
 	u_int16_t   guard_pattern; /* 0x4646 */
 	u_int8_t    version;
-	u_int8_t    reserved;
+	u_int8_t    tag_len;       /*total len*/
 	union {
 		struct {
 			u_int8_t    in_netif_id;

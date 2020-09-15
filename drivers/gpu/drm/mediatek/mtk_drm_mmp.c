@@ -56,6 +56,10 @@ void init_drm_mmp_event(void)
 		mmprofile_register_event(g_DRM_MMP_Events.rdma, "RDMA0");
 	g_DRM_MMP_Events.rdma1 =
 		mmprofile_register_event(g_DRM_MMP_Events.rdma, "RDMA1");
+	g_DRM_MMP_Events.rdma4 =
+		mmprofile_register_event(g_DRM_MMP_Events.rdma, "RDMA4");
+	g_DRM_MMP_Events.rdma5 =
+		mmprofile_register_event(g_DRM_MMP_Events.rdma, "RDMA5");
 	g_DRM_MMP_Events.wdma =
 		mmprofile_register_event(g_DRM_MMP_Events.IRQ, "WDMA");
 	g_DRM_MMP_Events.wdma0 =
@@ -78,6 +82,10 @@ void init_drm_mmp_event(void)
 		mmprofile_register_event(g_DRM_MMP_Events.drm, "D_ALLOC");
 	g_DRM_MMP_Events.dma_free =
 		mmprofile_register_event(g_DRM_MMP_Events.drm, "D_FREE");
+	g_DRM_MMP_Events.dma_get =
+		mmprofile_register_event(g_DRM_MMP_Events.drm, "D_GET");
+	g_DRM_MMP_Events.dma_put =
+		mmprofile_register_event(g_DRM_MMP_Events.drm, "D_PUT");
 	g_DRM_MMP_Events.ion_import_dma =
 		mmprofile_register_event(g_DRM_MMP_Events.drm, "I_DMA");
 	g_DRM_MMP_Events.ion_import_fd =
@@ -102,19 +110,27 @@ void init_drm_mmp_event(void)
 		g_DRM_MMP_Events.postmask, "POSTMASK0");
 	g_DRM_MMP_Events.abnormal_irq =
 		mmprofile_register_event(g_DRM_MMP_Events.IRQ, "ABNORMAL_IRQ");
+	g_DRM_MMP_Events.dp_intf0 =
+		mmprofile_register_event(g_DRM_MMP_Events.IRQ, "dp_intf0");
 }
 
 /* need to update if add new mmp_event in CRTC_MMP_Events */
 void init_crtc_mmp_event(void)
 {
 	int i = 0;
+	int r = 0;
 
 	for (i = 0; i < MMP_CRTC_NUM; i++) {
 		char name[32];
 		mmp_event crtc_mmp_root;
 
 		/* create i th root of CRTC mmp events */
-		snprintf(name, sizeof(name), "crtc%d", i);
+		r = snprintf(name, sizeof(name), "crtc%d", i);
+		if (r < 0) {
+			/* Handle snprintf() error */
+			DDPPR_ERR("%s:snprintf error\n", __func__);
+			return;
+		}
 		crtc_mmp_root =
 			mmprofile_register_event(g_DRM_MMP_Events.drm, name);
 		g_DRM_MMP_Events.crtc[i] = crtc_mmp_root;
@@ -239,7 +255,9 @@ struct CRTC_MMP_Events *get_crtc_mmp_events(unsigned long id)
 	return &g_CRTC_MMP_Events[id];
 }
 
+#ifdef CONFIG_MTK_IOMMU_V2
 #include <mtk_iommu_ext.h>
+#endif
 #include <mtk_drm_drv.h>
 
 #define DISP_PAGE_MASK 0xfffL
@@ -250,7 +268,7 @@ int crtc_mva_map_kernel(unsigned int mva, unsigned int size,
 #ifdef CONFIG_MTK_IOMMU_V2
 	struct disp_iommu_device *disp_dev = disp_get_iommu_dev();
 
-	if ((disp_dev != NULL) && (disp_dev->iommu_pdev != NULL))
+	if ((disp_dev != NULL) && (disp_dev->iommu_pdev != NULL) && (mva != 0))
 		mtk_iommu_iova_to_va(&(disp_dev->iommu_pdev->dev),
 				     mva, map_va, size);
 	else
@@ -356,7 +374,7 @@ int mtk_drm_mmp_ovl_layer(struct mtk_plane_state *state,
 		bitmap.down_sample_x = downSampleX;
 		bitmap.down_sample_y = downSampleY;
 
-		if (crtc_mva_map_kernel(pending->addr, bitmap.data_size,
+		if (!pending->addr || crtc_mva_map_kernel(pending->addr, bitmap.data_size,
 					(unsigned long *)&bitmap.p_data,
 					&bitmap.data_size) != 0) {
 			DDPINFO("%s,fail to dump rgb\n", __func__);
@@ -364,11 +382,18 @@ int mtk_drm_mmp_ovl_layer(struct mtk_plane_state *state,
 		}
 
 		event_base = g_CRTC_MMP_Events[crtc_idx].layer_dump;
-		if (event_base)
-			mmprofile_log_meta_bitmap(
-			event_base[state->comp_state.lye_id],
-			MMPROFILE_FLAG_PULSE,
-			&bitmap);
+		if (event_base) {
+			if (!yuv)
+				mmprofile_log_meta_bitmap(
+				event_base[state->comp_state.lye_id],
+				MMPROFILE_FLAG_PULSE,
+				&bitmap);
+			else
+				mmprofile_log_meta_yuv_bitmap(
+				event_base[state->comp_state.lye_id],
+				MMPROFILE_FLAG_PULSE,
+				&bitmap);
+		}
 		crtc_mva_unmap_kernel(pending->addr, bitmap.data_size,
 				      (unsigned long)bitmap.p_data);
 	} else {

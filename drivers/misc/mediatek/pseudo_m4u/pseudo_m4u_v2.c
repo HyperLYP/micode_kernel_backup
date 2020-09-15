@@ -222,7 +222,8 @@ int larb_clock_on(int larb, bool config_mtcmos)
 	int ret = 0;
 
 #ifdef CONFIG_MTK_SMI_EXT
-	if (larb >= SMI_LARB_NR) {
+	if (larb >= SMI_LARB_NR ||
+	    larb < 0) {
 		M4U_MSG("invalid larb:%d, total:%d\n",
 			larb, SMI_LARB_NR);
 		return -1;
@@ -251,7 +252,8 @@ void larb_clock_off(int larb, bool config_mtcmos)
 #ifdef CONFIG_MTK_SMI_EXT
 	int ret = 0;
 
-	if (larb >= SMI_LARB_NR) {
+	if (larb >= SMI_LARB_NR ||
+	    larb < 0) {
 		M4U_MSG("invalid larb:%d, total:%d\n",
 			larb, SMI_LARB_NR);
 		return;
@@ -525,7 +527,7 @@ static inline int pseudo_config_port(struct M4U_PORT_STRUCT *pM4uPort,
 	larb = m4u_get_larbid(pM4uPort->ePortID);
 	larb_port = m4u_port_2_larb_port(pM4uPort->ePortID);
 	name = iommu_get_port_name(pM4uPort->ePortID);
-	if (is_user && strcmp(name, pM4uPort->name)) {
+	if (is_user && name && strcmp(name, pM4uPort->name)) {
 		M4U_MSG("port:%d name(%s) not matched(%s)\n",
 			pM4uPort->ePortID, pM4uPort->name, name);
 		report_custom_config_port(
@@ -1367,17 +1369,25 @@ int m4u_switch_acp(unsigned int port,
 		unsigned long iova, size_t size, bool is_acp)
 {
 	struct device *dev = pseudo_get_larbdev(port);
+	if (!dev) {
+		M4U_MSG("%s dev NULL!\n", __func__);
+		return -EINVAL;
+	}
+
+#if 0
 	struct m4u_buf_info_t *pMvaInfo;
 
 	pMvaInfo = pseudo_client_find_buf(ion_m4u_client, iova, 0);
 	if (!pseudo_is_acp_port(port) ||
 	    port != pMvaInfo->port ||
 	    size > pMvaInfo->size) {
-		M4U_MSG("invalid p:%d, va:0x%lx, sz:0x%lx, ow:%d, sz:0x%lx\n",
-			port, iova, size, pMvaInfo->port, pMvaInfo->size);
+#else
+	if (!pseudo_is_acp_port(port)) {
+#endif
+		M4U_MSG("invalid p:%d, va:0x%lx, sz:0x%lx\n",
+			port, iova, size);
 		return -EINVAL;
 	}
-
 	M4U_MSG("%s %d, switch acp, iova=0x%lx, size=0x%lx, acp=%d\n",
 		__func__, __LINE__, iova, size, is_acp);
 	return mtk_iommu_switch_acp(dev, iova, size, is_acp);
@@ -1727,6 +1737,8 @@ int __pseudo_alloc_mva(struct m4u_client_t *client,
 
 	/* pbuf_info for userspace compatible */
 	pbuf_info = pseudo_alloc_buf_info();
+	if (!pbuf_info)
+		return -ENOMEM;
 	pbuf_info->va = va;
 	pbuf_info->port = port;
 	pbuf_info->size = size;
@@ -2009,6 +2021,9 @@ int pseudo_dealloc_mva(struct m4u_client_t *client, int port, unsigned long mva)
 	int offset, ret;
 
 	pMvaInfo = pseudo_client_find_buf(client, mva, 1);
+
+	if (!pMvaInfo)
+		return -ENOMEM;
 
 	offset = m4u_va_align(&pMvaInfo->va, &pMvaInfo->size);
 	pMvaInfo->mva -= offset;
@@ -3289,7 +3304,7 @@ static long pseudo_ioctl(struct file *filp,
 					cmd, arg);
 			mtk_iommu_sec_id = arg;
 			if (mtk_iommu_sec_id < 0 ||
-				mtk_iommu_sec_id > SEC_ID_COUNT)
+				mtk_iommu_sec_id >= SEC_ID_COUNT)
 				return -EFAULT;
 			mutex_lock(&gM4u_gz_sec_init);
 			ret = m4u_gz_sec_init(mtk_iommu_sec_id);
@@ -3440,7 +3455,7 @@ long pseudo_compat_ioctl(struct file *filp,
 					"MTK_M4U_GZ_SEC_INIT command!! 0x%x, arg: %d\n",
 						cmd, arg);
 				if (mtk_iommu_sec_id < 0 ||
-					mtk_iommu_sec_id > SEC_ID_COUNT)
+					mtk_iommu_sec_id >= SEC_ID_COUNT)
 					return -EFAULT;
 				mutex_lock(&gM4u_gz_sec_init);
 				ret = m4u_gz_sec_init(mtk_iommu_sec_id);

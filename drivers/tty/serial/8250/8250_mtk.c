@@ -832,18 +832,15 @@ void mtk8250_backup_dev(void)
 	struct uart_8250_port *up;
 	struct mtk8250_data *data;
 	struct mtk8250_reg *reg;
-	if (data == NULL)
-		return;
-	reg = &data->reg;
-	up = serial8250_get_port(data->line);
-	if (up->port.dev == NULL)
-		return;
 
 	for (line = 0; line < CONFIG_SERIAL_8250_NR_UARTS; line++) {
 		up = serial8250_get_port(line);
+		if (up->port.dev == NULL)
+			return;
 		data = dev_get_drvdata(up->port.dev);
+		if (data == NULL)
+			return;
 		reg = &data->reg;
-
 		if (!uart_console(&up->port))
 			continue;
 
@@ -911,8 +908,6 @@ void mtk8250_restore_dev(void)
 			continue;
 
 		mtk8250_runtime_resume(up->port.dev);
-		pr_info("restore UART register start!\n");
-
 		spin_lock_irqsave(&up->port.lock, flags);
 
 		/* restore when LCR = 0xBF */
@@ -953,8 +948,6 @@ void mtk8250_restore_dev(void)
 		serial_out(up, MTK_UART_FCR_RD, reg->fcr_rd);
 		serial_out(up, MTK_UART_RX_SEL, reg->rx_sel);
 		spin_unlock_irqrestore(&up->port.lock, flags);
-
-		pr_info("restore UART register finish!\n");
 	}
 }
 EXPORT_SYMBOL(mtk8250_restore_dev);

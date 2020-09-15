@@ -340,7 +340,7 @@ page_owner=on loop.max_part=7";
 		ion-carveout-heap {
 			compatible = "mediatek,ion-carveout-heap";
 			no-map;
-			size = <0 0x4000>;
+			size = <0 0xc000>;
 			alignment = <0 0x1000>;
 			alloc-ranges = <0 0x40000000 0 0x80000000>;
 		};
@@ -1061,6 +1061,27 @@ page_owner=on loop.max_part=7";
 		#iommu-cells = <1>;
 	};
 
+	iommu0_bank1: m4u@10221000 {
+		cell-index = <0>;
+		compatible = "mediatek,bank1_m4u0";
+		reg = <0 0x10221000 0 0x1000>;
+		interrupts = <GIC_SPI 188 IRQ_TYPE_LEVEL_LOW>;
+	};
+
+	iommu0_bank2: m4u@10222000 {
+		cell-index = <0>;
+		compatible = "mediatek,bank2_m4u0";
+		reg = <0 0x10222000 0 0x1000>;
+		interrupts = <GIC_SPI 189 IRQ_TYPE_LEVEL_LOW>;
+	};
+
+	iommu0_bank3: m4u@10223000 {
+		cell-index = <0>;
+		compatible = "mediatek,bank3_m4u0";
+		reg = <0 0x10223000 0 0x1000>;
+		interrupts = <GIC_SPI 190 IRQ_TYPE_LEVEL_LOW>;
+	};
+
 	m4u@10224000 {
 		cell-index = <2>;
 		compatible = "mediatek,sec_m4u";
@@ -1074,6 +1095,35 @@ page_owner=on loop.max_part=7";
 		reg = <0 0x1024f000 0 0x1000>;
 		interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_LOW>;
 	};
+
+	iommu1_bank1: m4u@10250000 {
+		cell-index = <1>;
+		compatible = "mediatek,bank1_m4u1";
+		reg = <0 0x10250000 0 0x1000>;
+		interrupts = <GIC_SPI 193 IRQ_TYPE_LEVEL_LOW>;
+	};
+
+	iommu1_bank2: m4u@10251000 {
+		cell-index = <1>;
+		compatible = "mediatek,bank2_m4u1";
+		reg = <0 0x10251000 0 0x1000>;
+		interrupts = <GIC_SPI 194 IRQ_TYPE_LEVEL_LOW>;
+	};
+
+	iommu1_bank3: m4u@10252000 {
+		cell-index = <1>;
+		compatible = "mediatek,bank3_m4u1";
+		reg = <0 0x10252000 0 0x1000>;
+		interrupts = <GIC_SPI 195 IRQ_TYPE_LEVEL_LOW>;
+	};
+
+	m4u@10253000 {
+		cell-index = <3>;
+		compatible = "mediatek,sec_vpu_m4u";
+		reg = <0 0x10253000 0 0x1000>;
+		interrupts = <GIC_SPI 196 IRQ_TYPE_LEVEL_LOW>;
+	};
+
 #endif
 	scp_cfgreg@105c0000 {
 		compatible = "mediatek,scp_cfgreg";
@@ -1254,7 +1304,8 @@ page_owner=on loop.max_part=7";
 	devapc@10207000 {
 		compatible = "mediatek,mt6785-devapc";
 		reg = <0 0x10207000 0 0x1000>,
-		    <0 0x1000e000 0 0x1000>;
+		      <0 0x1000e000 0 0x1000>,
+		      <0 0x10033000 0 0x1000>;
 		interrupts = <GIC_SPI 168 IRQ_TYPE_LEVEL_LOW>;
 		clocks = <&infracfg_ao INFRACFG_AO_DEVICE_APC_CG>;
 		clock-names = "devapc-infra-clock";
@@ -1963,26 +2014,37 @@ page_owner=on loop.max_part=7";
 			"mbox4";
 	};
 
-	adsp: adsp@10600000 {
-		compatible = "mediatek,audio_dsp";
-		reg = <0 0x10600000 0 0x10000>, /*ctrl reg*/
+	adsp_common: adsp_common@10600000 {
+		compatible = "mediatek,adsp_common";
+		reg = <0 0x10001000 0 0x1000>,  /* infracfg_ao */
+			<0 0x10003000 0 0x1000>;  /* pericfg */
+		clocks = <&infracfg_ao INFRACFG_AO_FADSP_CG>,
+			<&topckgen TOP_MUX_ADSP>,
+			<&clk26m>,
+			<&topckgen TOP_MMPLL_D4>,
+			<&topckgen TOP_ADSPPLL_D4>,
+			<&topckgen TOP_ADSPPLL_D6>;
+		clock-names = "clk_adsp_infra",
+			"clk_top_adsp_sel",
+			"clk_adsp_clk26m",
+			"clk_top_mmpll_d4",
+			"clk_top_adsppll_d4",
+			"clk_top_adsppll_d6";
+		adsp-rsv-ipidma-a = <0x200000>;
+		adsp-rsv-logger-a = <0x80000>;
+		adsp-rsv-dbg-dump-a = <0x80000>;
+		adsp-rsv-core-dump-a = <0x400>;
+		adsp-rsv-audio = <0x5c0000>;
+	};
+
+	adsp_core0: adsp_core0@10610000 {
+		compatible = "mediatek,adsp_core_0";
+		reg = <0 0x10600000 0 0x10000>, /* CFG */
 			<0 0x10630000 0 0x9000>, /* ITCM */
 			<0 0x10610000 0 0x8000>; /* DTCM */
+		system = <0 0x56000000 0 0x700000>;
 		interrupts = <GIC_SPI 182 IRQ_TYPE_LEVEL_LOW>,
 			     <GIC_SPI 183 IRQ_TYPE_LEVEL_LOW>;
-		clocks = <&infracfg_ao INFRACFG_AO_FADSP_CG>,
-				<&topckgen TOP_MUX_ADSP>,
-				<&clk26m>,
-				<&topckgen TOP_MMPLL_D4>,
-				<&topckgen TOP_ADSPPLL_D4>,
-				<&topckgen TOP_ADSPPLL_D6>;
-		clock-names = "clk_adsp_infra",
-				"clk_top_adsp_sel",
-				"clk_adsp_clk26m",
-				"clk_top_mmpll_d4",
-				"clk_top_adsppll_d4",
-				"clk_top_adsppll_d6";
-		sysram = /bits/ 64 <0x56000000 0x700000>;  /* mem layout */
 	};
 
 	ap_dma@11000000 {
@@ -2784,20 +2846,25 @@ page_owner=on loop.max_part=7";
 		};
 	};
 
-	/* feature : $enable $dl_mem $ul_mem $ref_mem */
+	/* feature : $enable $dl_mem $ul_mem $ref_mem $size */
 	snd_audio_dsp: snd_audio_dsp {
 		compatible = "mediatek,snd_audio_dsp";
-		mtk_dsp_voip = <0x0 0x1 0xffffffff 0xffffffff>;
-		mtk_dsp_primary = <0x0 0x0 0xffffffff 0xffffffff>;
-		mtk_dsp_offload = <0x0 0x6 0xffffffff 0xffffffff>;
-		mtk_dsp_deep = <0x0 0x3 0xffffffff 0xffffffff>;
-		mtk_dsp_playback = <0x0 0x4 0xf 0x13>;
-		mtk_dsp_capture1 = <0x0 0xffffffff 0xc 0x12>;
-		mtk_dsp_a2dp = <0x0 0xffffffff 0xffffffff 0xffffffff>;
-		mtk_dsp_dataprovider = <0x0 0xffffffff 0xf 0xffffffff>;
-		mtk_dsp_call_final = <0x0 0x0 0xf 0x13>;
-		mtk_dsp_ktv = <0x1 0x8 0x11 0xffffffff>;
-		swdsp_smartpa_process_enable = <0x0>;
+		mtk_dsp_voip = <0x1 0x1 0xffffffff 0xffffffff 0x30000>;
+		mtk_dsp_primary = <0x0 0x0 0xffffffff 0xffffffff 0x30000>;
+		mtk_dsp_offload = <0x0 0x6 0xffffffff 0xffffffff 0x400000>;
+		mtk_dsp_deep = <0x0 0x3 0xffffffff 0xffffffff 0x30000>;
+		mtk_dsp_playback = <0x1 0x4 0xf 0x13 0x30000>;
+		mtk_dsp_music = <0x0 0xffffffff 0xffffffff 0xffffffff 0x0>;
+		mtk_dsp_capture1 = <0x1 0xffffffff 0xc 0x12 0x20000>;
+		mtk_dsp_a2dp = <0x0 0xffffffff 0xffffffff 0xffffffff 0x40000>;
+		mtk_dsp_dataprovider = <0x0 0xffffffff 0xf 0xffffffff 0x30000>;
+		mtk_dsp_call_final = <0x1 0x4 0xf 0x13 0x18000>;
+		mtk_dsp_fast = <0x0 0xffffffff 0xffffffff 0xffffffff 0x5000>;
+		mtk_dsp_ktv = <0x1 0x8 0x11 0xffffffff 0x10000>;
+		mtk_dsp_capture_raw = <0x1 0xffffffff 0xffffffff 0xffffffff 0x20000>;
+		mtk_dsp_ver = <0x0>;
+		swdsp_smartpa_process_enable = <0x5>;
+		mtk_dsp_mem_afe = <0x1 0x40000>; /* always enable */
 	};
 
 	audio_sram@11211000 {
@@ -5293,7 +5360,7 @@ page_owner=on loop.max_part=7";
 	};
 
 	touch: touch {
-		compatible = "goodix,touch";
+		compatible = "goodix,touch", "mediatek,touch";
 	};
 
 	tcpc_pd: tcpc_pd {

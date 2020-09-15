@@ -643,6 +643,10 @@ static const struct pinctrl_ops mtk_pctlops = {
 
 static int mtk_pmx_get_funcs_cnt(struct pinctrl_dev *pctldev)
 {
+	struct mtk_pinctrl *hw = pinctrl_dev_get_drvdata(pctldev);
+
+	if (hw->soc->nfuncs)
+		return (int)hw->soc->nfuncs;
 	return ARRAY_SIZE(mtk_gpio_functions);
 }
 
@@ -922,8 +926,9 @@ int mtk_paris_pinctrl_probe(struct platform_device *pdev,
 	struct device_node *np = pdev->dev.of_node, *node;
 	struct pinctrl_pin_desc *pins;
 	struct mtk_pinctrl *hw;
+	struct property *prop;
 	struct resource *res;
-	int err, i, get_base_pass;
+	int err, i;
 
 	hw = devm_kzalloc(&pdev->dev, sizeof(*hw), GFP_KERNEL);
 	if (!hw)
@@ -954,26 +959,25 @@ int mtk_paris_pinctrl_probe(struct platform_device *pdev,
 
 		hw->nbase = hw->soc->nbase_names;
 	} else {
-		for (get_base_pass = 0; get_base_pass < 2; get_base_pass++) {
-			for (i = 0;; i++) {
-				node = of_parse_phandle(np, "reg_bases", i);
-				if (!node)
-					break;
-				if (get_base_pass == 1)
-					hw->base[i] = of_iomap(node, 0);
-				of_node_put(node);
-			}
-
-			if (i == 0)
+		prop = of_find_property(np, "reg_bases", NULL);
+		if (!prop)
+			return -ENXIO;
+		i = prop->length / sizeof(phandle);
+		if (i < 1)
+			return -EINVAL;
+		hw->nbase = i;
+		hw->base = devm_kmalloc_array(&pdev->dev, i, sizeof(*hw->base),
+				GFP_KERNEL | __GFP_ZERO);
+		if (IS_ERR(hw->base))
+			return PTR_ERR(hw->base);
+		for (i = 0; i < hw->nbase; i++) {
+			node = of_parse_phandle(np, "reg_bases", i);
+			if (!node)
 				return -EINVAL;
-			if (get_base_pass == 0) {
-				hw->nbase = i;
-				hw->base = devm_kmalloc_array(&pdev->dev, i,
-					sizeof(*hw->base),
-					GFP_KERNEL | __GFP_ZERO);
-				if (IS_ERR(hw->base))
-					return PTR_ERR(hw->base);
-			}
+			hw->base[i] = of_iomap(node, 0);
+			if (IS_ERR(hw->base[i]))
+				return PTR_ERR(hw->base[i]);
+			of_node_put(node);
 		}
 	}
 

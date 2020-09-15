@@ -1511,17 +1511,17 @@ static const struct snd_kcontrol_new memif_ul2_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH2", AFE_CONN6,
 				    I_DL1_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL12_CH2", AFE_CONN6,
-				    I_DL12_CH1, 1, 0),
+				    I_DL12_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL2_CH2", AFE_CONN6,
 				    I_DL2_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL3_CH2", AFE_CONN6,
 				    I_DL3_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL4_CH2", AFE_CONN6_1,
-				    I_DL4_CH1, 1, 0),
+				    I_DL4_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL5_CH2", AFE_CONN6_1,
 				    I_DL5_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL6_CH2", AFE_CONN6_1,
-				    I_DL6_CH1, 1, 0),
+				    I_DL6_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("PCM_1_CAP_CH1", AFE_CONN6,
 				    I_PCM_1_CAP_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("PCM_2_CAP_CH1", AFE_CONN6,
@@ -6109,6 +6109,10 @@ static int mt6873_afe_pcm_dev_probe(struct platform_device *pdev)
 		dev_err(dev, "could not request_irq for Afe_ISR_Handle\n");
 		return ret;
 	}
+
+	ret = enable_irq_wake(irq_id);
+	if (ret < 0)
+		dev_err(dev, "enable_irq_wake %d err: %d\n", irq_id, ret);
 #endif
 
 	/* init arm_smccc_smc call */

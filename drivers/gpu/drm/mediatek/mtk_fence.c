@@ -449,13 +449,29 @@ void mtk_release_fence(unsigned int session_id, unsigned int layer_id,
 
 		layer_info->fence_fd = buf->fence;
 
+#ifdef CONFIG_MTK_IOMMU_V2
+		DDPFENCE("R+/%s%d/L%d/id%d/last%d/new%d/idx%d/hnd0x%8p-0x%lx\n",
+			 mtk_fence_session_mode_spy(session_id),
+			 MTK_SESSION_DEV(session_id), layer_id, fence,
+			 current_timeline_idx, layer_info->fence_idx,
+			 buf->idx, buf->hnd,
+			 (unsigned long)buf->hnd->buffer);
+#else
+		DDPFENCE("R+/%s%d/L%d/id%d/last%d/new%d/idx%d\n",
+			 mtk_fence_session_mode_spy(session_id),
+			 MTK_SESSION_DEV(session_id), layer_id, fence,
+			 current_timeline_idx, layer_info->fence_idx,
+			 buf->idx);
+#endif
+
 		list_del_init(&buf->list);
 #ifdef CONFIG_MTK_IOMMU_V2
-		if (buf->hnd)
+		if (buf->hnd) {
 			mtk_drm_gem_ion_free_handle(buf->client, buf->hnd,
 					__func__, __LINE__);
+			ion_release_count++;
+		}
 #endif
-		ion_release_count++;
 
 		/* we must use another mutex for buffer list*/
 		/* because it will be operated by ALL layer info.*/
@@ -470,20 +486,16 @@ void mtk_release_fence(unsigned int session_id, unsigned int layer_id,
 		 * buf->ts_period_keep);
 		 */
 
-		DDPFENCE("R+/%s%d/L%d/id%d/last%d/new%d/idx%d/hnd0x%8p\n",
-			 mtk_fence_session_mode_spy(session_id),
-			 MTK_SESSION_DEV(session_id), layer_id, fence,
-			 current_timeline_idx, layer_info->fence_idx,
-			 buf->idx, buf->hnd);
-
 		/* print mmp log for primary display */
 		if (MTK_SESSION_TYPE(session_id) == MTK_SESSION_PRIMARY)
 			CRTC_MMP_MARK(0, release_fence, layer_id, buf->idx);
+		if (MTK_SESSION_TYPE(session_id) == MTK_SESSION_EXTERNAL)
+			CRTC_MMP_MARK(1, release_fence, layer_id, buf->idx);
 	}
 	mutex_unlock(&layer_info->sync_lock);
 
 	if (ion_release_count != num_fence)
-		DDPPR_ERR("released %d fence but %d ion handle freed\n",
+		DDPFENCE("released %d fence but %d ion handle freed\n",
 			  num_fence, ion_release_count);
 }
 
@@ -573,6 +585,8 @@ int mtk_fence_get_present_timeline_id(unsigned int session_id)
 {
 	if (MTK_SESSION_TYPE(session_id) == MTK_SESSION_PRIMARY)
 		return MTK_TIMELINE_PRIMARY_PRESENT_TIMELINE_ID;
+	if (MTK_SESSION_TYPE(session_id) == MTK_SESSION_EXTERNAL)
+		return MTK_TIMELINE_SECONDARY_PRESENT_TIMELINE_ID;
 
 	DDPPR_ERR("session id is wrong, session=0x%x!!\n", session_id);
 	return -1;
@@ -744,6 +758,10 @@ struct mtk_fence_buf_info *mtk_fence_prepare_buf(struct drm_device *dev,
 	if (buf->ion_fd >= 0)
 		buf_info->hnd = mtk_drm_gem_ion_import_handle(buf_info->client,
 				buf->ion_fd);
+	if (buf_info->hnd == NULL) {
+		DDPPR_ERR("import ION handle fail\n");
+		return NULL;
+	}
 #endif
 
 	buf_info->mva_offset = 0;
@@ -753,10 +771,18 @@ struct mtk_fence_buf_info *mtk_fence_prepare_buf(struct drm_device *dev,
 	list_add_tail(&buf_info->list, &layer_info->buf_list);
 	mutex_unlock(&layer_info->sync_lock);
 
-	DDPFENCE("P+/%s%d/L%d/id%d/fd%d/hnd0x%8p\n",
+#if defined(CONFIG_MTK_IOMMU_V2)
+	DDPFENCE("P+/%s%d/L%d/id%d/fd%d/hnd0x%8p-0x%lx\n",
 		 mtk_fence_session_mode_spy(session_id),
 		 MTK_SESSION_DEV(session_id), timeline_id, buf_info->idx,
-		 buf_info->fence, buf_info->hnd);
+		 buf_info->fence, buf_info->hnd,
+		 (unsigned long)buf_info->hnd->buffer);
+#else
+	DDPFENCE("P+/%s%d/L%d/id%d/fd%d\n",
+		 mtk_fence_session_mode_spy(session_id),
+		 MTK_SESSION_DEV(session_id), timeline_id, buf_info->idx,
+		 buf_info->fence);
+#endif
 
 	return buf_info;
 }

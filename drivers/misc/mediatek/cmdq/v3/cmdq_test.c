@@ -56,6 +56,7 @@ enum CMDQ_TEST_TYPE_ENUM {
 	CMDQ_TEST_TYPE_DUMP_DTS = 5,
 	CMDQ_TEST_TYPE_FEATURE_CONFIG = 6,
 	CMDQ_TEST_TYPE_MMSYS_PERFORMANCE = 7,
+	CMDQ_TEST_TYPE_SECURE_MTEE = 8,
 
 	CMDQ_TEST_TYPE_MAX	/* ALWAYS keep at the end */
 };
@@ -93,7 +94,7 @@ struct cmdqMonitorPollStruct {
 };
 
 static s64 gCmdqTestConfig[CMDQ_MONITOR_EVENT_MAX];
-static bool gCmdqTestSecure;
+static s8 gCmdqTestSecure;
 static struct cmdqMonitorEventStruct gEventMonitor;
 static struct cmdqMonitorPollStruct gPollMonitor;
 #ifdef CMDQ_TEST_PROC
@@ -987,6 +988,8 @@ static void testcase_dram_access(void)
 
 	result_va = cmdq_core_alloc_hw_buffer(cmdq_dev_get(),
 		sizeof(u32) * 2, &result_pa, GFP_KERNEL);
+	if (!result_va)
+		return;
 
 	/* set up intput */
 	result_va[0] = 0xdeaddead;	/* this is read-from */
@@ -1614,7 +1617,7 @@ static void testcase_backup_reg_to_slot(void)
 static void testcase_update_value_to_slot(void)
 {
 	s32 i;
-	u32 value;
+	u32 value = 0;
 	struct cmdqRecStruct *handle = NULL;
 	cmdqBackupSlotHandle hSlot = 0;
 	const u32 PATTERNS[] = {
@@ -2067,12 +2070,17 @@ static void testcase_thread_dispatch(void)
 		(0x1 << CMDQ_ENG_MDP_CAMIN);
 	const long long engineFlag2 = (0x1 << CMDQ_ENG_MDP_RDMA0) |
 		(0x1 << CMDQ_ENG_MDP_WROT0);
+	int len;
 
 	CMDQ_LOG("%s\n", __func__);
 	CMDQ_MSG(
 		"=============== 2 THREAD with different engines ===============\n");
 
-	sprintf(threadName, "cmdqKTHR_%llx", engineFlag1);
+	len = sprintf(threadName, "cmdqKTHR_%llx", engineFlag1);
+	if (len >= 20)
+		pr_debug("%s:%d len:%d threadName:%s\n",
+			__func__, __LINE__, len, threadName);
+
 	pKThread1 = kthread_run(_testcase_thread_dispatch,
 		(void *)(&engineFlag1), threadName);
 	if (IS_ERR(pKThread1)) {
@@ -2080,7 +2088,11 @@ static void testcase_thread_dispatch(void)
 		return;
 	}
 
-	sprintf(threadName, "cmdqKTHR_%llx", engineFlag2);
+	len = sprintf(threadName, "cmdqKTHR_%llx", engineFlag2);
+	if (len >= 20)
+		pr_debug("%s:%d len:%d threadName:%s\n",
+			__func__, __LINE__, len, threadName);
+
 	pKThread2 = kthread_run(_testcase_thread_dispatch,
 		(void *)(&engineFlag2), threadName);
 	if (IS_ERR(pKThread2)) {
@@ -2149,10 +2161,15 @@ static void testcase_full_thread_array(void)
 {
 	char threadName[20];
 	struct task_struct *pKThread;
+	int len;
 
 	CMDQ_LOG("%s\n", __func__);
 
-	sprintf(threadName, "cmdqKTHR");
+	len = sprintf(threadName, "cmdqKTHR");
+	if (len >= 20)
+		pr_debug("%s:%d len:%d threadName:%s\n",
+			__func__, __LINE__, len, threadName);
+
 	pKThread = kthread_run(_testcase_full_thread_array, NULL, threadName);
 	if (IS_ERR(pKThread)) {
 		/* create thread failed */
@@ -2211,7 +2228,7 @@ static void testcase_module_full_dump(void)
 #include "cmdqsectl_api.h"
 s32 cmdq_sec_submit_to_secure_world_async_unlocked(u32 iwcCommand,
 	struct cmdqRecStruct *handle, s32 thread,
-	CmdqSecFillIwcCB iwcFillCB, void *data);
+	CmdqSecFillIwcCB iwcFillCB, void *data, const bool mtee);
 #endif
 
 void testcase_secure_basic(void)
@@ -2226,7 +2243,8 @@ void testcase_secure_basic(void)
 		CMDQ_MSG("=========== Hello cmdqSecTl ===========\n ");
 		status = cmdq_sec_submit_to_secure_world_async_unlocked(
 			CMD_CMDQ_TL_TEST_HELLO_TL, NULL,
-			CMDQ_INVALID_THREAD, NULL, NULL);
+			CMDQ_INVALID_THREAD, NULL, NULL,
+			gCmdqTestSecure < 0 ? true : false);
 		if (status < 0) {
 			/* entry cmdqSecTL failed */
 			CMDQ_ERR("entry cmdqSecTL failed, status:%d\n",
@@ -2236,7 +2254,8 @@ void testcase_secure_basic(void)
 		CMDQ_MSG("=========== Hello cmdqSecDr ===========\n ");
 		status = cmdq_sec_submit_to_secure_world_async_unlocked(
 			CMD_CMDQ_TL_TEST_DUMMY, NULL,
-			CMDQ_INVALID_THREAD, NULL, NULL);
+			CMDQ_INVALID_THREAD, NULL, NULL,
+			gCmdqTestSecure < 0 ? true : false);
 		if (status < 0) {
 			/* entry cmdqSecDr failed */
 			CMDQ_ERR("entry cmdqSecDr failed, status:%d\n",
@@ -2266,6 +2285,9 @@ void testcase_secure_disp_scenario(void)
 	cmdq_task_create(CMDQ_SCENARIO_PRIMARY_DISP, &hDISP);
 	cmdq_task_reset(hDISP);
 	cmdq_task_set_secure(hDISP, true);
+	if (!~gCmdqTestSecure)
+		cmdq_task_set_mtee(hDISP, true);
+
 	cmdq_op_write_reg(hDISP, CMDQ_TEST_MMSYS_DUMMY_PA, PATTERN, ~0);
 	cmdq_task_flush(hDISP);
 	cmdq_task_destroy(hDISP);
@@ -2274,6 +2296,9 @@ void testcase_secure_disp_scenario(void)
 	cmdq_task_create(CMDQ_SCENARIO_SUB_DISP, &hSubDisp);
 	cmdq_task_reset(hSubDisp);
 	cmdq_task_set_secure(hSubDisp, true);
+	if (!~gCmdqTestSecure)
+		cmdq_task_set_mtee(hSubDisp, true);
+
 	cmdq_op_write_reg(hSubDisp, CMDQ_TEST_MMSYS_DUMMY_PA, PATTERN, ~0);
 	cmdq_task_flush(hSubDisp);
 	cmdq_task_destroy(hSubDisp);
@@ -2283,6 +2308,9 @@ void testcase_secure_disp_scenario(void)
 		&hDisableDISP);
 	cmdq_task_reset(hDisableDISP);
 	cmdq_task_set_secure(hDisableDISP, true);
+	if (!~gCmdqTestSecure)
+		cmdq_task_set_mtee(hDisableDISP, true);
+
 	cmdq_op_write_reg(hDisableDISP, CMDQ_TEST_MMSYS_DUMMY_PA, PATTERN, ~0);
 	cmdq_task_flush(hDisableDISP);
 	cmdq_task_destroy(hDisableDISP);
@@ -2309,6 +2337,8 @@ void testcase_secure_meta_data(void)
 	cmdq_task_create(CMDQ_SCENARIO_DEBUG, &hReqMDP);
 	cmdq_task_reset(hReqMDP);
 	cmdq_task_set_secure(hReqMDP, true);
+	if (!~gCmdqTestSecure)
+		cmdq_task_set_mtee(hReqMDP, true);
 
 	/* specify use MDP engine */
 	hReqMDP->engineFlag = (1LL << CMDQ_ENG_MDP_RDMA0) |
@@ -2338,6 +2368,8 @@ void testcase_secure_meta_data(void)
 	cmdq_task_create(CMDQ_SCENARIO_SUB_DISP, &hReqDISP);
 	cmdq_task_reset(hReqDISP);
 	cmdq_task_set_secure(hReqDISP, true);
+	if (!~gCmdqTestSecure)
+		cmdq_task_set_mtee(hReqDISP, true);
 
 	/* enable secure test */
 	cmdq_task_secure_enable_dapc(hReqDISP, (1LL << CMDQ_ENG_DISP_WDMA1));
@@ -2983,8 +3015,8 @@ static void testcase_check_dts_correctness(void)
 static s32 testcase_monitor_callback(unsigned long data)
 {
 	u32 i;
-	u32 monitorValue[CMDQ_MONITOR_EVENT_MAX];
-	u32 durationTime[CMDQ_MONITOR_EVENT_MAX];
+	u32 monitorValue[CMDQ_MONITOR_EVENT_MAX] = {0};
+	u32 durationTime[CMDQ_MONITOR_EVENT_MAX] = {0};
 
 	if (!gEventMonitor.status)
 		return 0;
@@ -4404,8 +4436,18 @@ static void testcase_move_data_between_SRAM(void)
 	/* Allocate DRAM memory */
 	p_va_src = cmdq_core_alloc_hw_buffer(cmdq_dev_get(), buffer_size,
 		&pa_src, GFP_KERNEL);
+	if (!p_va_src) {
+		CMDQ_ERR("p_va_src allocate failed\n");
+		return;
+	}
+
 	p_va_dest = cmdq_core_alloc_hw_buffer(cmdq_dev_get(), buffer_size,
 		&pa_dest, GFP_KERNEL);
+	if (!p_va_dest) {
+		CMDQ_ERR("p_va_dest allocate failed\n");
+		return;
+	}
+
 	memset(p_va_src, 0xda, buffer_size);
 	memset(p_va_dest, 0xcc, buffer_size);
 
@@ -4572,7 +4614,7 @@ static void testcase_global_variable(void)
 	s32 status = 0;
 	struct cmdqRecStruct *handle;
 	cmdqBackupSlotHandle slot_handle = 0;
-	u32 cpr_offset;
+	u32 cpr_offset = 0;
 	u32 gpr_buffer_size = 2*sizeof(u32);
 	CMDQ_VARIABLE global_x, global_y;
 	u32 test_x = 0, test_y = 0;
@@ -5047,6 +5089,8 @@ static void testcase_end_behavior(bool test_prefetch, u32 dummy_size)
 	cmdqCoreClearEvent(CMDQ_SYNC_TOKEN_GPR_SET_4);
 	va_base = cmdq_core_alloc_hw_buffer(cmdq_dev_get(),
 		CMDQ_CMD_BUFFER_SIZE, &pa_base, GFP_KERNEL);
+	if (!va_base)
+		return;
 	cmd_end = va_base;
 	cmd_end[1] = (CMDQ_CODE_MOVE << 24) |
 		((CMDQ_DATA_REG_DEBUG_DST & 0x1f) << 16) | (4 << 21);
@@ -7993,6 +8037,7 @@ ssize_t cmdq_test_proc(struct file *fp, char __user *u, size_t s, loff_t *l)
 	switch (testParameter[0]) {
 	case CMDQ_TEST_TYPE_NORMAL:
 	case CMDQ_TEST_TYPE_SECURE:
+	case CMDQ_TEST_TYPE_SECURE_MTEE:
 		testcase_general_handling((s32)testParameter[1]);
 		break;
 	case CMDQ_TEST_TYPE_MONITOR_EVENT:
@@ -8032,7 +8077,7 @@ static ssize_t cmdq_write_test_proc_config(struct file *file,
 {
 	char desc[50];
 	long long testConfig[CMDQ_TESTCASE_PARAMETER_MAX];
-	s32 len = 0;
+	u64 len = 0ULL;
 
 	do {
 		/* copy user input */
@@ -8073,10 +8118,9 @@ static ssize_t cmdq_write_test_proc_config(struct file *file,
 		smp_mb();
 
 		memcpy(&gCmdqTestConfig, &testConfig, sizeof(testConfig));
-		if (testConfig[0] == CMDQ_TEST_TYPE_NORMAL)
-			gCmdqTestSecure = false;
-		else
-			gCmdqTestSecure = true;
+		gCmdqTestSecure = testConfig[0];
+		if (testConfig[0] == CMDQ_TEST_TYPE_SECURE_MTEE)
+			gCmdqTestSecure = -1;
 
 		mutex_unlock(&gCmdqTestProcLock);
 	} while (0);

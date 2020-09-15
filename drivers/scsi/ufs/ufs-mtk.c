@@ -55,6 +55,7 @@ bool ufs_mtk_rpm_enabled;              /* runtime PM: on/off */
 bool ufs_mtk_auto_hibern8_enabled;
 bool ufs_mtk_host_deep_stall_enable;
 bool ufs_mtk_host_scramble_enable;
+int  ufs_mtk_hs_gear;
 struct ufs_hba *ufs_mtk_hba;
 
 static bool ufs_mtk_is_data_cmd(char cmd_op);
@@ -280,16 +281,15 @@ static int ufs_mtk_di_cmp(struct ufs_hba *hba, struct scsi_cmnd *cmd)
 	if (!scsi_sg_count(cmd))
 		return 0;
 
-#ifdef CONFIG_MTK_HW_FDE
-	if (cmd->request->bio && cmd->request->bio->bi_hw_fde) {
-		mode = UFS_CRYPTO_HW_FDE;
-		priv = 1;
-	}
-#endif
-
 	if (hba->lrb[tag].crypto_enable) {
-		mode = UFS_CRYPTO_HW_FDE;
-		priv = 1;
+		mode = UFS_CRYPTO_HW_FBE;
+		/*
+		 * ufshcd_crypto_enable() will re-program all of the keys with
+		 * the same index in keyslot_manager_reprogram_all_keys()
+		 * so use key slot as key index for checking different keys
+		 */
+		priv = hba->lrb[tag].crypto_key_slot;
+		priv++;
 	}
 
 	for (i = 0; i < scsi_sg_count(cmd); i++) {
@@ -457,9 +457,8 @@ static void ufs_mtk_advertise_hci_quirks(struct ufs_hba *hba)
 	hba->quirks |= UFSHCD_QUIRK_UFS_HCI_VENDOR_HOST_RST;
 #endif
 
-#if defined(UFS_MTK_PLATFORM_UFS_HCI_MANUALLY_DISABLE_AH8_BEFORE_RING_DOORBELL)
+	/* Always enable "Disable AH8 before RDB" */
 	hba->quirks |= UFSHCD_QUIRK_UFS_HCI_DISABLE_AH8_BEFORE_RDB;
-#endif
 
 	dev_info(hba->dev, "hci quirks: %#x\n", hba->quirks);
 }
@@ -778,20 +777,34 @@ static int ufs_mtk_setup_clocks(struct ufs_hba *hba, bool on,
 	switch (stage) {
 	case PRE_CHANGE:
 		if (!on) {
-			ret = ufs_mtk_pltfrm_ref_clk_ctrl(hba, false);
-			if (host) {
+			if (host && host->pm_qos_init) {
 				pm_qos_update_request(
 					&host->req_cpu_dma_latency,
 					PM_QOS_DEFAULT_VALUE);
+
+				ret = ufs_mtk_perf_setup(host, false);
+				if (ret)
+					goto out;
 			}
+
+			ret = ufs_mtk_pltfrm_ref_clk_ctrl(hba, false);
+			if (ret)
+				goto out;
 		}
 		break;
 	case POST_CHANGE:
 		if (on) {
 			ret = ufs_mtk_pltfrm_ref_clk_ctrl(hba, true);
-			if (host) {
+			if (ret)
+				goto out;
+
+			if (host && host->pm_qos_init) {
 				pm_qos_update_request(
 					&host->req_cpu_dma_latency, 0);
+
+				ret = ufs_mtk_perf_setup(host, true);
+				if (ret)
+					goto out;
 			}
 		}
 		break;
@@ -799,6 +812,7 @@ static int ufs_mtk_setup_clocks(struct ufs_hba *hba, bool on,
 		break;
 	}
 
+out:
 	return ret;
 }
 
@@ -892,8 +906,35 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 	ufs_mtk_parse_auto_hibern8_timer(hba);
 
 	ufs_mtk_perf_init_crypto(hba);
+
+	pm_qos_add_request(&host->req_cpu_dma_latency, PM_QOS_CPU_DMA_LATENCY,
+			   PM_QOS_DEFAULT_VALUE);
+
+	host->pm_qos_init = true;
+
 out:
 	return err;
+}
+
+/**
+ * ufs_mtk_exit - release resource
+ * @hba: host controller instance
+ */
+void ufs_mtk_exit(struct ufs_hba *hba)
+{
+	struct ufs_mtk_host *host;
+
+	host = ufshcd_get_variant(hba);
+
+	if (host->pm_qos_init) {
+		/* remove pm_qos when exit */
+		pm_qos_remove_request(host->req_vcore);
+		pm_qos_remove_request(&host->req_cpu_dma_latency);
+		host->pm_qos_init = false;
+	}
+
+	/* prevent pointer is used after hba is freed */
+	ufs_mtk_hba = NULL;
 }
 
 static int ufs_mtk_pre_pwr_change(struct ufs_hba *hba,
@@ -926,11 +967,30 @@ static int ufs_mtk_pre_pwr_change(struct ufs_hba *hba,
 
 /* HSG3B as default power mode, only use HSG1B at FPGA */
 #ifndef CONFIG_FPGA_EARLY_PORTING
-	final->gear_rx = 3;
-	final->gear_tx = 3;
+	if (ufs_mtk_hs_gear == UFS_HS_G4) {
+		if ((desired->gear_rx == UFS_HS_G4) &&
+			(desired->gear_tx == UFS_HS_G4)) {
+			final->gear_rx = UFS_HS_G4;
+			final->gear_tx = UFS_HS_G4;
+			/* INITIAL ADAPT */
+			ufshcd_dme_set(hba,
+				       UIC_ARG_MIB(PA_TXHSADAPTTYPE),
+				       PA_INITIAL_ADAPT);
+		} else {
+			final->gear_rx = UFS_HS_G3;
+			final->gear_tx = UFS_HS_G3;
+			/* NO ADAPT */
+			ufshcd_dme_set(hba,
+				       UIC_ARG_MIB(PA_TXHSADAPTTYPE),
+				       PA_NO_ADAPT);
+		}
+	} else {
+		final->gear_rx = UFS_HS_G3;
+		final->gear_tx = UFS_HS_G3;
+	}
 #else
-	final->gear_rx = 1;
-	final->gear_tx = 1;
+	final->gear_rx = UFS_HS_G1;
+	final->gear_tx = UFS_HS_G1;
 #endif
 	/* Change by dts setting */
 	if (hba->lanes_per_direction == 2) {
@@ -987,14 +1047,6 @@ static int ufs_mtk_enable_crypto(struct ufs_hba *hba)
 	/* restore vendor crypto setting by re-using resume operation */
 	mt_secure_call(MTK_SIP_KERNEL_HW_FDE_UFS_CTL, (1 << 2), 0, 0, 0);
 
-	return 0;
-}
-
-static int ufs_mtk_probe_crypto(struct ufs_hba *hba)
-{
-#if defined(CONFIG_MTK_HW_FDE)
-	hba->crypto_feature |= UFS_CRYPTO_HW_FDE;
-#endif
 	return 0;
 }
 
@@ -1156,7 +1208,7 @@ static void ufs_mtk_vreg_lpm(struct ufs_hba *hba, bool lpm)
 {
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 
-	if (!host->vreg_lpm_supported)
+	if (!host->vreg_lpm_supported || !hba->vreg_info.vcc)
 		return;
 
 	if (lpm & !hba->vreg_info.vcc->enabled)
@@ -1367,6 +1419,10 @@ void ufs_mtk_parse_dt(struct ufs_hba *hba)
 			host->spm_sw_mode = true;
 		else
 			host->spm_sw_mode = false;
+
+		if (of_property_read_u32(np, "highspeed-gear",
+			&ufs_mtk_hs_gear))
+			ufs_mtk_hs_gear = UFS_HS_G3;
 	}
 }
 
@@ -1670,7 +1726,7 @@ int ufs_mtk_ioctl_ffu(struct scsi_device *dev, void __user *buf_user)
 	if (copy_from_user(idata->buf_ptr,
 		(void __user *)idata_user->buf_ptr, idata->buf_byte)) {
 		err = -EFAULT;
-		goto out_release_mem;
+		goto out_release_idata_buf_ptr;
 	}
 
 	ufs_mtk_device_quiesce(hba);
@@ -1698,15 +1754,16 @@ int ufs_mtk_ioctl_ffu(struct scsi_device *dev, void __user *buf_user)
 	if (err) {
 		dev_err(hba->dev, "%s: query bDeviceFFUStatus failed, err %d\n",
 			__func__, err);
-		goto out_release_mem;
+		goto out_release_idata_buf_ptr;
 	}
 
 	if (attr > UFS_FFU_STATUS_OK)
 		dev_err(hba->dev, "%s: bDeviceFFUStatus shows fail %d (ref only)\n",
 			__func__, attr);
 
-out_release_mem:
+out_release_idata_buf_ptr:
 	kfree(idata->buf_ptr);
+out_release_mem:
 	kfree(idata);
 	kfree(idata_user);
 out:
@@ -1732,7 +1789,8 @@ out:
  * response in the buffer field while updating the used size in buf_length.
  */
 #if defined(CONFIG_UFSFEATURE)
-int ufsf_query_ioctl(struct ufsf_feature *ufsf, int lun, void __user *buffer,
+int ufsf_query_ioctl(struct ufsf_feature *ufsf, unsigned int lun,
+		     void __user *buffer,
 		     struct ufs_ioctl_query_data_hpb *ioctl_data, u8 selector);
 #endif
 int ufs_mtk_ioctl_query(struct ufs_hba *hba, u8 lun, void __user *buf_user)
@@ -2384,9 +2442,9 @@ static struct ufs_cmd_str_struct ufs_cmd_str_tbl[] = {
 	{"UNKNOWN",                0xFF}
 };
 
-static int ufs_mtk_get_cmd_str_idx(char cmd)
+static unsigned int ufs_mtk_get_cmd_str_idx(char cmd)
 {
-	int i;
+	unsigned int i;
 
 	for (i = 0; ufs_cmd_str_tbl[i].cmd != 0xFF; i++) {
 		if (ufs_cmd_str_tbl[i].cmd == cmd)
@@ -2479,12 +2537,22 @@ static void ufs_mtk_abort_handler(struct ufs_hba *hba, int tag,
 #ifdef CONFIG_MTK_AEE_FEATURE
 	u8 cmd = 0;
 
-	if (hba->lrb[tag].cmd)
-		cmd = hba->lrb[tag].cmd->cmnd[0];
+	dev_info(hba->dev, "%s: tag: %d\n", __func__, tag);
 
-	aee_kernel_warning_api(file, line, DB_OPT_FS_IO_LOG,
-		"[UFS] Command Timeout", "Command 0x%x timeout, %s:%d", cmd,
-		file, line);
+	if (tag == -1) {
+		aee_kernel_warning_api(file, line, DB_OPT_FS_IO_LOG,
+			"[UFS] Host and Device Reset Event",
+			"Host and Device Reset, %s:%d",
+			file, line);
+	} else {
+		if (hba->lrb[tag].cmd)
+			cmd = hba->lrb[tag].cmd->cmnd[0];
+
+		aee_kernel_warning_api(file, line, DB_OPT_FS_IO_LOG,
+			"[UFS] Command Timeout",
+			"Command 0x%x timeout, %s:%d",
+			cmd, file, line);
+	}
 #endif
 }
 
@@ -2497,7 +2565,7 @@ static void ufs_mtk_abort_handler(struct ufs_hba *hba, int tag,
 static struct ufs_hba_variant_ops ufs_hba_mtk_vops = {
 	"mediatek.ufshci",  /* name */
 	ufs_mtk_init,    /* init */
-	NULL,            /* exit */
+	ufs_mtk_exit,    /* exit */
 	NULL,            /* get_ufs_hci_version */
 	NULL,            /* clk_scale_notify */
 	ufs_mtk_setup_clocks,            /* setup_clocks */
@@ -2572,17 +2640,6 @@ static int ufs_mtk_probe(struct platform_device *pdev)
 		goto out;
 	}
 
-	hba = platform_get_drvdata(pdev);
-
-	host = ufshcd_get_variant(hba);
-
-	pm_qos_add_request(&host->req_cpu_dma_latency, PM_QOS_CPU_DMA_LATENCY,
-			   PM_QOS_DEFAULT_VALUE);
-
-	err = ufs_mtk_probe_crypto(hba);
-	if (err)
-		dev_info(dev, "ufs_mtk_probe_crypto() failed %d\n", err);
-
 out:
 	return err;
 }
@@ -2601,8 +2658,6 @@ static int ufs_mtk_remove(struct platform_device *pdev)
 	pm_runtime_get_sync(&(pdev)->dev);
 	ufshcd_remove(hba);
 	ufs_mtk_biolog_exit();
-	if (host)
-		pm_qos_remove_request(&host->req_cpu_dma_latency);
 
 	return 0;
 }

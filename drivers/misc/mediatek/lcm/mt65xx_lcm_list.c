@@ -1147,6 +1147,10 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&ili9881c_hdp_dsi_vdo_ilitek_rt5081_lcm_drv,
 #endif
 
+#if defined(ILI9881C_HD720_TD_TCHD5031_6B_DSI_VDO)
+	&ili9881c_hd720_td_tchd5031_6b_dsi_vdo_lcm_drv,
+#endif
+
 #if defined(NT51021_WUXGA_DSI_VDO_MT8173)
 	&nt51021_wuxga_dsi_vdo_mt8173_lcm_drv,
 #endif
@@ -1259,6 +1263,14 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&nt36672c_fhdp_dsi_vdo_auo_cphy_lcm_drv,
 #endif
 
+#if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ_JDI)
+	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_jdi_lcm_drv,
+#endif
+
+#if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ_TIANMA)
+	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_tianma_lcm_drv,
+#endif
+
 #if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ)
 	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_lcm_drv,
 #endif
@@ -1283,8 +1295,24 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&td4320_fhdp_dsi_vdo_auo_rt5081_lcm_drv,
 #endif
 
+#if defined(TD4330_FHDP_DSI_CMD_AUO_RT5081)
+	&td4330_fhdp_dsi_cmd_auo_rt5081_lcm_drv,
+#endif
+
+#if defined(TD4330_FHDP_DSI_VDO_AUO_RT5081)
+	&td4330_fhdp_dsi_vdo_auo_rt5081_lcm_drv,
+#endif
+
 #if defined(NT51021H_WUXGA_VDO_ONCELL_BOE)
 	&nt51021h_wuxga_vdo_oncell_boe_lcm_drv,
+#endif
+
+#if defined(FT8201_WUXGA_DSI_VDO_BOE)
+	&ft8201_wuxga_dsi_vdo_boe_lcm_drv,
+#endif
+
+#if defined(FT8756_FHDP_DSI_VDO_AUO_RT4801)
+	&ft8756_fhdp_dsi_vdo_auo_rt4801_lcm_drv,
 #endif
 };
 

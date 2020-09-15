@@ -277,12 +277,14 @@ void mtk_drm_gem_free_object(struct drm_gem_object *obj)
 			       mtk_gem->dma_addr, mtk_gem->dma_attrs,
 			       __func__, __LINE__);
 
+#if defined(CONFIG_MTK_IOMMU_V2)
 	/* No ion handle in dumb buffer */
 	if (mtk_gem->handle && priv->client)
 		mtk_drm_gem_ion_free_handle(priv->client, mtk_gem->handle,
 				__func__, __LINE__);
 	else if (!mtk_gem->is_dumb)
 		DDPPR_ERR("invaild ion handle or client\n");
+#endif
 
 	/* release file pointer to gem object. */
 	drm_gem_object_release(obj);
@@ -411,7 +413,7 @@ struct ion_handle *mtk_gem_ion_import_dma_buf(struct ion_client *client,
 	DRM_MMP_EVENT_START(ion_import_dma, (unsigned long)client, line);
 	handle = ion_import_dma_buf(client, dmabuf);
 
-	DRM_MMP_EVENT_END(ion_import_dma, (unsigned long)handle,
+	DRM_MMP_EVENT_END(ion_import_dma, (unsigned long)handle->buffer,
 			(unsigned long)dmabuf);
 	DDPDBG("%s:%d handle:0x%p -\n",
 		   __func__, __LINE__,
@@ -434,6 +436,11 @@ struct ion_handle *mtk_gem_ion_import_dma_fd(struct ion_client *client,
 		   line);
 	DRM_MMP_EVENT_START(ion_import_fd, (unsigned long)client, line);
 	handle = ion_import_dma_buf_fd(client, fd);
+	if (IS_ERR(handle)) {
+		DDPPR_ERR("%s:%d dma_buf_get fail fd=%d ret=0x%p\n",
+		       __func__, __LINE__, fd, handle);
+		return ERR_CAST(handle);
+	}
 
 	dmabuf = dma_buf_get(fd);
 	if (IS_ERR(dmabuf)) {
@@ -441,10 +448,14 @@ struct ion_handle *mtk_gem_ion_import_dma_fd(struct ion_client *client,
 		       __func__, __LINE__, fd, dmabuf);
 		return ERR_CAST(dmabuf);
 	}
-
-	DRM_MMP_EVENT_END(ion_import_fd, (unsigned long)handle,
+	DRM_MMP_MARK(dma_get, (unsigned long)handle->buffer,
 			(unsigned long)dmabuf);
 
+	DRM_MMP_EVENT_END(ion_import_fd, (unsigned long)handle->buffer,
+			(unsigned long)dmabuf);
+
+	DRM_MMP_MARK(dma_put, (unsigned long)handle->buffer,
+			(unsigned long)dmabuf);
 	dma_buf_put(dmabuf);
 	DDPDBG("%s:%d -\n",
 		   __func__, __LINE__);
@@ -482,7 +493,8 @@ void mtk_drm_gem_ion_destroy_client(struct ion_client *client)
 void mtk_drm_gem_ion_free_handle(struct ion_client *client,
 	struct ion_handle *handle, const char *name, int line)
 {
-	DRM_MMP_EVENT_START(ion_import_free, (unsigned long)handle, 0);
+	DRM_MMP_EVENT_START(ion_import_free,
+			    (unsigned long)handle->buffer, line);
 
 	if (!client) {
 		DDPPR_ERR("invalid ion client!\n");
@@ -569,6 +581,7 @@ mtk_gem_prime_import(struct drm_device *dev, struct dma_buf *dma_buf)
 		return obj;
 
 	mtk_gem = to_mtk_gem_obj(obj);
+#if defined(CONFIG_MTK_IOMMU_V2)
 	mtk_gem->handle = handle;
 
 	DDPDBG("%s:%d client:0x%p, handle=0x%p obj:0x%p, gem:0x%p -\n",
@@ -577,6 +590,7 @@ mtk_gem_prime_import(struct drm_device *dev, struct dma_buf *dma_buf)
 		   handle,
 		   obj,
 		   mtk_gem);
+#endif
 
 	return obj;
 }

@@ -53,8 +53,7 @@ static char * const rsc_dev_name[] = {
 	"sample",
 	"mdla",
 	"vpu",
-	"edma", // edma 2.0
-	"edma3.0", // edma 3.0
+	"edma",
 };
 
 #ifdef CONFIG_PM_SLEEP
@@ -67,9 +66,15 @@ static struct mutex ws_mtx;
 static void mdw_rsc_ws_init(void)
 {
 #if defined CONFIG_PM_SLEEP
+	char ws_name[16];
+
+	if (snprintf(ws_name, sizeof(ws_name)-1, "apusys_secure") < 0) {
+		mdw_drv_err("init rsc wakeup source fail\n");
+		return;
+	}
 	ws_cnt = 0;
 	mutex_init(&ws_mtx);
-	mdw_rsc_ws = wakeup_source_register(NULL, "apusys_secure");
+	mdw_rsc_ws = wakeup_source_register(NULL, (const char *)ws_name);
 	if (!mdw_rsc_ws)
 		mdw_drv_err("register ws lock fail!\n");
 #else
@@ -122,7 +127,7 @@ static int mdw_rsc_get_name(int type, char *name)
 	int name_idx = 0;
 
 	name_idx = type % APUSYS_DEVICE_RT;
-	if (name_idx > sizeof(rsc_dev_name)/sizeof(char *)) {
+	if (name_idx >= sizeof(rsc_dev_name)/sizeof(char *)) {
 		mdw_drv_err("unknown dev(%d/%d) name\n", type, name_idx);
 		return -ENODEV;
 	}
@@ -131,19 +136,20 @@ static int mdw_rsc_get_name(int type, char *name)
 		(uint32_t)sizeof(rsc_dev_name)/sizeof(char *),
 		rsc_dev_name[name_idx]);
 
-	if (type >= APUSYS_DEVICE_RT)
-		snprintf(name, 32, "%s_rt", rsc_dev_name[name_idx]);
-	else
-		snprintf(name, 32, "%s", rsc_dev_name[name_idx]);
+	if (type >= APUSYS_DEVICE_RT) {
+		if (snprintf(name, 32, "%s_rt", rsc_dev_name[name_idx]) < 0)
+			return -EINVAL;
+	} else {
+		if (snprintf(name, 32, "%s", rsc_dev_name[name_idx]) < 0)
+			return -EINVAL;
+	}
 
 	return 0;
 }
 
 static void mdw_rsc_delete_tab(struct mdw_rsc_tab *tab)
 {
-	tab->q.norm.ops.destroy(&tab->q.norm);
-	tab->q.deadline.ops.destroy(&tab->q.deadline);
-
+	mdw_queue_destroy(&tab->q);
 	vfree(tab);
 }
 
@@ -180,20 +186,19 @@ static struct mdw_rsc_tab *mdw_rsc_add_tab(int type)
 	tab->dbg_dir = debugfs_create_dir(name,
 		mdw_dbg_device);
 
-	/* create queue */
-	debugfs_create_u32("queue", 0444, tab->dbg_dir, &tab->q.norm.cnt);
+	/* create debugfs */
+	debugfs_create_u32("queue", 0444, tab->dbg_dir, &tab->q.normal_task_num);
 
 init_queue:
 	/* init queue */
-	mdw_queue_deadline_init(&tab->q.deadline);
-	mdw_queue_norm_init(&tab->q.norm);
+	mdw_queue_init(&tab->q);
 
 	return tab;
 }
 
 struct mdw_rsc_tab *mdw_rsc_get_tab(int type)
 {
-	if (type >= MDW_RSC_MAX_NUM)
+	if (type >= MDW_RSC_MAX_NUM || type < 0)
 		return NULL;
 
 	return rsc_mgr.tabs[type];
@@ -226,6 +231,9 @@ uint64_t mdw_rsc_get_avl_bmp(void)
 	unsigned long bmp[BITS_TO_LONGS(APUSYS_DEVICE_MAX)];
 	uint64_t b = 0;
 
+	memset(&bmp, 0, sizeof(unsigned long) *
+		BITS_TO_LONGS(APUSYS_DEVICE_MAX));
+
 	bitmap_and(bmp, rsc_mgr.cmd_avl_bmp,
 		rsc_mgr.dev_avl_bmp, APUSYS_DEVICE_MAX);
 	bitmap_to_u32array((uint32_t *)&b, 2, bmp, APUSYS_DEVICE_MAX);
@@ -257,7 +265,7 @@ void mdw_rsc_update_avl_bmp(int type)
 	if (!mq)
 		goto out;
 
-	if (mq->deadline.ops.len(&mq->deadline) || mq->norm.ops.len(&mq->norm))
+	if (mdw_queue_len(type, true) || mdw_queue_len(type, false))
 		bitmap_set(rsc_mgr.cmd_avl_bmp, type, 1);
 	else
 		bitmap_clear(rsc_mgr.cmd_avl_bmp, type, 1);
@@ -316,10 +324,10 @@ static void mdw_rsc_dump_tab(struct seq_file *s, struct mdw_rsc_tab *tab)
 				tab->avl_num,
 				" subcmd idx",
 				sc == NULL ? 0 : sc->idx);
-			mdw_con_info(s, "|%-14s(%3u/%3u) |%-18s= %-41d|\n",
+			mdw_con_info(s, "|%-14s(%3d/%3d) |%-18s= %-41d|\n",
 				" cmd queue",
-				tab->q.norm.ops.len(&tab->q.norm),
-				tab->q.deadline.ops.len(&tab->q.deadline),
+				mdw_queue_len(tab->type, false),
+				mdw_queue_len(tab->type, true),
 				" state ",
 				d->state);
 		} else {
@@ -569,7 +577,6 @@ static int mdw_rsc_add_dev(struct apusys_device *dev)
 		mdw_drv_err("invalid device idx(%d)\n", dev->dev_type);
 		return -ENODEV;
 	}
-
 	if (mdw_rsc_get_name(dev->dev_type, name))
 		return -ENODEV;
 
@@ -603,20 +610,28 @@ static int mdw_rsc_add_dev(struct apusys_device *dev)
 		dev->idx = tab->dev_num;
 	}
 	d->idx = dev->idx;
+	if (d->idx >= MDW_RSC_TAB_DEV_MAX || d->idx < 0)
+		goto fail_check_idx;
 	d->dev = dev;
 	d->type = dev->dev_type;
+	/* setup device name and thread name */
+	ret = snprintf(d->name, sizeof(d->name)-1, "%s", name);
+	if (ret < 0)
+		goto fail_set_name;
+	ret = snprintf(thd_name, sizeof(thd_name)-1,
+		"apusys_%s%d", name, d->idx);
+	if (ret < 0)
+		goto fail_set_name;
+
+	ret = 0;
 	list_add_tail(&d->t_item, &tab->list); // add list
 	tab->array[d->idx] = d; // add array
 	init_completion(&d->cmplt);
+	init_completion(&d->thd_done);
 	mutex_init(&d->mtx);
 
 	tab->dev_num++;
 	tab->avl_num++;
-
-	/* setup device name and thread name */
-	snprintf(d->name, sizeof(d->name)-1, "%s", name);
-	snprintf(thd_name, sizeof(thd_name)-1,
-		"apusys_%s%d", name, d->idx);
 
 	d->exec = mdw_rsc_dev_exec;
 	d->pwr_on = mdw_rsc_pwr_on;
@@ -632,6 +647,11 @@ static int mdw_rsc_add_dev(struct apusys_device *dev)
 	/* create kthd */
 	d->thd = kthread_run(mdw_sched_dev_routine, d, thd_name);
 
+	goto out;
+
+fail_set_name:
+fail_check_idx:
+	vfree(d);
 out:
 	mutex_unlock(&tab->mtx);
 	mdw_rsc_update_avl_bmp(dev->dev_type);
@@ -644,30 +664,50 @@ static int mdw_rsc_delete_dev(struct mdw_dev_info *d)
 {
 	struct mdw_rsc_tab *tab = NULL;
 
+	if (d->type >= APUSYS_DEVICE_MAX || d->type < 0 ||
+		d->idx >= MDW_RSC_TAB_DEV_MAX || d->idx < 0)
+		return -EINVAL;
+
 	tab = mdw_rsc_get_tab(d->type);
 	if (!tab)
 		return -ENODEV;
 
-	mutex_lock(&tab->mtx);
-
 	tab->array[d->idx] = NULL;
 	d->stop = true;
 	complete(&d->cmplt);
+	wait_for_completion(&d->thd_done);
 	tab->avl_num--;
 	tab->dev_num--;
 	list_del(&d->t_item);
+	mdw_flw_debug("delete dev(%s%d) done\n", d->name, d->idx);
 	vfree(d);
 
-	mutex_unlock(&tab->mtx);
-
 	return 0;
+}
+
+static int mdw_rsc_check_dev_state(struct mdw_dev_info *in)
+{
+	struct mdw_rsc_tab *tab = NULL;
+	int type = 0;
+
+	if (in->type < APUSYS_DEVICE_RT)
+		type = in->type + APUSYS_DEVICE_RT;
+	else
+		type = in->type % APUSYS_DEVICE_RT;
+
+	tab = mdw_rsc_get_tab(type);
+	if (!tab)
+		return 0;
+
+	return tab->array[in->idx]->state == MDW_DEV_INFO_STATE_IDLE
+		? 0 : -EBUSY;
 }
 
 static struct mdw_dev_info *mdw_rsc_get_dev_sq(int type)
 {
 	int i = 0;
 	struct mdw_rsc_tab *tab = NULL;
-	struct mdw_dev_info *d = NULL;
+	struct mdw_dev_info *d = NULL, *first_d = NULL;
 
 	tab = mdw_rsc_get_tab(type);
 	if (!tab)
@@ -676,10 +716,21 @@ static struct mdw_dev_info *mdw_rsc_get_dev_sq(int type)
 	for (i = 0; i < tab->dev_num; i++) {
 		if (tab->array[i]->state == MDW_DEV_INFO_STATE_IDLE) {
 			d = tab->array[i];
-			break;
+			/* record first idle device */
+			if (!first_d)
+				first_d = d;
+
+			/* check rt device state */
+			if (!mdw_rsc_check_dev_state(d))
+				break;
 		}
 		d = NULL;
 	}
+
+	/* if all device busy, assign first idle device */
+	if (!d && first_d)
+		d = first_d;
+	/* remove device */
 	if (d) {
 		tab->avl_num--;
 		list_del(&d->t_item);
@@ -692,6 +743,7 @@ static struct mdw_dev_info *mdw_rsc_get_dev_sq(int type)
 
 static struct mdw_dev_info *mdw_rsc_get_dev_rr(int type)
 {
+	struct list_head *tmp = NULL, *list_ptr = NULL;
 	struct mdw_rsc_tab *tab = NULL;
 	struct mdw_dev_info *d = NULL;
 
@@ -699,7 +751,19 @@ static struct mdw_dev_info *mdw_rsc_get_dev_rr(int type)
 	if (!tab)
 		return NULL;
 
-	d = list_first_entry_or_null(&tab->list, struct mdw_dev_info, t_item);
+	/* check normal device state to make preempt prefer idle device */
+	list_for_each_safe(list_ptr, tmp, &tab->list) {
+		d = list_entry(list_ptr, struct mdw_dev_info, t_item);
+		if (!mdw_rsc_check_dev_state(d))
+			break;
+		d = NULL;
+	}
+
+	/* no idle device, get first device */
+	if (!d)
+		d = list_first_entry_or_null(&tab->list,
+			struct mdw_dev_info, t_item);
+
 	if (d) {
 		tab->avl_num--;
 		list_del(&d->t_item);
@@ -729,6 +793,9 @@ static void mdw_rsc_req_done(struct kref *ref)
 
 static int mdw_rsc_req_add_dev(struct mdw_dev_info *d, struct mdw_rsc_req *req)
 {
+	if (d->type >= APUSYS_DEVICE_MAX || d->type < 0)
+		return -EINVAL;
+
 	mutex_lock(&req->mtx);
 	/* check this dev is needed to req */
 	if (!(req->acq_bmp & (1ULL << d->type)) ||
@@ -782,7 +849,7 @@ int mdw_rsc_get_dev(struct mdw_rsc_req *req)
 		type = find_next_bit((unsigned long *)&req->acq_bmp,
 			APUSYS_DEVICE_MAX, type + 1);
 		mdw_flw_debug("dev(%d) bmp(0x%llx)\n", type, req->acq_bmp);
-		if (type >= APUSYS_DEVICE_MAX)
+		if (type >= APUSYS_DEVICE_MAX || type < 0)
 			break;
 
 		tab = mdw_rsc_get_tab(type);
@@ -838,7 +905,7 @@ int mdw_rsc_get_dev(struct mdw_rsc_req *req)
 			mutex_lock(&rsc_mgr.mtx);
 		}
 		if (req->mode == MDW_DEV_INFO_GET_MODE_ASYNC)
-			ret = EAGAIN;
+			ret = -EAGAIN;
 	} else {
 		/* call async cb if done */
 		if (req->cb_async)
@@ -923,7 +990,7 @@ struct mdw_dev_info *mdw_rsc_get_dinfo(int type, int idx)
 	if (!tab)
 		return NULL;
 
-	if (idx >= tab->dev_num)
+	if (idx >= tab->dev_num || idx < 0)
 		return NULL;
 
 	return tab->array[idx];
@@ -952,7 +1019,7 @@ int mdw_rsc_get_dev_num(int type)
 void mdw_rsc_set_thd_group(void)
 {
 	struct file *fd;
-	char buf[8];
+	char buf[16];
 	mm_segment_t oldfs;
 	struct mdw_dev_info *d = NULL;
 	int type = 0, idx = 0;
@@ -978,15 +1045,17 @@ void mdw_rsc_set_thd_group(void)
 			if (!d)
 				continue;
 			memset(buf, 0, sizeof(buf));
-			snprintf(buf, sizeof(buf)-1, "%d", d->thd->pid);
+			if (snprintf(buf, sizeof(buf)-1, "%d", d->thd->pid) < 0)
+				goto fail_set_name;
+
 			vfs_write(fd, (__force const char __user *)buf,
 				sizeof(buf), &fd->f_pos);
 			mdw_drv_debug("dev(%s%d) set thd(%d/%s)\n",
 				d->name, d->idx, d->thd->pid, buf);
 		}
 	}
+fail_set_name:
 	mutex_unlock(&rsc_mgr.mtx);
-
 	filp_close(fd, NULL);
 out:
 	set_fs(oldfs);
@@ -1015,6 +1084,8 @@ void mdw_rsc_exit(void)
 	int type = 0, idx = 0;
 	struct mdw_dev_info *d = NULL;
 	struct mdw_rsc_tab *tab = NULL;
+
+	mdw_sched_exit();
 
 	for (type = 0; type < APUSYS_DEVICE_MAX; type++) {
 		for (idx = 0; idx < mdw_rsc_get_dev_num(type); idx++) {
