@@ -51,6 +51,16 @@
 #include "mtk_spi_hal.h"
 #endif
 
+/* begin modify for unlock speed */
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
+#else
+#include <linux/notifier.h>
+#endif
+#include <linux/fb.h>
+#include "../../../misc/mediatek/video/include/mtkfb.h"
+/* end modify for unlock speed */
+
 #ifndef CONFIG_SPI_MT65XX
 #include "mtk_gpio.h"
 #include "mach/gpio_const.h"
@@ -59,8 +69,17 @@
 #ifdef CONFIG_HQ_SYSFS_SUPPORT
 #include <linux/hqsysfs.h>
 #endif
-#include <linux/regulator/consumer.h>
-#include <gf_spi_tee.h>
+#include  <linux/regulator/consumer.h>
+
+/* begin modify for unlock speed */
+#include "../../../misc/mediatek/base/power/include/mtk_ppm_api.h"
+#include <mt-plat/cpu_ctrl.h>
+#include <linux/pm_qos.h>
+#include <helio-dvfsrc-opp.h>
+
+#define BSP_CERVINO_CLUSTER_NUMBERS  2
+/* end modify for unlock speed */
+
 #define FPC1022_RESET_LOW_US 5000
 #define FPC1022_RESET_HIGH1_US 100
 #define FPC1022_RESET_HIGH2_US 5000
@@ -80,7 +99,17 @@
 //void mt_spi_enable_clk(struct mt_spi_t *ms);
 //void mt_spi_disable_clk(struct mt_spi_t *ms);
 
+/* begin modify for unlock speed */
+#define FP_UNLOCK_REJECTION_TIMEOUT 1500
+/* end modify for unlock speed */
+
 struct regulator *regu_buck;
+
+/* begin modify for unlock speed */
+struct ppm_limit_data fingerprint_freq_to_set[BSP_CERVINO_CLUSTER_NUMBERS];
+struct ppm_limit_data fingerprint_freq_to_release[BSP_CERVINO_CLUSTER_NUMBERS];
+static struct pm_qos_request fpc_fingerprint_ddr_req;
+/* end modify for unlock speed */
 
 #ifdef CONFIG_SPI_MT65XX
 extern void mt_spi_enable_master_clk(struct spi_device *spidev);
@@ -119,6 +148,18 @@ struct fpc1022_data {
 	bool prepared;
 	bool wakeup_enabled;
 	struct wakeup_source *ttw_wl;
+
+/* begin modify for unlock speed */
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	struct early_suspend early_suspend;
+#else
+	struct notifier_block fb_notifier;
+#endif
+	bool fb_black;
+	bool wait_finger_down;
+	struct work_struct work;
+/* end modify for unlock speed */
+
 };
 int fp_idx_ic_exist;
 
@@ -345,6 +386,33 @@ static ssize_t fpc_ic_is_exist(struct device *device,
 
 static DEVICE_ATTR(fpid_get, S_IRUSR | S_IWUSR, fpc_ic_is_exist, NULL);
 
+/* begin modify for unlock speed */
+static ssize_t fingerdown_wait_set(struct device *device,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+		struct fpc1022_data *fpc1022 = dev_get_drvdata(device);
+
+		dev_dbg(fpc1022->dev, "%s\n", __func__);
+		if (!strncmp(buf, "enable", strlen("enable"))) {
+			printk("fingerdown_wait_set enable\n");
+			fpc1022->wait_finger_down = true;
+		dev_dbg(fpc1022->dev, "%s set wait_finger_down true\n", __func__);
+		} else if (!strncmp(buf, "disable", strlen("disable"))) {
+			fpc1022->wait_finger_down = false;
+		dev_dbg(fpc1022->dev, "%s\n set wait_finger_down false", __func__);
+		} else {
+		dev_dbg(fpc1022->dev, "%s set wait_finger_down error\n", __func__);
+			return -EINVAL;
+		}
+
+		return count;
+}
+
+static DEVICE_ATTR(fingerdown_wait, S_IWUSR, NULL, fingerdown_wait_set);
+/* end modify for unlock speed */
+
+
 static struct attribute *attributes[] = {
 	&dev_attr_hw_reset.attr,
 	&dev_attr_wakeup_enable.attr,
@@ -352,12 +420,92 @@ static struct attribute *attributes[] = {
 	&dev_attr_clk_enable.attr,
 	&dev_attr_irq.attr,
 	&dev_attr_fpid_get.attr,
+
+	/* begin modify for unlock speed */
+	&dev_attr_fingerdown_wait.attr,
+	/* end modify for unlock speed */
+
 	NULL
 };
 
 static const struct attribute_group attribute_group = {
 	.attrs = attributes,
 };
+
+/* begin modify for unlock speed */
+static int fpc_fingerprint_freq_set(void)
+{
+	int i, cluster_num;
+
+	printk("fpc_fingerprint_freq_set\n");
+	cluster_num = arch_get_nr_clusters();
+	if (cluster_num > BSP_CERVINO_CLUSTER_NUMBERS)
+		cluster_num = BSP_CERVINO_CLUSTER_NUMBERS;
+
+	for (i = 0; i < BSP_CERVINO_CLUSTER_NUMBERS; i++) {
+		fingerprint_freq_to_set[i].min = 2001000;
+		fingerprint_freq_to_set[i].max = -1;
+	}
+
+	if (cluster_num > 0) {
+		update_userlimit_cpu_freq(CPU_KIR_FINGERPRINT, cluster_num,
+					fingerprint_freq_to_set);
+		return 0;
+	}
+
+	return -1;
+}
+
+
+static int fpc_fingerprint_freq_release(void)
+{
+	int i, cluster_num;
+
+	printk("fpc_fingerprint_freq_release\n");
+	cluster_num = arch_get_nr_clusters();
+	if (cluster_num > BSP_CERVINO_CLUSTER_NUMBERS)
+		cluster_num = BSP_CERVINO_CLUSTER_NUMBERS;
+
+	for (i = 0; i < BSP_CERVINO_CLUSTER_NUMBERS; i++) {
+		fingerprint_freq_to_release[i].min = -1;
+		fingerprint_freq_to_release[i].max = -1;
+	}
+
+	if (cluster_num > 0) {
+		update_userlimit_cpu_freq(CPU_KIR_FINGERPRINT, cluster_num,
+					fingerprint_freq_to_release);
+		return 0;
+	}
+
+	return -1;
+}
+
+static int fpc_fingerprint_vcorefs_hold(void)
+{
+	printk("fpc_fingerprint_vcorefs_hold\n");
+	pm_qos_update_request(&fpc_fingerprint_ddr_req, DDR_OPP_0);
+	return 0;
+}
+
+static int fpc_fingerprint_vcorefs_release(void)
+{
+	printk("fpc_fingerprint_vcorefs_release\n");
+	pm_qos_update_request(&fpc_fingerprint_ddr_req, DDR_OPP_UNREQ);
+	return 0;
+}
+
+extern int mdss_prim_panel_fb_unblank(int timeout);
+static void notification_work(struct work_struct *work)
+{
+	printk("notification_work fpc unblank start\n");
+	fpc_fingerprint_freq_set();
+	fpc_fingerprint_vcorefs_hold();
+	mdss_prim_panel_fb_unblank(FP_UNLOCK_REJECTION_TIMEOUT);
+	fpc_fingerprint_freq_release();
+	fpc_fingerprint_vcorefs_release();
+	printk("notification_work fpc unblank end\n");
+}
+/* end modify for unlock speed */
 
 static irqreturn_t fpc1022_irq_handler(int irq, void *handle)
 {
@@ -372,10 +520,78 @@ static irqreturn_t fpc1022_irq_handler(int irq, void *handle)
 	__pm_wakeup_event(fpc1022->ttw_wl, msecs_to_jiffies(FPC_TTW_HOLD_TIME));
 	/* } */
 
+	/* begin modify for unlock speed */
+	printk("%s fastScreenOn wait_finger_down = %d, fb_black = %d \n", __func__,
+			fpc1022->wait_finger_down, fpc1022->fb_black);
+	if (fpc1022->wait_finger_down && fpc1022->fb_black) {
+			fpc1022->wait_finger_down = false;
+			schedule_work(&fpc1022->work);
+	}
+	/* end modify for unlock speed */
+
 	sysfs_notify(&fpc1022->dev->kobj, NULL, dev_attr_irq.attr.name);
 
 	return IRQ_HANDLED;
 }
+
+/* begin modify for unlock speed */
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void fpc_early_suspend(struct early_suspend *handler)
+{
+	struct fpc1022_data *fpc1022 = container_of(handler,
+		struct fpc1022_data, early_suspend);
+	printk("%s enter\n", __func__);
+
+	fpc1022->fb_black = true;
+}
+
+static void fpc_late_resume(struct early_suspend *handler)
+{
+	struct fpc1022_data *fpc1022 = container_of(handler,
+		struct fpc1022_data, early_suspend);
+	printk("%s enter\n", __func__);
+
+	fpc1022->fb_black = false;
+}
+#else
+
+static int fpc_fb_notifier_callback(struct notifier_block *self,
+		unsigned long event, void *data)
+{
+	struct fpc1022_data *fpc1022 = container_of(self, struct fpc1022_data,
+		fb_notifier);
+	struct fb_event *evdata = data;
+	unsigned int blank;
+	int retval = 0;
+
+	if (!fpc1022)
+		return 0;
+
+	if (event != FB_EVENT_BLANK)
+		return 0;
+
+	printk("[info] %s value = %d\n", __func__, (int)event);
+
+	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
+		blank = *(int *)(evdata->data);
+		switch (blank) {
+		case FB_BLANK_POWERDOWN:
+			printk("%s lcd off notify\n", __func__);
+			fpc1022->fb_black = true;
+			break;
+		case FB_BLANK_UNBLANK:
+			printk("%s lcd on notify\n", __func__);
+			fpc1022->fb_black = false;
+			break;
+		default:
+			printk("%s other notifier, ignore\n", __func__);
+			break;
+	}
+}
+	return retval;
+}
+#endif
+/* end modify for unlock speed */
 
 static int fpc1022_platform_probe(struct platform_device *pldev)
 {
@@ -523,6 +739,28 @@ static int fpc1022_platform_probe(struct platform_device *pldev)
 	/* Request that the interrupt should be wakeable */
 	enable_irq_wake(fpc1022->irq_num);
 	fpc1022->ttw_wl = wakeup_source_register(dev, "fpc_ttw_wl");
+	/* begin modify for unlock speed */
+	pm_qos_add_request(&fpc_fingerprint_ddr_req, PM_QOS_DDR_OPP, PM_QOS_DDR_OPP_DEFAULT_VALUE);
+	/* end modify for unlock speed */
+
+
+/* begin modify for unlock speed */
+#if defined(CONFIG_HAS_EARLYSUSPEND)
+	dev_info(dev, "%s : register_early_suspend\n", __func__);
+	fpc1022->early_suspend.level = (EARLY_SUSPEND_LEVEL_DISABLE_FB - 1);
+	fpc1022->early_suspend.suspend = fpc_early_suspend,
+	fpc1022->early_suspend.resume = fpc_late_resume,
+	register_early_suspend(&fpc1022->early_suspend);
+#else
+	/* register screen on/off callback */
+	dev_info(dev, "%s : register_fpc_fb_notifier_callback\n", __func__);
+	fpc1022->fb_notifier.notifier_call = fpc_fb_notifier_callback;
+	fb_register_client(&fpc1022->fb_notifier);
+#endif
+	fpc1022->fb_black = false;
+	fpc1022->wait_finger_down = false;
+	INIT_WORK(&fpc1022->work, notification_work);
+/* end modify for unlock speed */
 
 	ret = sysfs_create_group(&dev->kobj, &attribute_group);
 	if (ret) {
@@ -541,6 +779,15 @@ static int fpc1022_platform_probe(struct platform_device *pldev)
 
 err_create_sysfs:
 	wakeup_source_unregister(fpc1022->ttw_wl);
+
+/* begin modify for unlock speed */
+#ifdef CONFIG_HAS_EARLYSUSPEND
+		if (fpc1022->early_suspend.suspend)
+			unregister_early_suspend(&fpc1022->early_suspend);
+#else
+		fb_unregister_client(&fpc1022->fb_notifier);
+#endif
+/* end modify for unlock speed */
 
 err_request_irq:
 	mutex_destroy(&fpc1022->lock);
@@ -570,6 +817,15 @@ static int fpc1022_platform_remove(struct platform_device *pldev)
 
 	mutex_destroy(&fpc1022->lock);
 	wakeup_source_unregister(fpc1022->ttw_wl);
+
+/* begin modify for unlock speed */
+#ifdef CONFIG_HAS_EARLYSUSPEND
+		if (fpc1022->early_suspend.suspend)
+			unregister_early_suspend(&fpc1022->early_suspend);
+#else
+		fb_unregister_client(&fpc1022->fb_notifier);
+#endif
+/* end modify for unlock speed */
 
 	input_unregister_device(fpc1022->idev);
 	devm_kfree(dev, fpc1022);
