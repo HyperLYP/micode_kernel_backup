@@ -49,8 +49,6 @@ void mtk_idle_dram_disable(void)
 
 bool mtk_idle_dram_can_enter(int reason, struct mtk_idle_info *info)
 {
-	return false;
-
 	if (!idle_dram_feature_enable)
 		return false;
 
