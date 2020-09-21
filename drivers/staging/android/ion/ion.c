@@ -2331,9 +2331,9 @@ static const struct file_operations proc_shrink_fops = {
 
 void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 {
-	struct dentry *heap_root;
-	char debug_name[64];
 #if IS_ENABLED(CONFIG_DEBUG_FS)
+	char debug_name[64];
+	struct dentry *heap_root;
 	struct dentry *debug_file;
 #endif
 #if IS_ENABLED(CONFIG_PROC_FS)
@@ -2359,6 +2359,7 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 	heap->num_of_alloc_bytes = 0;
 	heap->alloc_bytes_wm = 0;
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	heap_root = debugfs_create_dir(heap->name, dev->debug_root);
 	debugfs_create_u64("num_of_buffers",
 			   0444, heap_root,
@@ -2381,6 +2382,7 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 				    heap,
 				    &debug_shrink_fops);
 	}
+#endif
 
 	down_write(&dev->lock);
 	/*
