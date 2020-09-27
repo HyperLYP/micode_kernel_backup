@@ -84,6 +84,7 @@
 #define CMDQ_JUMP_BY_PA			0x10000001
 
 #define CMDQ_MIN_AGE_VALUE              (5)	/* currently disable age */
+#define CMDQ_INIT_BUF_SIZE		8484
 
 #define CMDQ_DRIVER_NAME		"mtk_cmdq_mbox"
 
@@ -124,7 +125,7 @@ struct cmdq_buf_dump {
 	u32			pa_offset; /* pa_curr - pa_base */
 };
 
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 #include "../misc/mediatek/mmp/mmprofile.h"
 
 #define MMP_THD(t, c)	((t)->idx | ((c)->hwid << 5))
@@ -174,7 +175,7 @@ struct gce_plat {
 	u8 shift;
 };
 
-static void cmdq_init(struct cmdq *cmdq)
+static void cmdq_init_cpu(struct cmdq *cmdq)
 {
 	int i;
 
@@ -192,9 +193,40 @@ static void cmdq_init(struct cmdq *cmdq)
 	cmdq_trace_ex_end();
 }
 
+#if IS_ENABLED(CONFIG_MACH_MT6873)
+static inline void cmdq_init_check(struct cmdq *cmdq)
+{
+	s32 i;
+	u32 val;
+
+	cmdq_log("%s cmdq:%p pa:%pa token_cnt:%u",
+		__func__, cmdq, &cmdq->base_pa, cmdq->token_cnt);
+
+	for (i = 0; i < cmdq->token_cnt; i++) {
+		writel(0x3FF & cmdq->tokens[i],
+			cmdq->base + CMDQ_SYNC_TOKEN_ID);
+		val = readl(cmdq->base + CMDQ_SYNC_TOKEN_VAL);
+		if (val != 0x1)
+			cmdq_err("tokens[%d]:%#x val:%#x set to 1 failed",
+				i, cmdq->tokens[i], val);
+	}
+}
+#endif
+
+static void cmdq_init(struct cmdq *cmdq)
+{
+	if (cmdq->init_cmds_base)
+		cmdq_init_cmds(cmdq);
+	else
+		cmdq_init_cpu(cmdq);
+#if IS_ENABLED(CONFIG_MACH_MT6873)
+	cmdq_init_check(cmdq);
+#endif
+}
+
 static inline void cmdq_mmp_init(void)
 {
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_enable(1);
 	if (cmdq_mmp.cmdq) {
 		mmprofile_start(1);
@@ -358,7 +390,7 @@ static int cmdq_thread_suspend(struct cmdq *cmdq, struct cmdq_thread *thread)
 {
 	u32 status;
 
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_log_ex(cmdq_mmp.thread_suspend, MMPROFILE_FLAG_PULSE,
 		MMP_THD(thread, cmdq), CMDQ_THR_SUSPEND);
 #endif
@@ -380,19 +412,19 @@ static int cmdq_thread_suspend(struct cmdq *cmdq, struct cmdq_thread *thread)
 
 static void cmdq_thread_resume(struct cmdq_thread *thread)
 {
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	struct cmdq *cmdq = container_of(
 		thread->chan->mbox, typeof(*cmdq), mbox);
 #endif
 
 	writel(CMDQ_THR_RESUME, thread->base + CMDQ_THR_SUSPEND_TASK);
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_log_ex(cmdq_mmp.thread_suspend, MMPROFILE_FLAG_PULSE,
 		MMP_THD(thread, cmdq), CMDQ_THR_RESUME);
 #endif
 }
 
-static int cmdq_thread_reset(struct cmdq *cmdq, struct cmdq_thread *thread)
+int cmdq_thread_reset(struct cmdq *cmdq, struct cmdq_thread *thread)
 {
 	u32 warm_reset;
 
@@ -432,7 +464,7 @@ static void cmdq_thread_err_reset(struct cmdq *cmdq, struct cmdq_thread *thread,
 	writel(thd_pri, thread->base + CMDQ_THR_CFG);
 	writel(CMDQ_THR_IRQ_EN, thread->base + CMDQ_THR_IRQ_ENABLE);
 	writel(CMDQ_THR_ENABLED, thread->base + CMDQ_THR_ENABLE_TASK);
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_log_ex(cmdq_mmp.thread_en, MMPROFILE_FLAG_PULSE,
 		MMP_THD(thread, cmdq), CMDQ_THR_ENABLED);
 #endif
@@ -440,7 +472,7 @@ static void cmdq_thread_err_reset(struct cmdq *cmdq, struct cmdq_thread *thread,
 
 static void cmdq_thread_disable(struct cmdq *cmdq, struct cmdq_thread *thread)
 {
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_log_ex(cmdq_mmp.thread_en, MMPROFILE_FLAG_PULSE,
 		MMP_THD(thread, cmdq), CMDQ_THR_DISABLED);
 #endif
@@ -580,6 +612,35 @@ static void *cmdq_task_get_end_va(struct cmdq_pkt *pkt)
 	return buf->va_base + CMDQ_CMD_BUFFER_SIZE - pkt->avail_buf_size;
 }
 
+void cmdq_init_cmds(void *dev_cmdq)
+{
+	struct cmdq *cmdq = dev_cmdq;
+	struct cmdq_thread *thread = &cmdq->thread[0];
+	dma_addr_t pc, end;
+
+	cmdq_trace_ex_begin("%s", __func__);
+
+	pc = cmdq->init_cmds;
+	end = cmdq->init_cmds + CMDQ_EVENT_MAX * CMDQ_INST_SIZE;
+
+	cmdq_thread_reset(cmdq, thread);
+	cmdq_thread_set_end(thread, end);
+	cmdq_thread_set_pc(thread, pc);
+	writel(CMDQ_THR_ENABLED, thread->base + CMDQ_THR_ENABLE_TASK);
+
+	end = CMDQ_REG_SHIFT_ADDR(end);
+	if (readl_poll_timeout_atomic(thread->base + CMDQ_THR_CURR_ADDR,
+		pc, pc == end, 0, 100)) {
+		cmdq_err("clear event instructions timeout pc:%#lx end:%#lx",
+			(unsigned long)pc,
+			(unsigned long)end);
+		cmdq_thread_reset(cmdq, thread);
+	}
+	writel(CMDQ_THR_DISABLED, thread->base + CMDQ_THR_ENABLE_TASK);
+
+	cmdq_trace_ex_end();
+}
+
 static void cmdq_task_exec(struct cmdq_pkt *pkt, struct cmdq_thread *thread)
 {
 	struct cmdq *cmdq;
@@ -608,7 +669,7 @@ static void cmdq_task_exec(struct cmdq_pkt *pkt, struct cmdq_thread *thread)
 	}
 	pkt->task_alloc = true;
 
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_log_ex(cmdq_mmp.submit, MMPROFILE_FLAG_PULSE,
 		MMP_THD(thread, cmdq), (unsigned long)pkt);
 #endif
@@ -640,6 +701,11 @@ static void cmdq_task_exec(struct cmdq_pkt *pkt, struct cmdq_thread *thread)
 			spin_unlock_irqrestore(&cmdq->lock, flags);
 		}
 #endif
+#if IS_ENABLED(CONFIG_MACH_MT6873)
+		if (thread->idx >= 19 && thread->idx <= 22)
+			cmdq_init_check(cmdq);
+#endif
+
 		writel(CMDQ_INST_CYCLE_TIMEOUT,
 			thread->base + CMDQ_THR_INST_CYCLES);
 		writel(thread->priority & CMDQ_THR_PRIORITY,
@@ -648,7 +714,7 @@ static void cmdq_task_exec(struct cmdq_pkt *pkt, struct cmdq_thread *thread)
 		cmdq_thread_set_pc(thread, task->pa_base);
 		writel(CMDQ_THR_IRQ_EN, thread->base + CMDQ_THR_IRQ_ENABLE);
 		writel(CMDQ_THR_ENABLED, thread->base + CMDQ_THR_ENABLE_TASK);
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 		mmprofile_log_ex(cmdq_mmp.thread_en, MMPROFILE_FLAG_PULSE,
 			MMP_THD(thread, cmdq), CMDQ_THR_ENABLED);
 #endif
@@ -815,7 +881,7 @@ static void cmdq_thread_irq_handler(struct cmdq *cmdq,
 		task->pkt->rec_irq = sched_clock();
 #endif
 
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 		mmprofile_log_ex(cmdq_mmp.loop_irq, MMPROFILE_FLAG_PULSE,
 			MMP_THD(thread, cmdq), (unsigned long)task->pkt);
 #endif
@@ -829,7 +895,7 @@ static void cmdq_thread_irq_handler(struct cmdq *cmdq,
 		return;
 	}
 
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_log_ex(cmdq_mmp.cmdq_irq, MMPROFILE_FLAG_PULSE,
 		MMP_THD(thread, cmdq), task ? (unsigned long)task->pkt : 0);
 #endif
@@ -1020,7 +1086,7 @@ static void cmdq_thread_handle_timeout_work(struct work_struct *work_item)
 		kfree(task);
 	}
 
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 	mmprofile_log_ex(cmdq_mmp.warning, MMPROFILE_FLAG_PULSE,
 		MMP_THD(thread, cmdq),
 		timeout_task ? (unsigned long)timeout_task : 0);
@@ -1654,6 +1720,32 @@ static void cmdq_config_default_token(struct device *dev, struct cmdq *cmdq)
 	}
 }
 
+static void cmdq_config_init_buf(struct device *dev, struct cmdq *cmdq)
+{
+	u32 i, *va;
+
+	cmdq->init_cmds_base = dma_alloc_coherent(dev, CMDQ_INIT_BUF_SIZE,
+		&cmdq->init_cmds, GFP_KERNEL);
+	cmdq_msg("init cmd buffer:%#lx (%#lx)",
+		(unsigned long)cmdq->init_cmds_base,
+		(unsigned long)cmdq->init_cmds);
+
+	if (!cmdq->init_cmds_base) {
+		cmdq_err("fail to alloc init cmd buffer");
+		return;
+	}
+
+	va = (u32 *)cmdq->init_cmds_base;
+	for (i = 0; i < CMDQ_EVENT_MAX; i++) {
+		va[i * 2] = 0x80000000;
+		va[i * 2 + 1] = 0x20000000 | i;
+	}
+
+	/* some token default set to 1, config in dts */
+	for (i = 0; i < cmdq->token_cnt; i++)
+		va[cmdq->tokens[i] * 2] = 0x80010000;
+}
+
 static int cmdq_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1706,8 +1798,9 @@ static int cmdq_probe(struct platform_device *pdev)
 		(unsigned long)cmdq->base_pa);
 
 	cmdq_config_prefetch(dev->of_node, cmdq);
-	cmdq_config_dma_mask(dev);
 	cmdq_config_default_token(dev, cmdq);
+	cmdq_config_init_buf(dev, cmdq);
+	cmdq_config_dma_mask(dev);
 
 	cmdq->clock = devm_clk_get(dev, "gce");
 	if (IS_ERR(cmdq->clock)) {
@@ -2178,7 +2271,7 @@ unsigned long cmdq_get_tracing_mark(void)
 	return tracing_mark_write_addr;
 }
 
-#if IS_ENABLED(CMDQ_MMPROFILE_SUPPORT)
+#if IS_ENABLED(CONFIG_MMPROFILE)
 void cmdq_mmp_wait(struct mbox_chan *chan, void *pkt)
 {
 	struct cmdq_thread *thread = chan->con_priv;

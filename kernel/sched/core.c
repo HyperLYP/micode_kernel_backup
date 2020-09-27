@@ -59,7 +59,11 @@
 #ifdef CONFIG_MEDIATEK_SOLUTION
 #include "mtk_secure_api.h"
 #include <linux/arm-smccc.h>
+#define GIC_ISO_CODE (1 << 0)
 #endif
+#ifdef CONFIG_MTK_QOS_FRAMEWORK
+#include <mt-plat/mtk_qos_prefetch_common.h>
+#endif /* CONFIG_MTK_QOS_FRAMEWORK */
 
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
@@ -4361,6 +4365,10 @@ void scheduler_tick(void)
 
 	if (curr->sched_class == &fair_sched_class)
 		check_for_migration(rq, curr);
+
+#ifdef CONFIG_MTK_QOS_FRAMEWORK
+	qos_prefetch_tick(cpu);
+#endif /* CONFIG_MTK_QOS_FRAMEWORK */
 }
 
 #ifdef CONFIG_NO_HZ_FULL
@@ -7045,12 +7053,11 @@ void notify_atf_cpu_isolated_status(int cpu)
 {
 
 #ifdef CONFIG_MEDIATEK_SOLUTION
-	int gic_iso_code = 1 << 0;
 	unsigned long cur_mask = cpu_isolated_mask->bits[0];
 	struct arm_smccc_res res;
 
-	arm_smccc_smc(MTK_SIP_GIC_CONTROL, gic_iso_code, cpu,
-			cur_mask, 0, 0, 0, 0, &res);
+	arm_smccc_smc(MTK_SIP_GIC_CONTROL, GIC_ISO_CODE, cur_mask,
+			0, 0, 0, 0, 0, &res);
 #endif
 }
 

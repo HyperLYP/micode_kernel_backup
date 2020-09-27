@@ -2274,8 +2274,11 @@ static unsigned short dpmaif_relase_tx_buffer(unsigned char q_num,
 					txq->drb_rd_idx,
 					txq->drb_rel_rd_idx);
 				CCCI_ERROR_LOG(dpmaif_ctrl->md_id, TAG,
-					"drb pd: 0x%x, 0x%x\n",
-					temp[0], temp[1]);
+					"drb pd: 0x%x, 0x%x (0x%x, 0x%x, 0x%x)\n",
+					temp[0], temp[1],
+					drv_dpmaif_ul_get_rwidx(0),
+					drv_dpmaif_ul_get_rwidx(1),
+					drv_dpmaif_ul_get_rwidx(3));
 				dpmaif_dump_register(dpmaif_ctrl,
 					CCCI_DUMP_MEM_DUMP);
 				dpmaif_dump_txq_history(dpmaif_ctrl,
@@ -2403,7 +2406,15 @@ static void dpmaif_tx_done(struct work_struct *work)
 			__func__, txq->index);
 		return;
 	}
-
+	if (atomic_read(&txq->tx_resume_done)) {
+		CCCI_ERROR_LOG(dpmaif_ctrl->md_id, TAG,
+			"txq%d done/resume: 0x%x, 0x%x, 0x%x\n",
+			txq->index,
+			drv_dpmaif_ul_get_rwidx(0),
+			drv_dpmaif_ul_get_rwidx(1),
+			drv_dpmaif_ul_get_rwidx(3));
+		return;
+	}
 	if (!txq->que_started) {
 		CCCI_ERROR_LOG(dpmaif_ctrl->md_id, TAG,
 			"%s meet queue stop(%d)\n",
@@ -2592,6 +2603,16 @@ static int dpmaif_tx_send_skb(unsigned char hif_id, int qno,
 		return ret;
 	}
 	txq = &hif_ctrl->txq[qno];
+
+	ccci_h = *(struct ccci_header *)skb->data;
+	skb_pull(skb, sizeof(struct ccci_header));
+	if (atomic_read(&s_tx_busy_assert_on)) {
+		if (likely(ccci_md_get_cap_by_id(hif_ctrl->md_id)
+				&MODEM_CAP_TXBUSY_STOP))
+			dpmaif_queue_broadcast_state(hif_ctrl, TX_FULL, OUT,
+					txq->index);
+		return HW_REG_CHK_FAIL;
+	}
 #ifdef DPMAIF_DEBUG_LOG
 	CCCI_HISTORY_LOG(dpmaif_ctrl->md_id, TAG,
 	"send_skb(%d): drb: %d, w(%d), r(%d), rel(%d)\n", qno,
@@ -2714,9 +2735,13 @@ retry:
 		}
 
 	}
-	ccci_h = *(struct ccci_header *)skb->data;
-	skb_pull(skb, sizeof(struct ccci_header));
 	spin_lock_irqsave(&txq->tx_lock, flags);
+
+	if (atomic_read(&s_tx_busy_assert_on)) {
+		spin_unlock_irqrestore(&txq->tx_lock, flags);
+		return HW_REG_CHK_FAIL;
+	}
+
 	remain_cnt = ringbuf_writeable(txq->drb_size_cnt,
 			txq->drb_rel_rd_idx, txq->drb_wr_idx);
 	cur_idx = txq->drb_wr_idx;
@@ -2783,7 +2808,6 @@ retry:
 			is_last_one, phy_addr, data_len);
 		cur_idx = ringbuf_get_next_idx(txq->drb_size_cnt, cur_idx, 1);
 	}
-
 	/* debug: tx on ccci_channel && HW Q */
 	ccci_channel_update_packet_counter(
 		dpmaif_ctrl->traffic_info.logic_ch_pkt_pre_cnt, &ccci_h);
@@ -2793,12 +2817,28 @@ retry:
 	atomic_sub(send_cnt, &txq->tx_budget);
 	/* 3.3 submit drb descriptor*/
 	wmb();
+	if (atomic_read(&txq->tx_resume_done) &&
+		atomic_read(&txq->tx_resume_tx)) {
+		CCCI_NOTICE_LOG(0, TAG,
+			"tx%d_resume_tx: 0x%x, 0x%x, 0x%x\n",
+			txq->index,
+			drv_dpmaif_ul_get_rwidx(0),
+			drv_dpmaif_ul_get_rwidx(1),
+			drv_dpmaif_ul_get_rwidx(3));
+		atomic_set(&txq->tx_resume_tx, 0);
+	}
 	ret = drv_dpmaif_ul_add_wcnt(txq->index,
 		send_cnt * DPMAIF_UL_DRB_ENTRY_WORD);
 	ul_add_wcnt_record(txq->index, send_cnt * DPMAIF_UL_DRB_ENTRY_WORD,
-				ret, txq->drb_wr_idx, txq->drb_rd_idx,
-				txq->drb_rel_rd_idx,
-				atomic_read(&txq->tx_budget));
+			ret, txq->drb_wr_idx, txq->drb_rd_idx,
+			txq->drb_rel_rd_idx,
+			atomic_read(&txq->tx_budget));
+
+	if (ret == HW_REG_CHK_FAIL) {
+		tx_force_md_assert("HW_REG_CHK_FAIL");
+		ret = 0;
+	}
+
 	spin_unlock_irqrestore(&txq->tx_lock, flags);
 __EXIT_FUN:
 #ifdef DPMAIF_DEBUG_LOG
@@ -2808,8 +2848,6 @@ __EXIT_FUN:
 		txq->drb_rd_idx, txq->drb_rel_rd_idx);
 #endif
 	atomic_set(&txq->tx_processing, 0);
-	if (ret == HW_REG_CHK_FAIL)
-		tx_force_md_assert("HW_REG_CHK_FAIL");
 
 	return ret;
 }
@@ -2905,6 +2943,15 @@ static void dpmaif_irq_tx_done(unsigned int tx_done_isr)
 		intr_ul_que_done =
 			tx_done_isr & (1 << (i + UL_INT_DONE_OFFSET));
 		if (intr_ul_que_done) {
+			if (atomic_read(&dpmaif_ctrl->txq[i].tx_resume_done)) {
+				atomic_set(&dpmaif_ctrl->txq[i].tx_resume_done,
+					0);
+				CCCI_NOTICE_LOG(0, TAG,
+					"clear txq%d_resume_done: 0x%x, 0x%x, 0x%x\n",
+					i, drv_dpmaif_ul_get_rwidx(0),
+					drv_dpmaif_ul_get_rwidx(1),
+					drv_dpmaif_ul_get_rwidx(3));
+			}
 			drv_dpmaif_mask_ul_que_interrupt(i);
 			ret = queue_delayed_work(dpmaif_ctrl->txq[i].worker,
 					&dpmaif_ctrl->txq[i].dpmaif_tx_work,
@@ -3810,7 +3857,6 @@ static int dpmaif_stop_txq(struct dpmaif_tx_queue *txq)
 	/* flush work */
 	cancel_delayed_work(&txq->dpmaif_tx_work);
 	flush_delayed_work(&txq->dpmaif_tx_work);
-
 	atomic_set(&s_tx_busy_num[txq->index], 0);
 	/* reset sw */
 #ifdef DPMAIF_DEBUG_LOG
@@ -3949,6 +3995,7 @@ int dpmaif_stop_tx_sw(unsigned char hif_id)
 	for (i = 0; i < DPMAIF_TXQ_NUM; i++) {
 		txq = &dpmaif_ctrl->txq[i];
 		dpmaif_stop_txq(txq);
+		atomic_set(&txq->tx_resume_done, 0);
 	}
 	return 0;
 }
@@ -4107,14 +4154,22 @@ static int dpmaif_resume(unsigned char hif_id)
 		CCCI_DEBUG_LOG(0, TAG, "sys_resume no need restore\n");
 	} else {
 		/*IP power down before and need to restore*/
-		CCCI_NORMAL_LOG(0, TAG, "sys_resume need to restore\n");
+		CCCI_NORMAL_LOG(0, TAG,
+			"sys_resume need to restore(0x%x, 0x%x, 0x%x)\n",
+			drv_dpmaif_ul_get_rwidx(0),
+			drv_dpmaif_ul_get_rwidx(1),
+			drv_dpmaif_ul_get_rwidx(3));
 		/*flush and release UL descriptor*/
 		for (i = 0; i < DPMAIF_TXQ_NUM; i++) {
 			queue = &hif_ctrl->txq[i];
 			if (queue->drb_rd_idx != queue->drb_wr_idx) {
 				CCCI_NOTICE_LOG(0, TAG,
-					"resume: pkt force release: rd(0x%x), wr(0x%x)\n",
-					queue->drb_rd_idx, queue->drb_wr_idx);
+					"resume(%d): pkt force release: rd(0x%x), wr(0x%x), 0x%x, 0x%x, 0x%x\n",
+					i, queue->drb_rd_idx,
+					queue->drb_wr_idx,
+					drv_dpmaif_ul_get_rwidx(0),
+					drv_dpmaif_ul_get_rwidx(1),
+					drv_dpmaif_ul_get_rwidx(3));
 				/*queue->drb_rd_idx = queue->drb_wr_idx;*/
 			}
 			if (queue->drb_wr_idx != queue->drb_rel_rd_idx)
@@ -4128,6 +4183,7 @@ static int dpmaif_resume(unsigned char hif_id)
 			queue->drb_rd_idx = 0;
 			queue->drb_wr_idx = 0;
 			queue->drb_rel_rd_idx = 0;
+			atomic_set(&queue->tx_resume_tx, 1);
 		}
 		/* there are some inter for init para. check. */
 		/* maybe need changed to drv_dpmaif_intr_hw_init();*/
@@ -4145,6 +4201,7 @@ static int dpmaif_resume(unsigned char hif_id)
 		for (i = 0; i < DPMAIF_TXQ_NUM; i++) {
 			queue = &hif_ctrl->txq[i];
 			dpmaif_tx_hw_init(queue);
+			atomic_set(&queue->tx_resume_done, 1);
 		}
 	}
 	return 0;
