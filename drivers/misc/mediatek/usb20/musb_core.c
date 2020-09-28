@@ -1346,14 +1346,13 @@ void musb_start(struct musb *musb)
 			musb->is_host, musb->is_active);
 
 	musb_platform_enable(musb);
+	musb_platform_reset(musb);
 	musb_generic_disable(musb);
 
 	intrusbe = musb_readb(regs, MUSB_INTRUSBE);
 	if (musb->is_host) {
 		musb->intrtxe = 0xffff;
-		musb_writew(regs, MUSB_INTRTXE, musb->intrtxe);
 		musb->intrrxe = 0xfffe;
-		musb_writew(regs, MUSB_INTRRXE, musb->intrrxe);
 		intrusbe = 0xf7;
 
 		while (!musb_platform_get_vbus_status(musb)) {
@@ -1365,6 +1364,9 @@ void musb_start(struct musb *musb)
 		}
 
 	} else if (!musb->is_host) {
+		/* enable ep0 interrupt */
+		musb->intrtxe = 0x1;
+		musb->intrrxe = 0;
 		/* device mode enable reset interrupt */
 		intrusbe |= MUSB_INTR_RESET;
 #if defined(CONFIG_USBIF_COMPLIANCE)
@@ -1373,6 +1375,8 @@ void musb_start(struct musb *musb)
 #endif
 	}
 
+	musb_writew(regs, MUSB_INTRTXE, musb->intrtxe);
+	musb_writew(regs, MUSB_INTRRXE, musb->intrrxe);
 	musb_writeb(regs, MUSB_INTRUSBE, intrusbe);
 
 	/* In U2 host mode, USB bus will issue
@@ -1934,6 +1938,7 @@ static int musb_core_init(u16 musb_type, struct musb *musb)
 	void __iomem *mbase = musb->mregs;
 	int status = 0;
 	int i;
+	int ret;
 
 	/* log core options (read using indexed model) */
 	reg = musb_read_configdata(mbase);
@@ -1980,9 +1985,13 @@ static int musb_core_init(u16 musb_type, struct musb *musb)
 
 	/* log release info */
 	musb->hwvers = musb_read_hwvers(mbase);
-	snprintf(aRevision, 32, "%d.%d%s", MUSB_HWVERS_MAJOR(musb->hwvers),
+	ret = snprintf(aRevision, 32, "%d.%d%s", MUSB_HWVERS_MAJOR(musb->hwvers),
 		 MUSB_HWVERS_MINOR(musb->hwvers),
 		 (musb->hwvers & MUSB_HWVERS_RC) ? "RC" : "");
+
+	if (ret < 0)
+		return -EINVAL;
+
 	pr_debug("%s: %sHDRC RTL version %s %s\n"
 		, musb_driver_name, type, aRevision, aDate);
 

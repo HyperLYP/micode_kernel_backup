@@ -5,7 +5,7 @@
  * Copyright (c) 2020 MediaTek Inc.
  */
 
-#include <linux/types.h>
+#include <linux/delay.h>
 #include <linux/kthread.h>
 
 #include "mddp_debug.h"
@@ -36,6 +36,9 @@ static struct wfpm_smem_info_t smem_info_s[] = {
 	{MDDP_MD_SMEM_USER_WIFI_STATISTICS_EXT, 0, WFPM_SM_E_ATTRI_RO,
 		sizeof(struct mddpw_net_stat_t),
 		sizeof(struct mddpw_net_stat_ext_t)},
+	{MDDP_MD_SMEM_USER_SYS_STAT_SYNC, 0, WFPM_SM_E_ATTRI_RW,
+		sizeof(struct mddpw_net_stat_t) + sizeof(struct mddpw_net_stat_ext_t),
+		sizeof(struct mddpw_sys_stat_t)},
 };
 
 static struct mddp_ipc_rx_msg_entry_t mddp_rx_msg_table_s[] = {
@@ -123,7 +126,7 @@ static int32_t mddp_ipc_open_port(void)
 /*
  * Rx kthread used to receive ctrl_msg from MD.
  */
-int32_t mddp_md_msg_hdlr(void *arg)
+static int32_t mddp_md_msg_hdlr(void *arg)
 {
 	struct mdfpm_ctrl_msg_t     ctrl_msg;
 	int32_t                     rx_count;

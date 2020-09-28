@@ -1112,13 +1112,19 @@ int apusys_power_init(enum DVFS_USER user, void *init_power_data)
 	if (ret)
 		goto out;
 
+#if defined(CONFIG_MACH_MT6893)
+	if (seg_data.seg == SEGMENT_0)
+		apusys_opps.opps = dvfs_table_b0;
+	else
+		apusys_opps.opps = dvfs_table_b1;
+#else
 	if (seg_data.seg == SEGMENT_0)
 		apusys_opps.opps = dvfs_table_0;
 	else if (seg_data.seg == SEGMENT_2)
 		apusys_opps.opps = dvfs_table_2;
 	else
 		apusys_opps.opps = dvfs_table_1;
-
+#endif
 	ret = hal_config_power(PWR_CMD_BINNING_CHECK, VPU0, NULL);
 	if (ret)
 		goto out;

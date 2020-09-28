@@ -718,16 +718,21 @@ static int rollback_to_GPU(struct drm_mtk_layering_info *info, int disp,
 		available_ovl_num = _rollback_to_GPU_top_down(
 			info, disp, available_ovl_num);
 
+	if (info->gles_head[disp] == -1 && info->gles_tail[disp] == -1)
+		goto out;
+
 	if (mtk_is_layer_id_valid(info, disp, info->gles_head[disp]) == false) {
 		dump_disp_info(info, DISP_DEBUG_LEVEL_CRITICAL);
 		DDPAEE("invalid gles_head:%d, aval:%d\n",
 			  info->gles_head[disp], available);
+		goto out;
 	}
 
 	if (mtk_is_layer_id_valid(info, disp, info->gles_tail[disp]) == false) {
 		dump_disp_info(info, DISP_DEBUG_LEVEL_CRITICAL);
 		DDPAEE("invalid gles_tail:%d, aval:%d\n",
 			  info->gles_tail[disp], available);
+		goto out;
 	}
 
 	/* Clear extended layer for all GLES layer */
@@ -742,6 +747,7 @@ static int rollback_to_GPU(struct drm_mtk_layering_info *info, int disp,
 			l_info->ext_sel_layer = -1;
 	}
 
+out:
 	return available_ovl_num;
 }
 
@@ -2085,8 +2091,17 @@ void lye_add_blob_ids(struct drm_mtk_layering_info *l_info,
 	struct drm_property_blob *blob;
 	struct mtk_lye_ddp_state lye_state;
 	struct mtk_drm_private *mtk_drm = drm_dev->dev_private;
+	unsigned int i;
 
 	memcpy(lye_state.scn, l_rule_info->addon_scn, sizeof(lye_state.scn));
+	for (i = 0 ; i < HRT_TYPE_NUM ; i++) {
+		if (lye_state.scn[i] < NONE ||
+				lye_state.scn[i] >= ADDON_SCN_NR) {
+			DDPPR_ERR("[%s]abnormal scn[%u]:%d,set scn to 0\n",
+				__func__, i, lye_state.scn[i]);
+			lye_state.scn[i] = NONE;
+		}
+	}
 	lye_state.lc_tgt_layer = 0;
 
 	blob = drm_property_create_blob(
@@ -2490,9 +2505,16 @@ static int layering_rule_start(struct drm_mtk_layering_info *disp_info_user,
 	 * All the gles layers set as same layer id.
 	 */
 	if (l_rule_ops->rollback_all_to_GPU_for_idle != NULL &&
-	    l_rule_ops->rollback_all_to_GPU_for_idle(dev)) {
+			l_rule_ops->rollback_all_to_GPU_for_idle(dev)) {
+		int i;
+
 		roll_gpu_for_idle = 1;
 		rollback_all_to_GPU(&layering_info, HRT_PRIMARY);
+		/* TODO: assume resize layer would be 2 */
+		for (i = 0 ; i < layering_info.layer_num[disp_idx] ; i++)
+			layering_info.input_config[HRT_PRIMARY][i].layer_caps &=
+				~MTK_DISP_RSZ_LAYER;
+		l_rule_info->addon_scn[HRT_PRIMARY] = NONE;
 		layering_info.hrt_num = HRT_LEVEL_LEVEL0;
 		layering_info.hrt_weight = 2;
 	}

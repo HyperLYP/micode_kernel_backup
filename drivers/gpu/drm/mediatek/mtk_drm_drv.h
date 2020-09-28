@@ -157,6 +157,7 @@ struct mtk_drm_private {
 	struct mtk_drm_helper *helper_opt;
 
 	atomic_t idle_need_repaint;
+	atomic_t rollback_all;
 
 	unsigned int top_clk_num;
 	struct clk **top_clk;
@@ -182,6 +183,9 @@ struct mtk_drm_private {
 	int vds_path_switch_dirty;
 	int vds_path_switch_done;
 	int vds_path_enable;
+
+	/* Due to 2nd display share 1 secure gce client, need store here */
+	struct cmdq_client *ext_sec_client;
 };
 
 struct mtk_drm_property {
