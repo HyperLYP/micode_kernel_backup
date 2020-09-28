@@ -106,6 +106,7 @@ obj-$(CONFIG_MACH_MT6885) += cpuhotplug/
 obj-$(CONFIG_MACH_MT6893) += cpuhotplug/
 obj-$(CONFIG_MACH_MT6873) += cpuhotplug/
 obj-$(CONFIG_MACH_MT6853) += cpuhotplug/
+obj-$(CONFIG_MACH_MT6833) += cpuhotplug/
 obj-$(CONFIG_MACH_MT6771) += ppm_v3/
 obj-$(CONFIG_MACH_MT6739) += ppm_v3/
 obj-$(CONFIG_MACH_MT6768) += ppm_v3/
@@ -122,6 +123,7 @@ obj-$(CONFIG_MACH_MT6885) += ppm_v3/
 obj-$(CONFIG_MACH_MT6893) += ppm_v3/
 obj-$(CONFIG_MACH_MT6873) += ppm_v3/
 obj-$(CONFIG_MACH_MT6853) += ppm_v3/
+obj-$(CONFIG_MACH_MT6833) += ppm_v3/
 obj-$(CONFIG_MACH_MT6771) += spm_v4/
 obj-$(CONFIG_MACH_MT6739) += spm_v4/
 obj-$(CONFIG_MACH_MT6771) += clkbuf_v1/
@@ -134,6 +136,7 @@ obj-$(CONFIG_MACH_MT6873) += dcm_v1/
 obj-$(CONFIG_MACH_MT6853) += dcm_v1/
 obj-$(CONFIG_MACH_MT6765) += dcm_v1/
 obj-$(CONFIG_MACH_MT8168) += dcm_v1/
+obj-$(CONFIG_MACH_MT6833) += dcm_v1/
 obj-$(CONFIG_MACH_MT6771) += mcdi/
 obj-$(CONFIG_MACH_MT6739) += mcdi/
 obj-$(CONFIG_MACH_MT6785) += cpuidle_v3/
@@ -155,4 +158,5 @@ endif
 obj-y += dvfsrc/
 ifeq ($(CONFIG_MTK_GPU_SUPPORT), y)
 obj-$(CONFIG_MACH_MT6853) += gpufreq_v1/
+obj-$(CONFIG_MACH_MT6833) += gpufreq_v1/
 endif

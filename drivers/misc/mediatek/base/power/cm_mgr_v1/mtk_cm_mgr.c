@@ -329,6 +329,12 @@ static void cm_mgr_perf_timer_fn(unsigned long data)
 
 void cm_mgr_perf_set_status(int enable)
 {
+#ifdef CM_PERF_HINT_OFFSET
+	qos_sram_write(CM_PERF_HINT_OFFSET,
+			(qos_sram_read(CM_PERF_HINT_OFFSET) & ~0x1) |
+			(enable & 0x1));
+#endif /* CM_PERF_HINT_OFFSET */
+
 	if (cm_mgr_disable_fb == 1 && cm_mgr_blank_status == 1)
 		enable = 0;
 
@@ -1394,7 +1400,7 @@ static int create_cm_mgr_debug_fs(void)
 
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
 		if (!proc_create_data
-		    (entries[i].name, 0664,
+		    (entries[i].name, 0660,
 		     dir, entries[i].fops, entries[i].data))
 			pr_info("%s(), create /proc/cm_mgr/%s failed\n",
 					__func__,

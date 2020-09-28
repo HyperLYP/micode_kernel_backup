@@ -25,6 +25,7 @@
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #include <uapi/linux/sched/types.h>
+#include <drm/drm_auth.h>
 
 #include "drm_internal.h"
 #include "mtk_drm_crtc.h"
@@ -58,6 +59,7 @@
 #ifdef CONFIG_MTK_HDMI_SUPPORT
 #include "mtk_dp_api.h"
 #endif
+#include "swpm_me.h"
 
 #define DRIVER_NAME "mediatek"
 #define DRIVER_DESC "Mediatek SoC DRM"
@@ -344,6 +346,10 @@ static void mtk_atomic_check_plane_sec_state(struct drm_device *dev,
 #if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)
 	for_each_crtc_in_state(new_state, crtc, new_crtc_state, i) {
 		struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
+
+		/* check output buffer is secure or not */
+		if (mtk_crtc_check_out_sec(crtc))
+			sec_on[drm_crtc_index(crtc)] = true;
 
 		/* Leave secure sequence */
 		if (mtk_crtc->sec_on && !sec_on[i])
@@ -1210,7 +1216,6 @@ static const enum mtk_ddp_comp_id mt6833_mtk_ddp_main_minor[] = {
 static const enum mtk_ddp_comp_id mt6833_mtk_ddp_main_minor_sub[] = {
 	DDP_COMPONENT_RDMA0,
 	DDP_COMPONENT_COLOR0,   DDP_COMPONENT_CCORR0,
-	DDP_COMPONENT_CCORR1,
 	DDP_COMPONENT_AAL0,      DDP_COMPONENT_GAMMA0,
 	DDP_COMPONENT_POSTMASK0, DDP_COMPONENT_DITHER0,
 	DDP_COMPONENT_DSI0,     DDP_COMPONENT_PWM0,
@@ -1665,7 +1670,8 @@ static int mtk_drm_fence_release_thread(void *data)
 		DDPINFO("%s:%d wait vblank-\n", __func__, __LINE__);
 
 		mutex_lock(&private->commit.lock);
-		mtk_release_present_fence(private->session_id[0],
+		if (private->session_id[0] > 0)
+			mtk_release_present_fence(private->session_id[0],
 					  atomic_read(&_mtk_fence_idx[0]));
 		mutex_unlock(&private->commit.lock);
 	}
@@ -1760,7 +1766,7 @@ void drm_trigger_repaint(enum DRM_REPAINT_TYPE type, struct drm_device *drm_dev)
 			list_del_init(&repaint_job->link);
 		} else { /* create repaint_job_t if pool is empty */
 			repaint_job = kzalloc(sizeof(struct repaint_job_t),
-					      GFP_KERNEL);
+					      GFP_ATOMIC);
 			if (IS_ERR_OR_NULL(repaint_job)) {
 				DDPPR_ERR("allocate repaint_job_t fail\n");
 				spin_unlock(&pvd->repaint_data.wq.lock);
@@ -1874,6 +1880,7 @@ void mtk_drm_top_clk_prepare_enable(struct drm_device *drm)
 	if (priv->top_clk_num <= 0)
 		return;
 
+	set_swpm_disp_active(true);
 	for (i = 0; i < priv->top_clk_num; i++) {
 		if (IS_ERR(priv->top_clk[i])) {
 			DDPPR_ERR("%s invalid %d clk\n", __func__, i);
@@ -1903,6 +1910,7 @@ void mtk_drm_top_clk_disable_unprepare(struct drm_device *drm)
 	if (priv->top_clk_num <= 0)
 		return;
 
+	set_swpm_disp_active(false);
 	spin_lock_irqsave(&top_clk_lock, flags);
 	atomic_dec(&top_clk_ref);
 	if (atomic_read(&top_clk_ref) == 0) {
@@ -2193,8 +2201,9 @@ int lcm_fps_ctx_update(unsigned long long cur_ns,
 
 	spin_unlock_irqrestore(&lcm_fps_ctx[index].lock, flags);
 
-	DDPINFO("%s CRTC:%d update %lld to index %d\n",
-		__func__, index, delta, idx);
+	/* DDPINFO("%s CRTC:%d update %lld to index %d\n",
+	 *	__func__, index, delta, idx);
+	 */
 
 	return 0;
 }
@@ -2307,6 +2316,17 @@ int mtk_drm_get_info_ioctl(struct drm_device *dev, void *data,
 
 	return ret;
 }
+
+int mtk_drm_get_master_info_ioctl(struct drm_device *dev,
+			   void *data, struct drm_file *file_priv)
+{
+	int *ret = (int *)data;
+
+	*ret = drm_is_current_master(file_priv);
+
+	return 0;
+}
+
 
 int mtk_drm_set_ddp_mode(struct drm_device *dev, void *data,
 			 struct drm_file *file_priv)
@@ -2436,7 +2456,7 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 	INIT_LIST_HEAD(&private->repaint_data.job_pool);
 	for (i = 0; i < MAX_CRTC ; ++i)
 		atomic_set(&private->crtc_present[i], 0);
-
+	atomic_set(&private->rollback_all, 0);
 #ifdef MTK_DRM_FENCE_SUPPORT
 #ifndef MTK_DRM_DELAY_PRESENT_FENCE
 	/* fence release kthread */
@@ -2519,6 +2539,8 @@ static const struct drm_ioctl_desc mtk_ioctls[] = {
 			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_SESSION_INFO, mtk_drm_get_info_ioctl,
 			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_GET_MASTER_INFO, mtk_drm_get_master_info_ioctl,
+			  DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(MTK_SET_CCORR, mtk_drm_ioctl_set_ccorr,
 			  DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(MTK_CCORR_EVENTCTL, mtk_drm_ioctl_ccorr_eventctl,
@@ -3071,8 +3093,8 @@ static int mtk_drm_probe(struct platform_device *pdev)
 		    || comp_type == MTK_DP_INTF || comp_type == MTK_DISP_DPTX
 #endif
 		    ) {
-			dev_info(dev, "Adding component match for %s\n",
-				 node->full_name);
+			dev_info(dev, "Adding component match for %s, comp_id:%d\n",
+				 node->full_name, comp_id);
 			component_match_add(dev, &match, compare_of, node);
 		} else {
 			struct mtk_ddp_comp *comp;

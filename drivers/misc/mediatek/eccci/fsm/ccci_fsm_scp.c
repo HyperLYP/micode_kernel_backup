@@ -138,14 +138,14 @@ static void ccci_scp_md_state_sync_work(struct work_struct *work)
 
 static void ccci_scp_ipi_rx_work(struct work_struct *work)
 {
-	struct ccci_ipi_msg *ipi_msg_ptr;
+	struct ccci_ipi_msg *ipi_msg_ptr = NULL;
 	struct sk_buff *skb = NULL;
 	int data;
 
 	while (!skb_queue_empty(&scp_ipi_rx_skb_list.skb_list)) {
 		skb = ccci_skb_dequeue(&scp_ipi_rx_skb_list);
 		if (skb == NULL) {
-			CCCI_ERROR_LOG(ipi_msg_ptr->md_id, CORE,
+			CCCI_ERROR_LOG(-1, CORE,
 				"ccci_skb_dequeue fail\n");
 			return;
 		}

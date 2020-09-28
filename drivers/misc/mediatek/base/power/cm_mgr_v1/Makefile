@@ -49,6 +49,7 @@ ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/base/power/cpufreq_v1/inc \
 	-I$(srctree)/drivers/misc/mediatek/base/power/cpufreq_v1/src/mach/$(CONFIG_MTK_PLATFORM) \
 	-I$(srctree)/drivers/misc/mediatek/base/power/include \
+	-I$(srctree)/drivers/misc/mediatek/base/power/qos/$(CONFIG_MTK_PLATFORM)/ \
 	-I$(srctree)/drivers/misc/mediatek/dramc/$(CONFIG_MTK_PLATFORM) \
 	-I$(srctree)/drivers/misc/mediatek/emi/$(CONFIG_MTK_PLATFORM) \
 	-I$(srctree)/drivers/misc/mediatek/include \
@@ -73,7 +74,12 @@ ifeq ($(CONFIG_MACH_MT6893),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6893
 obj-y += mt6893/
 else
+ifeq ($(CONFIG_MACH_MT6833),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6833
+obj-y += mt6833/
+else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/$(CONFIG_MTK_PLATFORM)
 obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
+endif
 endif
 

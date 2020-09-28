@@ -39,6 +39,12 @@ enum {
 	CPU_ISO_MAX_KIR
 };
 
+
+extern unsigned int __attribute__((weak)) mt_ppm_userlimit_freq_limit_by_others(
+	unsigned int cluster);
+extern void __attribute__((weak)) ppm_game_mode_change_cb(int is_game_mode);
+extern unsigned int __attribute__((weak)) mt_ppm_userlimit_cpu_freq(unsigned int cluster_num,
+	struct ppm_limit_data *data);
 extern unsigned int mt_cpufreq_get_freq_by_idx(int id, int idx);
 extern int update_userlimit_cpu_freq(int kicker, int num_cluster
 				, struct ppm_limit_data *freq_limit);
