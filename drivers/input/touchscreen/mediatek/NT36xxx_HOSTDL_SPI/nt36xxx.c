@@ -51,9 +51,9 @@
 #if NVT_TOUCH_ESD_PROTECT
 static struct delayed_work nvt_esd_check_work;
 static struct workqueue_struct *nvt_esd_check_wq;
-static unsigned long irq_timer;
-uint8_t esd_check;
-uint8_t esd_retry;
+static unsigned long irq_timer = 0;
+uint8_t esd_check = false;
+uint8_t esd_retry = 0;
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
 #if NVT_TOUCH_EXT_PROC
@@ -67,7 +67,7 @@ extern void nvt_mp_proc_deinit(void);
 #endif
 
 struct nvt_ts_data *ts;
-static uint8_t  tp_fw_version;
+static uint8_t  tp_fw_version = 0;
 static char tp_version_info[128] = "";
 
 #if BOOT_UPDATE_FIRMWARE
@@ -89,8 +89,8 @@ static void nvt_ts_late_resume(struct early_suspend *h);
 #endif
 
 uint32_t ENG_RST_ADDR  = 0x7FFF80;
-uint32_t SWRST_N8_ADDR; //read from dtsi
-uint32_t SPI_RD_FAST_ADDR;	//read from dtsi
+uint32_t SWRST_N8_ADDR = 0; //read from dtsi
+uint32_t SPI_RD_FAST_ADDR = 0;	//read from dtsi
 
 #define	WAKEUP_OFF		0x04
 #define	WAKEUP_ON		0x05
@@ -154,7 +154,7 @@ const struct mtk_chip_config spi_ctrdata = {
 };
 #endif
 
-static uint8_t bTouchIsAwake;
+static uint8_t bTouchIsAwake = 0;
 
 /*******************************************************
 Description:
@@ -234,8 +234,7 @@ int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len)
 
 	while (retries < 5) {
 		ret = spi_read_write(client, buf, len, NVTREAD);
-		if (ret == 0)
-			break;
+		if (ret == 0) break;
 		retries++;
 	}
 
@@ -269,8 +268,7 @@ int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len)
 
 	while (retries < 5) {
 		ret = spi_read_write(client, buf, len, NVTWRITE);
-		if (ret == 0)
-			break;
+		if (ret == 0)	break;
 		retries++;
 	}
 
@@ -1172,7 +1170,7 @@ static void nvt_esd_check_func(struct work_struct *work)
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
 #if NVT_TOUCH_WDT_RECOVERY
-static uint8_t recovery_cnt;
+static uint8_t recovery_cnt = 0;
 static uint8_t nvt_wdt_fw_recovery(uint8_t *point_data)
 {
 	uint32_t recovery_cnt_max = 10;
@@ -1242,13 +1240,11 @@ int32_t nvt_check_palm(uint8_t input_id, uint8_t *data)
 		ret = palm_state;
 		if (palm_state == PACKET_PALM_ON) {
 			NVT_LOG("get packet palm on event.\n");
-			//update_palm_sensor_value(1);
-			/*
 			input_report_key(ts->input_dev, 523, 1);
 			input_sync(ts->input_dev);
 			input_report_key(ts->input_dev, 523, 0);
 			input_sync(ts->input_dev);
-			*/
+
 	} else if (palm_state == PACKET_PALM_OFF) {
 			NVT_LOG("get packet palm off event.\n");
 			//update_palm_sensor_value(0);
@@ -1579,8 +1575,6 @@ extern int32_t nvt_get_sensitivity_switch(uint8_t *sensitivity_switch);
 
 extern int32_t nvt_get_er_range_switch(uint8_t *er_range_switch);
 
-extern int32_t nvt_set_pocket_palm_switch(uint8_t pocket_palm_switch);
-
 static int nvt_set_cur_value(int mode, int value)
 {
 	if (mode < Touch_Mode_NUM && mode >= 0) {
@@ -1730,43 +1724,6 @@ static int nvt_reset_Mode(int mode)
 	return 0;
 }
 
-int nvt_palm_sensor_cmd(int on)
-{
-	int ret;
-
-	if (on) {
-		ret = nvt_set_pocket_palm_switch(1);
-	} else {
-		ret = nvt_set_pocket_palm_switch(0);
-	}
-
-	if (ret < 0) {
-		NVT_LOG("%s: write anti mis-touch cmd on...ERROR %08X !\n", __func__, ret);
-		return -EINVAL;
-	}
-	NVT_LOG("%s %d\n", __func__, on);
-
-	return 0;
-}
-
-int nvt_palm_sensor_write(int value)
-{
-	int ret = 0;
-
-	ts->palm_sensor_switch = value;
-
-	if (!bTouchIsAwake) {
-		ts->palm_sensor_changed = false;
-		return 0;
-	}
-	ret = nvt_palm_sensor_cmd(value);
-	if (!ret) {
-		NVT_LOG("%s %d succeed\n", __func__, value);
-		ts->palm_sensor_changed = true;
-	}
-
-	return ret;
-}
 #endif
 
 /*******************************************************
@@ -1811,8 +1768,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	 xiaomi_touch_interfaces.getModeAll = nvt_get_mode_all;
 	xiaomi_touch_interfaces.resetMode = nvt_reset_Mode;
 	xiaomi_touch_interfaces.getModeCurValue = nvt_get_mode_cur_value;
-	xiaomi_touch_interfaces.palm_sensor_write = nvt_palm_sensor_write;
-	 xiaomitouch_register_modedata(&xiaomi_touch_interfaces);
+    xiaomitouch_register_modedata(&xiaomi_touch_interfaces);
 	nvt_init_touchmode_data();
 #endif
 
@@ -1939,7 +1895,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	ts->input_dev->event = nvt_gesture_switch;
 #endif
 
-	//input_set_capability(ts->input_dev, EV_KEY, 523);
+	input_set_capability(ts->input_dev, EV_KEY, 523);
 
 	sprintf(ts->phys, "input/ts");
 	ts->input_dev->name = NVT_TS_NAME;
@@ -1982,7 +1938,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	}
 	INIT_DELAYED_WORK(&ts->nvt_fwu_work, Boot_Update_Firmware);
 	// please make sure boot update start after display reset(RESX) sequence
-	queue_delayed_work(nvt_fwu_wq, &ts->nvt_fwu_work, msecs_to_jiffies(11000));
+	queue_delayed_work(nvt_fwu_wq, &ts->nvt_fwu_work, msecs_to_jiffies(14000));
 #endif
 
 	NVT_LOG("NVT_TOUCH_ESD_PROTECT is %d\n", NVT_TOUCH_ESD_PROTECT);
@@ -2291,16 +2247,6 @@ static int32_t nvt_ts_suspend(struct device *dev)
 		return 0;
 	}
 
-#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
-
-	if (ts->palm_sensor_switch) {
-		NVT_LOG("%s: palm sensor on status, switch to off\n", __func__);
-		//update_palm_sensor_value(0);
-		//nvt_palm_sensor_cmd(0);
-		ts->palm_sensor_switch = false;
-		}
-#endif
-
 #if !WAKEUP_GESTURE
 	nvt_irq_enable(false);
 #endif
@@ -2412,14 +2358,6 @@ static int32_t nvt_ts_resume(struct device *dev)
 	bTouchIsAwake = 1;
 
 	mutex_unlock(&ts->lock);
-
-	#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
-	if (ts->palm_sensor_switch && !ts->palm_sensor_changed) {
-		NVT_LOG("%s: palm sensor off status, switch to on\n", __func__);
-		nvt_palm_sensor_cmd(ts->palm_sensor_switch);
-		ts->palm_sensor_changed = true;
-	}
-	#endif
 
 	NVT_LOG("end\n");
 

@@ -137,8 +137,6 @@ struct nvt_ts_data {
 	uint8_t *xbuf;
 	struct mutex xbuf_lock;
 	bool irq_enabled;
-	bool palm_sensor_changed;
-	bool palm_sensor_switch;
 	struct workqueue_struct *event_wq;
 	struct work_struct resume_work;
 #ifdef CONFIG_MTK_SPI
