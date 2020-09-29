@@ -195,7 +195,8 @@ int update_palm_sensor_value(int value)
 		printk("%s value:%d\n", __func__, value);
 		touch_pdata->palm_value = value;
 		touch_pdata->palm_changed = true;
-		wake_up(&dev->wait_queue);
+		sysfs_notify(&xiaomi_touch_dev.dev->kobj, NULL,
+		     "palm_sensor");
 	}
 
 	mutex_unlock(&xiaomi_touch_dev.palm_mutex);
@@ -206,9 +207,7 @@ static ssize_t palm_sensor_show(struct device *dev,
 struct device_attribute *attr, char *buf)
 {
 	struct xiaomi_touch_pdata *pdata = dev_get_drvdata(dev);
-	struct xiaomi_touch *touch_dev = pdata->device;
 
-	wait_event_interruptible(touch_dev->wait_queue, pdata->palm_changed);
 	pdata->palm_changed = false;
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", pdata->palm_value);
