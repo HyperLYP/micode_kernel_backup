@@ -73,6 +73,8 @@
 static DECLARE_WAIT_QUEUE_HEAD(waiter);
 static int tpd_flag;
 
+int palm_flag;
+
 #if (defined(CONFIG_TPD_HAVE_CALIBRATION) && !defined(CONFIG_TPD_CUSTOM_CALIBRATION))
 static int tpd_def_calmat_local_normal[8]  = TPD_CALIBRATION_MATRIX_ROTATION_NORMAL;
 static int tpd_def_calmat_local_factory[8] = TPD_CALIBRATION_MATRIX_ROTATION_FACTORY;
@@ -686,22 +688,17 @@ static int fts_read_parse_touchdata(struct fts_ts_data *data)
 #if FTS_PALM_EN
 int enter_palm_mode(struct fts_ts_data *data)
 {
-	u8 mode0 = 0;
-	u8 mode1 = 0;
-	fts_read_reg(0x9A, &mode0);
-	fts_read_reg(0x9B, &mode1);
-	if (0x05 == mode0 && 0x00 == mode1) {
-		//FTS_INFO("no packet palm event.\n");
-		//update_palm_sensor_value(0);
-	} else if (0x05 == mode0 && 0x01 == mode1) {
+	u8 mode = 0;
+	fts_read_reg(0x9B, &mode);
+	if (0x00 == mode)
+		return 0;
+	else if ((0x01 == mode) && (palm_flag == 0)) {
 		FTS_INFO("get packet palm on event.\n");
-		//update_palm_sensor_value(1);
-		/*
+		palm_flag = 1;
 		input_report_key(data->input_dev, 523, 1);
 		input_sync(data->input_dev);
 		input_report_key(data->input_dev, 523, 0);
 		input_sync(data->input_dev);
-		*/
 	}
 	return 0;
 }
@@ -709,8 +706,9 @@ int enter_palm_mode(struct fts_ts_data *data)
 
 static void fts_irq_read_report(void)
 {
-	int ret = 0;
-	struct fts_ts_data *ts_data = fts_data;
+    int ret = 0;
+	u8 mode = 0;
+    struct fts_ts_data *ts_data = fts_data;
 
 #if FTS_ESDCHECK_EN
 	fts_esdcheck_set_intr(1);
@@ -732,7 +730,9 @@ static void fts_irq_read_report(void)
 	}
 
 #if FTS_PALM_EN
-	enter_palm_mode(ts_data);
+	fts_read_reg(0x9A, &mode);
+	if (0x05 == mode)
+		enter_palm_mode(ts_data);
 #endif
 
 #if FTS_ESDCHECK_EN
@@ -835,7 +835,7 @@ static int fts_input_init(struct fts_ts_data *ts_data)
 			input_set_capability(input_dev, EV_KEY, pdata->keys[key_num]);
 	}
 
-	//input_set_capability(input_dev, EV_KEY, 523);
+	input_set_capability(input_dev, EV_KEY, 523);
 
 #if FTS_MT_PROTOCOL_B_EN
 	input_mt_init_slots(input_dev, pdata->max_touch_number, INPUT_MT_DIRECT);
@@ -1543,46 +1543,6 @@ static int fts_reset_Mode(int mode)
 		printk("%s,don't support\n", __func__);
 	return 0;
 }
-
-
-int fts_palm_sensor_cmd(int on)
-{
-	int ret;
-
-	if (on) {
-		ret = fts_write_reg(0x9A, 0x05);
-	} else {
-		ret = fts_write_reg(0x9A, 0x00);
-	}
-
-	if (ret < 0) {
-		FTS_INFO("%s: write anti mis-touch cmd on...ERROR %08X !\n", __func__, ret);
-		return -EINVAL;
-	}
-	FTS_INFO("%s %d\n", __func__, on);
-
-	return 0;
-}
-
-int fts_palm_sensor_write(int value)
-{
-	int ret = 0;
-
-	fts_data->palm_sensor_switch = value;
-
-	if (fts_data->suspended) {
-		fts_data->palm_sensor_changed = false;
-		return 0;
-	}
-
-	ret = fts_palm_sensor_cmd(value);
-	if (!ret) {
-		FTS_INFO("%s %d succeed\n", __func__, value);
-		fts_data->palm_sensor_changed = true;
-	}
-
-	return ret;
-}
 #endif
 
 static int fts_ts_probe(struct spi_device *spi)
@@ -1604,15 +1564,14 @@ static int fts_ts_probe(struct spi_device *spi)
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
-	memset(&xiaomi_touch_interfaces, 0x00, sizeof(struct xiaomi_touch_interface));
-	xiaomi_touch_interfaces.setModeValue = fts_set_cur_value;
-	xiaomi_touch_interfaces.getModeValue = fts_get_mode_value;
-	xiaomi_touch_interfaces.getModeAll = fts_get_mode_all;
-	xiaomi_touch_interfaces.resetMode = fts_reset_Mode;
-	xiaomi_touch_interfaces.getModeCurValue = fts_get_mode_cur_value;
-	xiaomi_touch_interfaces.palm_sensor_write = fts_palm_sensor_write;
-	xiaomitouch_register_modedata(&xiaomi_touch_interfaces);
-	fts_init_touchmode_data();
+    memset(&xiaomi_touch_interfaces, 0x00, sizeof(struct xiaomi_touch_interface));
+    xiaomi_touch_interfaces.setModeValue = fts_set_cur_value;
+    xiaomi_touch_interfaces.getModeValue = fts_get_mode_value;
+    xiaomi_touch_interfaces.getModeAll = fts_get_mode_all;
+    xiaomi_touch_interfaces.resetMode = fts_reset_Mode;
+    xiaomi_touch_interfaces.getModeCurValue = fts_get_mode_cur_value;
+    xiaomitouch_register_modedata(&xiaomi_touch_interfaces);
+    fts_init_touchmode_data();
 #endif
 
 	spi->chip_select = 0;  //select cs 0
@@ -1736,16 +1695,6 @@ static void tpd_suspend(struct device *dev)
 		return;
 	}
 
-#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
-	if (fts_data->palm_sensor_switch) {
-		FTS_INFO("%s: palm sensor on status, switch to off\n", __func__);
-		//update_palm_sensor_value(0);
-		fts_palm_sensor_cmd(0);
-		fts_data->palm_sensor_switch = false;
-	}
-#endif
-
-
 #if FTS_PSENSOR_EN
 	if (fts_proximity_suspend() == 0) {
 		fts_release_all_finger();
@@ -1820,16 +1769,9 @@ static void tpd_resume(struct device *dev)
 	} else {
 	}
 
-	ts_data->suspended = false;
-
-	#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
-	if (fts_data->palm_sensor_switch && !fts_data->palm_sensor_changed) {
-		FTS_INFO("%s: palm sensor off status, switch to on\n", __func__);
-		fts_palm_sensor_cmd(ts_data->palm_sensor_switch);
-		fts_data->palm_sensor_changed = true;
-	}
-	#endif
-	FTS_FUNC_EXIT();
+    ts_data->suspended = false;
+	palm_flag = 0;
+    FTS_FUNC_EXIT();
 }
 
 /*****************************************************************************

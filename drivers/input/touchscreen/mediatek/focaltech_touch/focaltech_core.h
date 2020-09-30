@@ -166,8 +166,6 @@ struct fts_ts_data {
     bool cover_mode;
     bool charger_mode;
     bool gesture_mode;      /* gesture enable or disable, default: disable */
-	bool palm_sensor_changed;
-	bool palm_sensor_switch;
     /* multi-touch */
     struct ts_event *events;
     u8 *bus_tx_buf;
