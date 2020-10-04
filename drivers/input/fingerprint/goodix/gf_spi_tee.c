@@ -81,7 +81,7 @@
 #define GF_DEV_MAJOR 0	/* assigned */
 
 #define GF_CLASS_NAME "goodix_fp"
-#define GF_INPUT_NAME "uinput-goodix"
+#define GF_INPUT_NAME "gf-keys"
 
 #define GF_LINUX_VERSION "V1.01.04"
 
@@ -901,9 +901,9 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 
 		if (GF_KEY_HOME == gf_key.key) {
-			key_input = GF_KEY_INPUT_HOME;
+			//key_input = GF_KEY_INPUT_HOME;
 		} else if (GF_KEY_POWER == gf_key.key) {
-			key_input = GF_KEY_INPUT_HOME;
+			//key_input = GF_KEY_INPUT_HOME;
 		} else if (GF_KEY_CAMERA == gf_key.key) {
 			key_input = GF_KEY_INPUT_CAMERA;
 		} else {
