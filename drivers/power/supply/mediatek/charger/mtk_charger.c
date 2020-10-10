@@ -467,7 +467,6 @@ int charger_manager_enable_charging(struct charger_consumer *consumer,
 	return ret;
 }
 
-
 #define DUAL_CHG_VOLT_PD 7000
 #define DUAL_CHG_CURRENT_MIN 1800000
 #define DUAL_CHG_CURRENT_MAX 2000000
