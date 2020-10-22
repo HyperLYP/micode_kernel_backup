@@ -1023,7 +1023,7 @@ static int wusb3801_i2c_probe(struct i2c_client *client,
 	}
 #endif /* __TEST_CC_PATCH__ */
 	wusb3801_i2c_write8(chip->tcpc,
-			WUSB3801_REG_CONTROL0, 0x2C);
+			WUSB3801_REG_CONTROL0, 0x24);
 
 	for (i = WUSB3801_REG_VERSION_ID ; i <= WUSB3801_REG_TEST_12; i++) {
 		rc = i2c_smbus_read_byte_data(chip->client, (uint8_t)i);
