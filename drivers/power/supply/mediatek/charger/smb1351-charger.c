@@ -404,7 +404,7 @@
 #define CHG_ITERM_700MA				0x14
 
 #define ADAPTER_NONE 0x00
-#define USBIN_COLLAPSE_TIME ((unsigned long)1200)
+#define USBIN_COLLAPSE_TIME ((unsigned long)100)
 
 static int smb1351_set_hvdcp_dpdm(struct charger_device *chg_dev);
 extern int cycle_count;
@@ -1070,7 +1070,7 @@ static struct irq_handler_info handlers[] = {
 
 extern void dump_regs(struct smb1351_charger *chip);
 #define RP_22K_CUR_LVL 1500
-#define HVDCP_NOTIFY_MS		4000
+#define HVDCP_NOTIFY_MS		5000
 #define SDP_NOTIFY_MS		1000
 #define MAX_RERUN_APSD_COUNT 3
 static void apsd_update_work(struct work_struct *work)
