@@ -424,7 +424,7 @@ static int bms_get_property(struct power_supply *psy,
 		val->intval = qmax;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-		val->intval = 5020;
+		val->intval = 5020000;
 		break;
 	case POWER_SUPPLY_PROP_RESISTANCE:
 		val->intval = 140000;
@@ -550,7 +550,7 @@ static int battery_get_property(struct power_supply *psy,
 			val->intval = data->BAT_CAPACITY;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-		val->intval = 5020;
+		val->intval = 5020000;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		b_ischarging = gauge_get_current(&fgcurrent);
