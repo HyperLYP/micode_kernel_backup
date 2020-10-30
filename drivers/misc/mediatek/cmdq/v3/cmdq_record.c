@@ -1842,6 +1842,13 @@ s32 cmdq_op_read_mem_to_reg(struct cmdqRecStruct *handle,
 	if (!handle)
 		return -EINVAL;
 
+#ifdef CMDQ_SECURE_PATH_SUPPORT
+	if (cmdq_task_is_secure(handle)) {
+		CMDQ_ERR("%s secure handle\n", __func__);
+		return -EINVAL;
+	}
+#endif
+
 	do {
 		status = cmdq_create_variable_if_need(handle,
 			&handle->arg_value);
