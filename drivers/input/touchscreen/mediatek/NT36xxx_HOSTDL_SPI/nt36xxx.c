@@ -1135,6 +1135,29 @@ static uint8_t nvt_fw_recovery(uint8_t *point_data)
 	return detected;
 }
 
+/*use lcm name for tp detect*/
+int  is_ft_lcm;
+int __init is_lcm_detect(char *str)
+{
+	if (!(strcmp(str, "ft8719_fhdp_dsi_vdo_xinli_lcm_drv"))) {
+		is_ft_lcm = 2;
+		printk("Func:%s is_ft 2:%d", __func__, is_ft_lcm);
+	} else if (!(strcmp(str, "nt36672D_fhdp_dsi_vdo_tianma_lcm_drv"))) {
+		is_ft_lcm = 3;
+		printk("Func:%s is_ft 3:%d", __func__, is_ft_lcm);
+	} else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_lcm_drv"))) {
+		is_ft_lcm = 0;
+		printk("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
+	} else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_lcm_drv_G6"))) {
+		is_ft_lcm = 1;
+		printk("Func:%s is_ft 1:%d", __func__, is_ft_lcm);
+	}
+	printk("Func:%s is_lcm_detect:%s", __func__, str);
+	return 0;
+}
+ __setup("LCM_name=", is_lcm_detect);
+
+
 #if NVT_TOUCH_ESD_PROTECT
 void nvt_esd_check_enable(uint8_t enable)
 {
@@ -1261,25 +1284,6 @@ int32_t nvt_check_palm(uint8_t input_id, uint8_t *data)
 	return ret;
 }
 
-/*use lcm name for tp detect*/
-int  is_ft_lcm;
-int __init is_lcm_detect(char *str)
-{
-	if (!(strcmp(str, "ft8719_fhdp_dsi_vdo_xinli_lcm_drv"))) {
-		is_ft_lcm = 2;
-	printk("Func:%s is_ft 2:%d", __func__, is_ft_lcm);
-	} else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_lcm_drv"))) {
-		is_ft_lcm = 0;
-	printk("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
-	} else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_lcm_drv_G6"))) {
-		is_ft_lcm = 1;
-	printk("Func:%s is_ft 1:%d", __func__, is_ft_lcm);
-	}
-	printk("Func:%s is_lcm_detect:%s", __func__, str);
-	return 0;
-}
- __setup("LCM_name=", is_lcm_detect);
-
 #define POINT_DATA_LEN 65
 /*******************************************************
 Description:
@@ -1334,6 +1338,8 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 			nvt_update_firmware(BOOT_UPDATE_FIRMWARE_NAME);
 		else if (is_ft_lcm == 1)
 			nvt_update_firmware(BOOT_UPDATE_FIRMWARE_G6_NAME);
+		else if (is_ft_lcm == 3)
+			nvt_update_firmware(BOOT_UPDATE_FIRMWARE_36672D_NAME);
 		 goto XFER_ERROR;
 	}
 #endif /* #if NVT_TOUCH_WDT_RECOVERY */
@@ -2344,6 +2350,12 @@ static int32_t nvt_ts_resume(struct device *dev)
 		} else {
 			nvt_check_fw_reset_state(RESET_STATE_REK);
 		}
+	} else if (is_ft_lcm == 3) {
+		if (nvt_update_firmware(BOOT_UPDATE_FIRMWARE_36672D_NAME)) {
+			NVT_ERR("download firmware failed, ignore check fw state\n");
+		} else {
+			nvt_check_fw_reset_state(RESET_STATE_REK);
+		}
 	}
 #if !WAKEUP_GESTURE
 	nvt_irq_enable(true);
@@ -2479,8 +2491,6 @@ static struct spi_driver nvt_spi_driver = {
 #endif
 	},
 };
-
-
 
 /*******************************************************
 Description:

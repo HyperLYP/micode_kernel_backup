@@ -705,6 +705,8 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 	return 0;
 }
 
+extern int32_t nvt_update_firmware(char *firmware_name);
+
 /* ESD RECOVERY */
 int primary_display_esd_recovery(void)
 {
@@ -790,6 +792,20 @@ int primary_display_esd_recovery(void)
 	disp_lcm_esd_recover(primary_get_lcm());
 	DISPCHECK("[ESD]lcm recover[end]\n");
 	mmprofile_log_ex(mmp_r, MMPROFILE_FLAG_PULSE, 0, 8);
+
+
+	if (!(strcmp((primary_get_lcm()->drv->name), "nt36672A_fhdp_dsi_vdo_tianma_lcm_drv")))
+		nvt_update_firmware("novatek_ts_fw.bin");
+	else if (!(strcmp((primary_get_lcm()->drv->name), "nt36672A_fhdp_dsi_vdo_tianma_lcm_drv_G6")))
+		nvt_update_firmware("novatek_ts_g6_fw.bin");
+	else if (!(strcmp((primary_get_lcm()->drv->name), "nt36672A_fhdp_dsi_vdo_tianma_j19_lcm_drv")))
+		nvt_update_firmware("nvt_tm_fw.bin");
+	else if (!(strcmp((primary_get_lcm()->drv->name), "nt36672A_fhdp_dsi_vdo_dijing_j19_lcm_drv")))
+		nvt_update_firmware("nvt_dj_fw.bin");
+	else if (!(strcmp((primary_get_lcm()->drv->name), "nt36672D_fhdp_dsi_vdo_dijing_j19_lcm_drv")))
+		nvt_update_firmware("nvt_dj_72d_fw.bin");
+	else if (!(strcmp((primary_get_lcm()->drv->name), "nt36672D_fhdp_dsi_vdo_tianma_lcm_drv")))
+		nvt_update_firmware("novatek_ts_72d_fw.bin");
 
 	DISPDBG("[ESD]start dpmgr path[begin]\n");
 	if (disp_partial_is_support()) {
