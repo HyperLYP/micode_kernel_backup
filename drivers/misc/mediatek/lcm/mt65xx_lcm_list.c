@@ -46,6 +46,9 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 #if defined(NT36672A_FHDP_DSI_VDO_TIANMA)
 	&nt36672A_fhdp_dsi_vdo_tianma_lcm_drv,
 #endif
+#if defined(NT36672D_FHDP_DSI_VDO_TIANMA)
+    &nt36672D_fhdp_dsi_vdo_tianma_lcm_drv,
+#endif
 #if defined(ES6311_ANX6585_ZIGZAG_WXGA)
 	&es6311_anx6585_zigzag_wxga_lcm_drv,
 #endif
