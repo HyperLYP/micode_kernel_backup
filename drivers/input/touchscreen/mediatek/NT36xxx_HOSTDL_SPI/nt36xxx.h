@@ -93,6 +93,8 @@ extern const uint16_t gesture_key_array[];
 #define MP_UPDATE_FIRMWARE_NAME   "novatek_ts_mp.bin"
 #define BOOT_UPDATE_FIRMWARE_G6_NAME "novatek_ts_g6_fw.bin"
 #define MP_UPDATE_FIRMWARE_G6_NAME   "novatek_ts_g6_mp.bin"
+#define BOOT_UPDATE_FIRMWARE_36672D_NAME "novatek_ts_72d_fw.bin"
+#define MP_UPDATE_FIRMWARE_36672D_NAME   "novatek_ts_72d_mp.bin"
 #define POINT_DATA_CHECKSUM 1
 #define POINT_DATA_CHECKSUM_LEN 65
 
