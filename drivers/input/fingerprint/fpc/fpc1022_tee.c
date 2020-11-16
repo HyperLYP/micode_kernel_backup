@@ -1121,7 +1121,7 @@ static void __exit fpc1022_exit(void)
 	//spi_unregister_driver(&spi_driver);
 }
 
-module_init(fpc1022_init);
+late_initcall(fpc1022_init);
 module_exit(fpc1022_exit);
 
 MODULE_LICENSE("GPL v2");
