@@ -37,6 +37,9 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 #if defined(NT36672A_FHDP_DSI_VDO_DIJING_J19)
 	&nt36672A_fhdp_dsi_vdo_dijing_j19_lcm_drv,
 #endif
+#if defined(NT36672D_FHDP_DSI_VDO_DIJING_J19)
+	&nt36672D_fhdp_dsi_vdo_dijing_j19_lcm_drv,
+#endif
 #if defined(NT36672A_FHDP_DSI_VDO_TIANMA_G6)
 	&nt36672A_fhdp_dsi_vdo_tianma_lcm_drv_G6,
 #endif

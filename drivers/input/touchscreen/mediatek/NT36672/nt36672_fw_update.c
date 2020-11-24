@@ -1011,6 +1011,8 @@ void Boot_Update_Firmware(struct work_struct *work)
 		nvt_update_firmware(BOOT_UPDATE_FIRMWARE_NAME);
 	else if (is_ft_lcm == 1)
 		nvt_update_firmware(BOOT_UPDATE_FIRMWARE_DJ_NAME);
+	else if (is_ft_lcm == 3)
+		nvt_update_firmware(BOOT_UPDATE_FIRMWARE_DJ_36672D_NAME);
 	get_tp_info();
 	mutex_unlock(&ts->lock);
 }
