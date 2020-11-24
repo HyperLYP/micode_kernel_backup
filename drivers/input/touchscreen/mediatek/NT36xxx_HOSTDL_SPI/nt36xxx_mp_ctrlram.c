@@ -1278,6 +1278,8 @@ static int32_t nvt_selftest_open(struct inode *inode, struct file *file)
 		nvt_update_firmware(MP_UPDATE_FIRMWARE_NAME);
 	else if (is_ft_lcm == 1)
 		nvt_update_firmware(MP_UPDATE_FIRMWARE_G6_NAME);
+	else if (is_ft_lcm == 3)
+		nvt_update_firmware(MP_UPDATE_FIRMWARE_36672D_NAME);
 
 	if (nvt_get_fw_info()) {
 		mutex_unlock(&ts->lock);
@@ -1305,6 +1307,8 @@ static int32_t nvt_selftest_open(struct inode *inode, struct file *file)
 				nvt_update_firmware(BOOT_UPDATE_FIRMWARE_NAME);
 			else if (is_ft_lcm == 1)
 				nvt_update_firmware(BOOT_UPDATE_FIRMWARE_G6_NAME);
+			else if (is_ft_lcm == 3)
+				nvt_update_firmware(BOOT_UPDATE_FIRMWARE_36672D_NAME);
 			mutex_unlock(&ts->lock);
 			NVT_ERR("mp parse device tree failed!\n");
 			return -EINVAL;
@@ -1418,6 +1422,8 @@ static int32_t nvt_selftest_open(struct inode *inode, struct file *file)
 		nvt_update_firmware(BOOT_UPDATE_FIRMWARE_NAME);
 	else if (is_ft_lcm == 1)
 		nvt_update_firmware(BOOT_UPDATE_FIRMWARE_G6_NAME);
+	else if (is_ft_lcm == 3)
+		nvt_update_firmware(BOOT_UPDATE_FIRMWARE_36672D_NAME);
 
 	mutex_unlock(&ts->lock);
 

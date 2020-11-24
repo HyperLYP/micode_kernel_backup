@@ -353,6 +353,9 @@ extern struct LCM_DRIVER nt36672A_fhdp_dsi_vdo_dijing_j19_lcm_drv;
 extern struct LCM_DRIVER ft8201_wuxga_dsi_vdo_boe_lcm_drv;
 extern struct LCM_DRIVER ft8756_fhdp_dsi_vdo_auo_rt4801_lcm_drv;
 
+extern struct LCM_DRIVER nt36672D_fhdp_dsi_vdo_dijing_j19_lcm_drv;
+extern struct LCM_DRIVER nt36672D_fhdp_dsi_vdo_tianma_lcm_drv;
+
 #ifdef BUILD_LK
 extern void mdelay(unsigned long msec);
 #endif
