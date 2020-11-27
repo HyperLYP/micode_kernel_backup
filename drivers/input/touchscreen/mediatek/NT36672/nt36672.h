@@ -98,6 +98,8 @@ extern const uint16_t gesture_key_array[];
 #define MP_UPDATE_FIRMWARE_NAME   "nvt_tm_mp.bin"
 #define BOOT_UPDATE_FIRMWARE_DJ_NAME "nvt_dj_fw.bin"
 #define MP_UPDATE_FIRMWARE_DJ_NAME   "nvt_dj_mp.bin"
+#define BOOT_UPDATE_FIRMWARE_DJ_36672D_NAME "nvt_dj_72d_fw.bin"
+#define MP_UPDATE_FIRMWARE_DJ_36672D_NAME   "nvt_dj_72d_mp.bin"
 #define POINT_DATA_CHECKSUM 1
 #define POINT_DATA_CHECKSUM_LEN 65
 
