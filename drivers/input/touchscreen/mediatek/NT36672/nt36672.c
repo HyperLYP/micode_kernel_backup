@@ -688,7 +688,11 @@ int __init is_lcm_detect(char *str)
 	} else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_dijing_j19_lcm_drv"))) {
 		is_ft_lcm = 1;
 		printk("Func:%s is_ft 1:%d", __func__, is_ft_lcm);
-	} else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_j19_lcm_drv"))) {
+	}  else if (!(strcmp(str, "nt36672D_fhdp_dsi_vdo_dijing_j19_lcm_drv"))) {
+		is_ft_lcm = 3;
+		printk("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
+	}
+	else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_j19_lcm_drv"))) {
 		is_ft_lcm = 0;
 		printk("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
 	}
@@ -713,6 +717,10 @@ void get_tp_info(void)
 	} else if (is_ft_lcm == 1) {
 		sprintf(tp_version_info, "[Vendor]Dijing,[TP-IC]:NT36672,[FW]0x%x", tp_fw_version);
 		printk("[%s]: [Vendor]Dijing,[TP-IC]:NT36672,tp_version %s\n", __func__, tp_version_info);
+	}
+	else if (is_ft_lcm == 3) {
+		sprintf(tp_version_info, "[Vendor]Dijing,[TP-IC]:NT36672D,[FW]0x%x", tp_fw_version);
+		printk("[%s]: [Vendor]Dijing,[TP-IC]:NT36672D,tp_version %s\n", __func__, tp_version_info);
 	}
 	hq_regiser_hw_info(HWID_CTP, tp_version_info);
 
@@ -1332,6 +1340,8 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 			nvt_update_firmware(BOOT_UPDATE_FIRMWARE_NAME);
 		else if (is_ft_lcm == 1)
 			nvt_update_firmware(BOOT_UPDATE_FIRMWARE_DJ_NAME);
+		else if (is_ft_lcm == 3)
+			nvt_update_firmware(BOOT_UPDATE_FIRMWARE_DJ_36672D_NAME);
 		 goto XFER_ERROR;
 	}
 #endif /* #if NVT_TOUCH_WDT_RECOVERY */
@@ -2167,6 +2177,17 @@ static int32_t nvt_ts_resume(struct device *dev)
 {
 	if (bTouchIsAwake) {
 		NVT_LOG("Touch is already resume\n");
+#if NVT_TOUCH_WDT_RECOVERY
+		mutex_lock(&ts->lock);
+		//nvt_update_firmware(ts->boot_update_firmware_name);
+		if (is_ft_lcm == 0)
+		   nvt_update_firmware(BOOT_UPDATE_FIRMWARE_NAME);
+		else if (is_ft_lcm == 1)
+		   nvt_update_firmware(BOOT_UPDATE_FIRMWARE_DJ_NAME);
+		else if (is_ft_lcm == 3)
+		   nvt_update_firmware(BOOT_UPDATE_FIRMWARE_DJ_36672D_NAME);
+		mutex_unlock(&ts->lock);
+#endif /* #if NVT_TOUCH_WDT_RECOVERY */
 		return 0;
 	}
 
@@ -2185,6 +2206,11 @@ static int32_t nvt_ts_resume(struct device *dev)
 			nvt_check_fw_reset_state(RESET_STATE_REK);
 	} else if (is_ft_lcm == 1) {
 		if (nvt_update_firmware(BOOT_UPDATE_FIRMWARE_DJ_NAME)) {
+			NVT_ERR("download firmware failed, ignore check fw state\n");
+		} else
+			nvt_check_fw_reset_state(RESET_STATE_REK);
+	} else if (is_ft_lcm == 3) {
+		if (nvt_update_firmware(BOOT_UPDATE_FIRMWARE_DJ_36672D_NAME)) {
 			NVT_ERR("download firmware failed, ignore check fw state\n");
 		} else
 			nvt_check_fw_reset_state(RESET_STATE_REK);
