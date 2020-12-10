@@ -1311,6 +1311,16 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 	int32_t finger_cnt = 0;
 
 #if WAKEUP_GESTURE
+#ifdef CONFIG_PM
+	if (ts->dev_pm_suspend) {
+		ret = wait_for_completion_timeout(&ts->dev_pm_resume_completion, msecs_to_jiffies(700));
+		if (!ret) {
+			NVT_ERR("system(bus) can't finished resuming procedure, skip it\n");
+			return IRQ_HANDLED;
+		}
+	}
+#endif /* #ifdef CONFIG_PM */
+
 	if (bTouchIsAwake == 0) {
 		pm_wakeup_event(&ts->input_dev->dev, 5000);
 	}
@@ -1598,6 +1608,11 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		}
 		return -ENOMEM;
 	}
+
+#ifdef CONFIG_PM
+	ts->dev_pm_suspend = false;
+	init_completion(&ts->dev_pm_resume_completion);
+#endif
 
 	ts->client = client;
 	spi_set_drvdata(client, ts);
@@ -2322,6 +2337,35 @@ static void nvt_ts_late_resume(struct early_suspend *h)
 }
 #endif
 
+#ifdef CONFIG_PM
+static int nvt_ts_pm_suspend(struct device *dev)
+{
+	printk("%s:++\n", __func__);
+
+	ts->dev_pm_suspend = true;
+	reinit_completion(&ts->dev_pm_resume_completion);
+
+	printk("%s:--\n", __func__);
+	return 0;
+}
+
+static int nvt_ts_pm_resume(struct device *dev)
+{
+	printk("%s:++\n", __func__);
+
+	ts->dev_pm_suspend = false;
+	complete(&ts->dev_pm_resume_completion);
+
+	printk("%s:--\n", __func__);
+	return 0;
+}
+
+static const struct dev_pm_ops nvt_ts_dev_pm_ops = {
+	.suspend = nvt_ts_pm_suspend,
+	.resume = nvt_ts_pm_resume,
+};
+#endif /* #ifdef CONFIG_PM */
+
 static const struct spi_device_id nvt_ts_id[] = {
 	{ NVT_SPI_NAME, 0 },
 	{ }
@@ -2342,6 +2386,9 @@ static struct spi_driver nvt_spi_driver = {
 	.driver = {
 		.name	= NVT_SPI_NAME,
 		.owner	= THIS_MODULE,
+#ifdef CONFIG_PM
+		.pm = &nvt_ts_dev_pm_ops,
+#endif
 #ifdef CONFIG_OF
 		.of_match_table = nvt_match_table,
 #endif
