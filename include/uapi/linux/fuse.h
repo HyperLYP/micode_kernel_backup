@@ -269,7 +269,8 @@ struct fuse_file_lock {
 #define FUSE_PARALLEL_DIROPS    (1 << 18)
 #define FUSE_HANDLE_KILLPRIV	(1 << 19)
 #define FUSE_POSIX_ACL		(1 << 20)
-#define FUSE_PASSTHROUGH	(1 << 27)
+#define FUSE_PASSTHROUGH	(1 << 31)
+
 /**
  * CUSE INIT request/reply flags
  *
@@ -703,7 +704,6 @@ struct fuse_in_header {
 };
 
 struct fuse_passthrough_out {
-	uint64_t	unique;
 	uint32_t	fd;
        /* For future implementation */
 	uint32_t	len;

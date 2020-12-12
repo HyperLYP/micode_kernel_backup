@@ -1971,17 +1971,6 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 	};
 }
 
-static inline void kiocb_clone(struct kiocb *kiocb, struct kiocb *kiocb_src,
-					       struct file *filp)
-{
-	*kiocb = (struct kiocb) {
-			.ki_filp = filp,
-			.ki_flags = kiocb_src->ki_flags,
-			.ki_hint = kiocb_src->ki_hint,
-			.ki_pos = kiocb_src->ki_pos,
-		};
-}
-
 /*
  * Inode state bits.  Protected by inode->i_lock
  *
@@ -3297,6 +3286,8 @@ static inline int kiocb_set_rw_flags(struct kiocb *ki, rwf_t flags)
 		ki->ki_flags |= IOCB_DSYNC;
 	if (flags & RWF_SYNC)
 		ki->ki_flags |= (IOCB_DSYNC | IOCB_SYNC);
+	if (flags & RWF_APPEND)
+		ki->ki_flags |= IOCB_APPEND;
 	return 0;
 }
 
