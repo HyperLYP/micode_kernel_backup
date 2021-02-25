@@ -106,7 +106,21 @@ int g_FG_PSEUDO1[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	{ 13, 14, 15, 16} /*T9*/
 };
 
-#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA) || defined(TARGET_PRODUCT_SELENE)
+#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
+int g_FG_PSEUDO100[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
+	/*bat1,   bat2,   bat3,    bat4*/
+	{ 99, 99, 99, 99},/*T0*/
+	{ 99, 96, 99, 99},/*T1*/
+	{ 90, 80, 80, 80},/*T2*/
+	{ 90, 80, 80, 80},/*T3*/
+	{ 100, 100, 100, 100},/*T4*/
+	{ 100, 100, 100, 100},/*T5*/
+	{ 100, 100, 100, 100},/*T6*/
+	{ 100, 100, 100, 100},/*T7*/
+	{ 100, 100, 100, 100},/*T8*/
+	{ 100, 100, 100, 100} /*T9*/
+};
+#elif defined(TARGET_PRODUCT_SELENE)
 int g_FG_PSEUDO100[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	/*bat1,   bat2,   bat3,    bat4*/
 	{ 99, 99, 99, 99},/*T0*/
@@ -184,7 +198,23 @@ int g_PON_SYS_IBOOT[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	{5000, 5000, 5000, 5000} /*T9*/
 };
 
-#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA) || defined(TARGET_PRODUCT_SELENE)
+#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
+
+/* Q_MAX_SYS_VOLTAGE by temp ,control by MULTI_TEMP_GAUGE0=1, */
+int g_QMAX_SYS_VOL[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
+	/*bat1,   bat2,   bat3,    bat4*/
+	{34000, 34000, 34000, 34000},/*T0*/
+	{34000, 34000, 34000, 34000},/*T1*/
+	{34500, 35000, 34300, 34300},/*T2*/
+	{33700, 34300, 34100, 34100},/*T3*/
+	{34300, 33800, 34300, 34300},/*T4*/
+	{34000, 34000, 34000, 34000},/*T5*/
+	{34000, 34000, 34000, 34000},/*T6*/
+	{34000, 34000, 34000, 34000},/*T7*/
+	{34000, 34000, 34000, 34000},/*T8*/
+	{34000, 34000, 34000, 34000} /*T9*/
+};
+#elif defined(TARGET_PRODUCT_SELENE)
 
 /* Q_MAX_SYS_VOLTAGE by temp ,control by MULTI_TEMP_GAUGE0=1, */
 int g_QMAX_SYS_VOL[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
@@ -256,7 +286,37 @@ int g_temperature[MAX_TABLE] = {
 #define BIF_NTC_R 16000
 
 #if (BAT_NTC_100 == 1)
-#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA) || defined(TARGET_PRODUCT_SELENE)
+#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
+struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[27] = {
+		{-40, 4251000},
+		{-35, 3005000},
+		{-30, 2149000},
+		{-25, 1554000},
+		{-20, 1135000},
+		{-15, 837800},
+		{-10, 624100},
+		{-5, 469100},
+		{0, 355600},
+		{5, 271800},
+		{10, 209400},
+		{15, 162500},
+		{20, 127000},
+		{25, 100000},
+		{30, 79230},
+		{35, 63180},
+		{40, 50680},
+		{45, 40900},
+		{50, 33190},
+		{55, 27090},
+		{60, 22220},
+		{65, 18320},
+		{70, 15180},
+		{75, 12640},
+		{80, 10580},
+		{85, 8887},
+		{90, 7500}
+};
+#elif defined(TARGET_PRODUCT_SELENE)
 struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[27] = {
 		{-40, 4251000},
 		{-35, 3005000},
