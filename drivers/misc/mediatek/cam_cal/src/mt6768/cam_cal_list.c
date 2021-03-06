@@ -29,7 +29,7 @@ extern unsigned int gc02m1_sunny_read_otp_info(struct i2c_client *client,
 	unsigned int size);
 #endif
 
-#ifdef CONFIG_TARGET_PRODUCT_LANCELOTCOMMON
+#ifdef CONFIG_TARGET_PRODUCT_SELENECOMMON
 #if defined(OV8856_QTECH_FRONT_MIPI_RAW)
 extern unsigned int ov8856_qtech_front_read_otp_info(struct i2c_client *client, unsigned int addr, unsigned char *data, unsigned int size);
 #endif
@@ -43,7 +43,7 @@ extern unsigned int ov8856_qtech_front_read_otp_info(struct i2c_client *client, 
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	/*Below is commom sensor */
-#ifdef CONFIG_TARGET_PRODUCT_LANCELOTCOMMON
+#ifdef CONFIG_TARGET_PRODUCT_SELENECOMMON
 	{OV13B10_OFILM_SENSOR_ID, 0xA2, Common_read_region},
 	{OV13B10_QTECH_SENSOR_ID, 0xA2, Common_read_region},
 	{S5K3L6_QTECH_SENSOR_ID, 0xA2, Common_read_region},
