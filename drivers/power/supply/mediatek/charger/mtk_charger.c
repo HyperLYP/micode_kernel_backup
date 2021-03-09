@@ -82,8 +82,7 @@ static struct charger_manager *pinfo;
 static struct list_head consumer_head = LIST_HEAD_INIT(consumer_head);
 static DEFINE_MUTEX(consumer_mutex);
 
-#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA) || defined(TARGET_PRODUCT_SELENE)
-
+#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
 typedef enum {
 	PCBA_UNKNOW = 0,
 	PCBA_J19_P0_1_CN = 0x10,
@@ -109,7 +108,61 @@ typedef enum {
 	PCBA_J19P_END,
 	PCBA_END,
 } PCBA_CONFIG;
+#elif defined(TARGET_PRODUCT_SELENE)
+typedef enum
+{
+	PCBA_UNKNOW = 0,
 
+	PCBA_K19A_P0_GLOBAL,
+	PCBA_K19A_P0_LA,
+	PCBA_K19B_P0_IN,
+	PCBA_K19B_P0_CN,
+	PCBA_K19D_P0_GLOBAL,
+	PCBA_K19C_P0_GLOBAL,
+	PCBA_K19C_P0_IN,
+
+	PCBA_K19A_P0_1_GLOBAL,
+	PCBA_K19A_P0_1_LA,
+	PCBA_K19B_P0_1_IN,
+	PCBA_K19B_P0_1_CN,
+	PCBA_K19D_P0_1_GLOBAL,
+	PCBA_K19C_P0_1_GLOBAL,
+	PCBA_K19C_P0_1_IN,
+
+	PCBA_K19A_P1_GLOBAL,
+	PCBA_K19A_P1_LA,
+	PCBA_K19B_P1_IN,
+	PCBA_K19B_P1_CN,
+	PCBA_K19D_P1_GLOBAL,
+	PCBA_K19C_P1_GLOBAL,
+	PCBA_K19C_P1_IN,
+
+	PCBA_K19A_P1_1_GLOBAL,
+	PCBA_K19A_P1_1_LA,
+	PCBA_K19B_P1_1_IN,
+	PCBA_K19B_P1_1_CN,
+	PCBA_K19D_P1_1_GLOBAL,
+	PCBA_K19C_P1_1_GLOBAL,
+	PCBA_K19C_P1_1_IN,
+
+	PCBA_K19A_P2_GLOBAL,
+	PCBA_K19A_P2_LA,
+	PCBA_K19B_P2_IN,
+	PCBA_K19B_P2_CN,
+	PCBA_K19D_P2_GLOBAL,
+	PCBA_K19C_P2_GLOBAL,
+	PCBA_K19C_P2_IN,
+
+	PCBA_K19A_MP_GLOBAL,
+	PCBA_K19A_MP_LA,
+	PCBA_K19B_MP_IN,
+	PCBA_K19B_MP_CN,
+	PCBA_K19D_MP_GLOBAL,
+	PCBA_K19C_MP_GLOBAL,
+	PCBA_K19C_MP_IN,
+
+	PCBA_END,
+} PCBA_CONFIG;
 #else
 typedef enum {
 	PCBA_UNKNOW = 0,
@@ -852,8 +905,12 @@ void charger_manager_set_prop_system_temp_level(int temp_level)
 	if (pinfo == NULL)
 		return ;
 	pcba_to_thermal = get_huaqin_pcba_config();
-#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA) || defined(TARGET_PRODUCT_SELENE)
+
+#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
 	if (pcba_to_thermal == PCBA_J19_MP_CN)
+		is_cn = true;
+#elif defined(TARGET_PRODUCT_SELENE)
+	if (pcba_to_thermal == PCBA_K19B_MP_CN)
 		is_cn = true;
 #else
 	if (pcba_to_thermal == PCBA_J15S_MP_CN)

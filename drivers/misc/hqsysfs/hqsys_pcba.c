@@ -34,17 +34,17 @@ typedef struct {
 	int voltage_max;
 	PCBA_CONFIG version;
 } board_id_map_t;
-#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA) || defined(TARGET_PRODUCT_SELENE)
 
+#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
 static int pcba_config;
-static board_id_map_t PCBA_DETECT_SELENE_CN[] = {
+static board_id_map_t PCBA_DETECT_LANCELOT_CN[] = {
 	{130, 225, PCBA_J19_P0_1_CN},
 	{226, 315, PCBA_J19_P1_CN},
 	{316, 405, PCBA_J19_P2_CN},
 	{406, 500, PCBA_J19_MP_CN},
 };
 
-static board_id_map_t PCBA_DETECT_SELENE_CN2[] = {
+static board_id_map_t PCBA_DETECT_LANCELOT_CN2[] = {
 	{130, 225, PCBA_J19_P0_1_CN},
 	{226, 315, PCBA_J19_P1_CN},
 	{316, 405, PCBA_J19_P2_CN},
@@ -52,21 +52,21 @@ static board_id_map_t PCBA_DETECT_SELENE_CN2[] = {
 };
 
 
-static board_id_map_t PCBA_DETECT_SELENE_INDIA[] = {
+static board_id_map_t PCBA_DETECT_LANCELOT_INDIA[] = {
 	{130, 225, PCBA_J19_P0_1_INDIA},
 	{226, 315, PCBA_J19_P1_INDIA},
 	{316, 405, PCBA_J19_P2_INDIA},
 	{406, 500, PCBA_J19_MP_INDIA},
 };
 
-static board_id_map_t PCBA_DETECT_SELENE_GLOBAL[] = {
+static board_id_map_t PCBA_DETECT_LANCELOT_GLOBAL[] = {
 	{130, 225, PCBA_J19_P0_1_GLOBAL},
 	{226, 315, PCBA_J19_P1_GLOBAL},
 	{316, 405, PCBA_J19_P2_GLOBAL},
 	{406, 500, PCBA_J19_MP_GLOBAL},
 };
 
-static board_id_map_t PCBA_DETECT_SELENENFC_GLOBAL[] = {
+static board_id_map_t PCBA_DETECT_LANCELOTNFC_GLOBAL[] = {
 	{130, 225, PCBA_J19A_P0_1_GLOBAL},
 	{226, 315, PCBA_J19A_P1_GLOBAL},
 	{316, 405, PCBA_J19A_P2_GLOBAL},
@@ -77,6 +77,12 @@ static board_id_map_t PCBA_DETECT_POCO_GLOBAL[] = {
 	{316, 405, PCBA_J19P_P2_INDIA},
 	{406, 500, PCBA_J19P_MP_INDIA},
 };
+
+#elif defined(TARGET_PRODUCT_SELENE)
+
+static int selene_pcba_config;
+static int selene_pcba_stage;
+static int selene_pcba_count;
 
 #else
 static const board_id_map_t board_id_map[] = {
@@ -108,7 +114,7 @@ static const board_id_map_t j15n_board_id_map_ext[] = {
 };
 #endif
 
-#if defined(TARGET_PRODUCT_SELENE) || defined(TARGET_PRODUCT_SHIVA)
+#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
 
 static int __init get_pcba_config(char *p)
 {
@@ -173,24 +179,24 @@ static bool read_pcba_config_j19(void)
 		board_id.voltage = auxadc_voltage * 1500 / 4096;
 		pr_err("[%s] board_id_voltage is %d\n", __func__, board_id.voltage);
 	}
-	board_id_map = PCBA_DETECT_SELENE_CN;
+	board_id_map = PCBA_DETECT_LANCELOT_CN;
 
 	pr_err("[%s] read_pcba_config board_id.voltage: %d\n", __func__, board_id.voltage);
 	if (pcba_config == PCBA_J19_CN) {
-		board_id_map = PCBA_DETECT_SELENE_CN;
-		map_size = sizeof(PCBA_DETECT_SELENE_CN)/sizeof(board_id_map_t);
+		board_id_map = PCBA_DETECT_LANCELOT_CN;
+		map_size = sizeof(PCBA_DETECT_LANCELOT_CN)/sizeof(board_id_map_t);
 	} else if (pcba_config == PCBA_J19_CN_SP10T) {
-		board_id_map = PCBA_DETECT_SELENE_CN2;
-		map_size = sizeof(PCBA_DETECT_SELENE_CN2)/sizeof(board_id_map_t);
+		board_id_map = PCBA_DETECT_LANCELOT_CN2;
+		map_size = sizeof(PCBA_DETECT_LANCELOT_CN2)/sizeof(board_id_map_t);
 	} else if (pcba_config == PCBA_J19_INDIA) {
-		board_id_map = PCBA_DETECT_SELENE_INDIA;
-		map_size = sizeof(PCBA_DETECT_SELENE_INDIA)/sizeof(board_id_map_t);
+		board_id_map = PCBA_DETECT_LANCELOT_INDIA;
+		map_size = sizeof(PCBA_DETECT_LANCELOT_INDIA)/sizeof(board_id_map_t);
 	} else if (pcba_config == PCBA_J19_GLOBAL) {
-		board_id_map = PCBA_DETECT_SELENE_GLOBAL;
-		map_size = sizeof(PCBA_DETECT_SELENE_GLOBAL)/sizeof(board_id_map_t);
+		board_id_map = PCBA_DETECT_LANCELOT_GLOBAL;
+		map_size = sizeof(PCBA_DETECT_LANCELOT_GLOBAL)/sizeof(board_id_map_t);
 	} else if (pcba_config == PCBA_J19A_GLOBAL) {
-		board_id_map = PCBA_DETECT_SELENENFC_GLOBAL;
-		map_size = sizeof(PCBA_DETECT_SELENENFC_GLOBAL)/sizeof(board_id_map_t);
+		board_id_map = PCBA_DETECT_LANCELOTNFC_GLOBAL;
+		map_size = sizeof(PCBA_DETECT_LANCELOTNFC_GLOBAL)/sizeof(board_id_map_t);
 	} else if (pcba_config == PCBA_J19P_INDIA) {
 		board_id_map = PCBA_DETECT_POCO_GLOBAL;
 		map_size = sizeof(PCBA_DETECT_POCO_GLOBAL)/sizeof(board_id_map_t);
@@ -209,7 +215,63 @@ static bool read_pcba_config_j19(void)
 	pr_err("[%s] read_pcba_config huaqin_pcba_config: 0x%x\n", __func__, huaqin_pcba_config);
 	return true;
 }
+
+#elif defined(TARGET_PRODUCT_SELENE)
+static int __init get_selene_pcba_config(char *p)
+{
+	char pcba[10];
+
+	strlcpy(pcba, p, sizeof(pcba));
+
+	printk("[%s]: pcba config = %s\n", __func__, pcba);
+
+	selene_pcba_config = pcba[0] - '0';
+
+	return 0;
+}
+early_param("pcba_config", get_selene_pcba_config);
+
+static int __init get_selene_pcba_stage(char *p)
+{
+	char stage[10];
+
+	strlcpy(stage, p, sizeof(stage));
+
+	printk("[%s]: pcba stage = %s\n", __func__, stage);
+
+	selene_pcba_stage = stage[0] - '0';
+
+	return 0;
+}
+early_param("pcba_stage", get_selene_pcba_stage);
+
+static int __init get_selene_pcba_count(char *p)
+{
+	char count[10];
+
+	strlcpy(count, p, sizeof(count));
+
+	printk("[%s]: pcba count = %s\n", __func__, count);
+
+	selene_pcba_count = count[0] - '0';
+
+	return 0;
+}
+early_param("pcba_count", get_selene_pcba_count);
+
+static bool read_pcba_config_k19a(void)
+{
+	if (selene_pcba_config == PCBA_UNKNOW) {
+		huaqin_pcba_config = PCBA_UNKNOW;
+		return false;
+	}
+	huaqin_pcba_config = (selene_pcba_stage - 1) * selene_pcba_count + selene_pcba_config;
+	printk("[%s]: huaqin_pcba_config = %d\n", __func__, huaqin_pcba_config);
+	return true;
+}
+
 #else
+
 static bool read_pcba_config(void)
 {
 	int ret = 0;
@@ -354,9 +416,11 @@ static int board_id_probe(struct platform_device *pdev)
 		pr_err("[%s] Failed %d!!!\n", __func__, ret);
 		return ret;
 	}
-#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA) || defined(TARGET_PRODUCT_SELENE)
 
+#if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
 	read_pcba_config_j19();
+#elif defined(TARGET_PRODUCT_SELENE)
+	read_pcba_config_k19a();
 #else
 	read_pcba_config();
 #endif
