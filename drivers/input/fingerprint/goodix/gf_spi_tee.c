@@ -25,12 +25,6 @@
 #include <linux/notifier.h>
 #endif
 
-/* begin modify for unlock speed */
-#include "../../../misc/mediatek/video/include/mtkfb.h"
-#include <linux/pm_qos.h>
-#include <helio-dvfsrc-opp.h>
-/* end modify for unlock speed */
-
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #include <linux/of_irq.h>
@@ -111,17 +105,10 @@ static DEFINE_MUTEX(device_list_lock);
 
 static struct wakeup_source fp_wakesrc;
 
-/* begin modify for unlock speed */
-static int cluster_num;
-static struct pm_qos_request gf_fingerprint_ddr_req;
-static struct ppm_limit_data *freq_to_set;
-static atomic_t boosted = ATOMIC_INIT(0);
-static struct timer_list release_timer;
-static struct work_struct fp_display_work;
-static struct work_struct fp_freq_work;
-/* end modify for unlock speed */
-
 static unsigned int bufsiz = (25 * 1024);
+
+struct regulator *ldo_fingerprint;
+
 module_param(bufsiz, uint, S_IRUGO);
 MODULE_PARM_DESC(bufsiz, "maximum data bytes for SPI message");
 
@@ -137,7 +124,6 @@ MODULE_DEVICE_TABLE(of, gf_of_match);
 
 int gf_spi_read_bytes(struct gf_device *gf_dev, u16 addr, u32 data_len, u8 *rx_buf);
 
-struct regulator *buck;
 /* for netlink use */
 static int pid;
 
@@ -149,40 +135,17 @@ static ssize_t gf_debug_show(struct device *dev,
 static ssize_t gf_debug_store(struct device *dev,
 			struct device_attribute *attr, const char *buf, size_t count);
 
-/* begin modify for unlock speed */
-static ssize_t performance_store(struct device *dev,
-				struct device_attribute *attr, const char *buf,
-				size_t count);
-/* end modify for unlock speed */
 static DEVICE_ATTR(debug, S_IRUGO | S_IWUSR, gf_debug_show, gf_debug_store);
-
-/* begin modify for unlock speed */
-static DEVICE_ATTR(performance, S_IRUGO | S_IWUSR, NULL, performance_store);
-/* end modify for unlock speed */
 
 static struct attribute *gf_debug_attrs[] = {
 	&dev_attr_debug.attr,
 	NULL
 };
 
-/* begin modify for unlock speed */
-static struct attribute *performance_attrs[] = {
-	&dev_attr_performance.attr,
-	NULL
-};
-/* end modify for unlock speed */
-
 static const struct attribute_group gf_debug_attr_group = {
 	.attrs = gf_debug_attrs,
 	.name = "debug"
 };
-
-/* begin modify for unlock speed */
-static const struct attribute_group performance_attr_group = {
-	.attrs = performance_attrs,
-	.name = "authen_fd"
- };
-/* end modify for unlock speed */
 
 #ifndef CONFIG_SPI_MT65XX
 const struct mt_chip_conf spi_ctrdata = {
@@ -312,27 +275,19 @@ static int gf_get_gpio_dts_info(struct gf_device *gf_dev)
 		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl reset_high\n", __func__);
 		return ret;
 	}
-
-	gf_dev->pins_spi_cs_high = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "spi_cs_high");
-	if (IS_ERR(gf_dev->pins_spi_cs_high)) {
-		ret = PTR_ERR(gf_dev->pins_spi_cs_high);
-		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl spi_cs_high\n", __func__);
-		return ret;
-	}
-
-	gf_dev->pins_spi_cs_low = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "spi_cs_low");
-	if (IS_ERR(gf_dev->pins_spi_cs_low)) {
-		ret = PTR_ERR(gf_dev->pins_spi_cs_low);
-		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl spi_cs_low\n", __func__);
-		return ret;
-	}
-
 	gf_dev->pins_reset_low = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "reset_low");
 	if (IS_ERR(gf_dev->pins_reset_low)) {
 		ret = PTR_ERR(gf_dev->pins_reset_low);
 		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl reset_low\n", __func__);
 		return ret;
 	}
+	gf_dev->pins_spi_mode = pinctrl_lookup_state(gf_dev->pinctrl_gpios, "spi_mode");
+	if (IS_ERR(gf_dev->pins_spi_mode)) {
+		ret = PTR_ERR(gf_dev->pins_spi_mode);
+		gf_debug(ERR_LOG, "%s can't find fingerprint pinctrl spi_mode\n", __func__);
+		return ret;
+	}
+	pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_spi_mode);
 
 	gf_debug(DEBUG_LOG, "%s, get pinctrl success!\n", __func__);
 #endif
@@ -484,7 +439,7 @@ static void gf_netlink_send(struct gf_device *gf_dev, const int command)
 	struct sk_buff *skb = NULL;
 	int ret;
 
-	gf_debug(INFO_LOG, "[%s] : enter, send command %d\n", __func__, command);
+//	gf_debug(INFO_LOG, "[%s] : enter, send command %d\n", __func__, command);
 	if (NULL == gf_dev->nl_sk) {
 		gf_debug(ERR_LOG, "[%s] : invalid socket\n", __func__);
 		return;
@@ -519,7 +474,7 @@ static void gf_netlink_send(struct gf_device *gf_dev, const int command)
 		return;
 	}
 
-	gf_debug(INFO_LOG, "[%s] : send done, data length is %d\n", __func__, ret);
+//	gf_debug(INFO_LOG, "[%s] : send done, data length is %d\n", __func__, ret);
 }
 
 static void gf_netlink_recv(struct sk_buff *__skb)
@@ -731,13 +686,13 @@ static ssize_t gf_write(struct file *filp, const char __user *buf,
 static irqreturn_t gf_irq(int irq, void *handle)
 {
 	struct gf_device *gf_dev = (struct gf_device *)handle;
-	FUNC_ENTRY();
+//	FUNC_ENTRY();
 
 	__pm_wakeup_event(&fp_wakesrc, WAKELOCK_HOLD_TIME);
 	gf_netlink_send(gf_dev, GF_NETLINK_IRQ);
 	gf_dev->sig_count++;
 
-	FUNC_EXIT();
+//	FUNC_EXIT();
 	return IRQ_HANDLED;
 }
 
@@ -1140,105 +1095,6 @@ static ssize_t gf_debug_show(struct device *dev,
 	//gf_debug(INFO_LOG, "%s: Show debug_level = 0x%x\n", __func__, g_debug_level);
 	return sprintf(buf, "vendor id 0x%x\n", g_vendor_id);
 }
-
-/* begin modify for unlock speed */
-static int gf_fingerprint_vcorefs_hold(void)
-{
-	printk("gf_fingerprint_vcorefs_hold\n");
-	pm_qos_update_request(&gf_fingerprint_ddr_req, DDR_OPP_0);
-	return 0;
-}
-
-static int gf_fingerprint_vcorefs_release(void)
-{
-	printk("gf_fingerprint_vcorefs_release\n");
-	pm_qos_update_request(&gf_fingerprint_ddr_req, DDR_OPP_UNREQ);
-	return 0;
-}
-
-extern int mdss_prim_panel_fb_unblank(int timeout);
-static void unblank_work(struct work_struct *work)
-{
-	printk("unblank_work gf unblank start\n");
-	gf_debug(INFO_LOG, "entry %s line %d \n", __func__, __LINE__);
-	gf_fingerprint_vcorefs_hold();
-	mdss_prim_panel_fb_unblank(200);
-	gf_fingerprint_vcorefs_release();
-	printk("unblank_work gf unblank end\n");
-}
-
-static void freq_release(struct work_struct *work)
-{
-	int i;
-
-	for (i = 0; i < cluster_num; i++) {
-		freq_to_set[i].min = -1;
-		freq_to_set[i].max = -1;
-	}
-	if (atomic_read(&boosted) == 1) {
-		gf_debug(INFO_LOG, "%s  release freq lock\n", __func__);
-		update_userlimit_cpu_freq(CPU_KIR_FINGERPRINT, cluster_num,
-					freq_to_set);
-		atomic_dec(&boosted);
-	}
-}
-
-static void freq_release_timer(unsigned long arg)
-{
-	gf_debug(INFO_LOG, "entry %s line %d \n", __func__, __LINE__);
-	schedule_work(&fp_freq_work);
-}
-
-static int freq_hold(int sec)
-{
-
-	int i;
-
-	for (i = 0; i < cluster_num; i++) {
-		if (i == cluster_num - 1)
-			freq_to_set[i].min = 2050000;
-		else
-			freq_to_set[i].min = 2000000;
-
-		freq_to_set[i].max = -1;
-	}
-	if (atomic_read(&boosted) == 0) {
-		printk("%s: fingerprint down\n", __func__);
-		gf_debug(INFO_LOG, "%s for %d * 500 msec \n", __func__, sec);
-		update_userlimit_cpu_freq(CPU_KIR_FINGERPRINT, cluster_num,
-					freq_to_set);
-		atomic_inc(&boosted);
-		release_timer.expires = jiffies + (HZ / 2) * sec;
-		add_timer(&release_timer);
-	}
-	schedule_work(&fp_display_work);
-	return 0;
-}
-
-static ssize_t performance_store(struct device *dev,
-				 struct device_attribute *attr, const char *buf,
-				 size_t count)
-{
-	if (!strncmp(buf, "1", count)) {
-			printk("%s: fingerprint down\n", __func__);
-			gf_debug(INFO_LOG, "finger down in authentication/enroll\n");
-			freq_hold(1);
-
-	} else if (!strncmp(buf, "0", 1)) {
-			gf_debug(INFO_LOG, "finger up in authentication/enroll\n");
-	} else {
-			int timeout;
-			if (kstrtoint(buf, 10, &timeout) == 0) {
-				freq_hold(timeout);
-				gf_debug(INFO_LOG, "hold performance lock for %d * 500ms\n", timeout);
-		} else {
-				freq_hold(1);
-				gf_debug(INFO_LOG, "hold performance lock for 500ms\n");
-		}
-	}
-	return count;
-}
-/* end modify for unlock speed */
 
 static ssize_t gf_debug_store(struct device *dev,
 			struct device_attribute *attr, const char *buf, size_t count)
@@ -1995,32 +1851,9 @@ static int gf_probe(struct spi_device *spi)
 		goto err;
 	}
 
-	/* begin modify for unlock speed */
-	pm_qos_add_request(&gf_fingerprint_ddr_req, PM_QOS_DDR_OPP, PM_QOS_DDR_OPP_DEFAULT_VALUE);
-	cluster_num = arch_get_nr_clusters();
-	gf_debug(INFO_LOG, "cluster_num = %d \n", cluster_num);
-
-	freq_to_set =
-		kcalloc(cluster_num, sizeof(struct ppm_limit_data), GFP_KERNEL);
-
-	if (!freq_to_set) {
-		gf_debug(INFO_LOG, "kcalloc freq_to_set fail\n");
-		goto err_buf;
-	}
-	/* end modify for unlock speed */
-
 	spin_lock_init(&gf_dev->spi_lock);
 	mutex_init(&gf_dev->buf_lock);
 	mutex_init(&gf_dev->release_lock);
-
-	/* begin modify for unlock speed */
-	INIT_WORK(&fp_freq_work, freq_release);
-	INIT_WORK(&fp_display_work, unblank_work);
-
-	init_timer(&release_timer);
-	release_timer.function = freq_release_timer;
-	release_timer.data = 0UL;
-	/* end modify for unlock speed */
 
 	INIT_LIST_HEAD(&gf_dev->device_entry);
 
@@ -2053,24 +1886,23 @@ static int gf_probe(struct spi_device *spi)
 	gf_dev->spi_buffer = kzalloc(bufsiz, GFP_KERNEL);
 	if (gf_dev->spi_buffer == NULL) {
 		status = -ENOMEM;
-		goto err_freqbuff;
+		goto err_buf;
 	}
 
-	buck = regulator_get(NULL, "vldo28");
-	if (buck == NULL) {
+	ldo_fingerprint = regulator_get(NULL, "vldo28");
+	if (ldo_fingerprint == NULL) {
 		gf_debug(INFO_LOG, "regulator_get fail");
-		goto err_freqbuff;
+		goto err_buf;
 	}
-	status = regulator_set_voltage(buck, 2800000, 2800000);
+	status = regulator_set_voltage(ldo_fingerprint, 2800000, 2800000);
 	if (status < 0) {
-	    goto err_freqbuff;
+		goto err_buf;
 	}
-	status = regulator_enable(buck);
+	status = regulator_enable(ldo_fingerprint);
 	if (status < 0) {
-		gf_debug(ERR_LOG, "%s, regulator_enable fail!!\n" , __func__);
-		goto err_freqbuff;
+		gf_debug(ERR_LOG, "%s, regulator_enable fail!!\n", __func__);
+		goto err_buf;
 	}
-
 
 	/* get gpio info from dts or defination */
     // printk("goodix goto test switch miso pin mode\n");
@@ -2083,10 +1915,7 @@ static int gf_probe(struct spi_device *spi)
 
 	/*enable the power*/
 	pr_err("%s %d now get dts info done!", __func__, __LINE__);
-	mdelay(10);
 	gf_hw_power_enable(gf_dev, 1);
-	//set cs pin to cs mode
-	pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_spi_cs_high);
 	gf_bypass_flash_gpio_cfg();
 	pr_err("%s %d now enable spi clk API", __func__, __LINE__);
 	gf_spi_clk_enable(gf_dev, 1);
@@ -2094,29 +1923,14 @@ static int gf_probe(struct spi_device *spi)
 	/* check firmware Integrity */
 	//gf_debug(INFO_LOG, "%s, Sensor type : %s.\n", __func__, CONFIG_GOODIX_SENSOR_TYPE);
 
-	/* begin modify for unlock speed */
-	/* init freq ppm data */
-	status = sysfs_create_group(&spi->dev.kobj, &performance_attr_group);
-	if (status) {
-		gf_debug(ERR_LOG, "%s, Failed to create authen_fd node.\n",
-			 __func__);
-		status = -ENODEV;
-		goto err_buf;
-	} else {
-		gf_debug(INFO_LOG, "%s, Success create authen_fd node.\n",
-			 __func__);
-	}
-	/* end modify for unlock speed */
-
 	mdelay(1);
 	gf_spi_read_bytes(gf_dev, 0x0000, 4, rx_test);
-	printk("%s rx_test chip id:0x%x 0x%x 0x%x 0x%x \n", __func__, rx_test[0], rx_test[1], rx_test[2], rx_test[3]);
+	pr_err("%s rx_test chip id:0x%x 0x%x 0x%x 0x%x \n", __func__, rx_test[0], rx_test[1], rx_test[2], rx_test[3]);
 	if (1) {
-	if (((rx_test[0] != 0x04) || (rx_test[3] != 0x25)) && ((rx_test[0] != 0x03) || (rx_test[3] != 0x25))) {
+		if (((rx_test[0] != 0x07) || (rx_test[3] != 0x25)) && ((rx_test[0] != 0x08) || (rx_test[3] != 0x25)) && ((rx_test[0] != 0x10) || (rx_test[3] != 0x25))) {
 			goodix_fp_exist = false;
 			gf_debug(ERR_LOG, "%s, get goodix FP sensor chipID fail!!\n", __func__);
 			//goto err_readid;
-
 			//workaround to solve two spi device
 			pr_err("%s cannot find the sensor,now exit\n", __func__);
 			if (gf_dev->pinctrl_gpios) {
@@ -2275,7 +2089,6 @@ static int gf_probe(struct spi_device *spi)
 	pr_err("%s %d now disable spi clk API", __func__, __LINE__);
 	gf_spi_clk_enable(gf_dev, 0);
 
-
 #ifdef CONFIG_HQ_SYSFS_SUPPORT
 	gf_debug(ERR_LOG, "%s hq_regiser_hw_info\n", __func__);
 	hq_regiser_hw_info(HWID_FP, "Goodix");
@@ -2317,11 +2130,6 @@ err_fw:
 	gf_hw_power_enable(gf_dev, 0);
 	gf_spi_clk_enable(gf_dev, 0);
 	kfree(gf_dev->spi_buffer);
-err_freqbuff:
-	/* begin modify for unlock speed */
-	kfree(freq_to_set);
-	/* end modify for unlock speed */
-
 err_buf:
 	mutex_destroy(&gf_dev->buf_lock);
 	mutex_destroy(&gf_dev->release_lock);
@@ -2379,7 +2187,6 @@ static int gf_remove(struct spi_device *spi)
 	gf_netlink_destroy(gf_dev);
 	cdev_del(&gf_dev->cdev);
 	sysfs_remove_group(&spi->dev.kobj, &gf_debug_attr_group);
-	sysfs_remove_group(&spi->dev.kobj, &performance_attr_group);
 	device_destroy(gf_dev->class, gf_dev->devno);
 	list_del(&gf_dev->device_entry);
 
@@ -2397,11 +2204,6 @@ static int gf_remove(struct spi_device *spi)
 	mutex_destroy(&gf_dev->release_lock);
 
 	kfree(gf_dev);
-
-	/* begin modify for unlock speed */
-	kfree(freq_to_set);
-	/* end modify for unlock speed */
-
 	FUNC_EXIT();
 	return 0;
 }
@@ -2429,7 +2231,7 @@ static int __init gf_init(void)
 	FUNC_EXIT();
 	return status;
 }
-module_init(gf_init);
+late_initcall(gf_init);
 
 static void __exit gf_exit(void)
 {

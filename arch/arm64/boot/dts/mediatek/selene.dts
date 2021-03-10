@@ -268,12 +268,11 @@
 
 &goodix_fp {
 	fpc,gpio_irq = <&pio 8 0>;
-	pinctrl-names = "default", "reset_high", "reset_low", "spi_cs_low", "spi_cs_high";
+	pinctrl-names = "default", "reset_high", "reset_low","spi_mode";
 	pinctrl-0 = <&fingerprint_default>;
 	pinctrl-1 = <&fingerprint_reset_high>;
 	pinctrl-2 = <&fingerprint_reset_low>;
-	pinctrl-3 = <&fingerprint_spi_cs_low>;
-	pinctrl-4 = <&fingerprint_spi_cs_high>;
+	pinctrl-3 = <&fingerprint_spi_mode>;
 	status = "okay";
 };
 
@@ -300,7 +299,7 @@
 		};
 	};
 
-	fingerprint_spi_cs_low: state_spi_cs_low {
+/*	fingerprint_spi_cs_low: state_spi_cs_low {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO25__FUNC_SPI2_CSB>;
 			slew-rate = <1>;
@@ -312,6 +311,16 @@
 			pinmux = <PINMUX_GPIO25__FUNC_SPI2_CSB>;
 			slew-rate = <1>;
 			output-high;
+		};
+	};*/
+
+	fingerprint_spi_mode:spi_mode{
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO27__FUNC_SPI2_CLK>,
+				<PINMUX_GPIO25__FUNC_SPI2_CSB>,
+				<PINMUX_GPIO26__FUNC_SPI2_MO>,
+				<PINMUX_GPIO28__FUNC_SPI2_MI>;
+			drive-strength = <2>;
 		};
 	};
 
