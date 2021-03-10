@@ -3973,6 +3973,8 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 
 	data_config->fps = lcm_fps;
 	data_config->dst_dirty = 1;
+        bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
 	ret = dpmgr_path_config(pgc->dpmgr_handle, data_config,
 		pgc->cmdq_handle_config);
 
@@ -4127,7 +4129,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 	pgc->lcm_refresh_rate = 60;
 	/* keep lowpower init after setting lcm_fps */
 	primary_display_lowpower_init();
-
+        check_stopstate(NULL);
 	primary_set_state(DISP_ALIVE);
 #if 0 //def CONFIG_TRUSTONIC_TRUSTED_UI
 	disp_switch_data.name = "disp";
@@ -4596,7 +4598,6 @@ int suspend_to_full_roi(void)
 int primary_display_suspend(void)
 {
 	enum DISP_STATUS ret = DISP_STATUS_OK;
-
 	DISPCHECK("%s begin\n", __func__);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_suspend,
 		MMPROFILE_FLAG_START, 0, 0);
@@ -4895,7 +4896,6 @@ int primary_display_resume(void)
 	unsigned int in_fps = 60;
 	unsigned int out_fps = 60;
 #endif
-
 	DISPCHECK("primary_display_resume begin\n");
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 		MMPROFILE_FLAG_START, 0, 0);
@@ -4937,7 +4937,6 @@ int primary_display_resume(void)
 
 //FIXME[MT6382]
 	data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
-	DISPERR("[DENNIS][%s][%d]\n", __func__, __LINE__);
 	bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
 	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
 
