@@ -104,6 +104,7 @@ static inline bool mmc_op_multi(u32 opcode)
 
 uint32_t mmc_get_serial(void);
 
+uint32_t mmc_get_manfid(void);
 /*
  * MMC_SWITCH argument format:
  *
