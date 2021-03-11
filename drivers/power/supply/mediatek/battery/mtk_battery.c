@@ -106,6 +106,7 @@ static struct cdev *adc_cali_cdev;
 extern int mtk_qmax_aging;
 int force_temp;
 int otg_limit = -1;
+int g_chg_en_flag = 1;
 int otg_ibat_limit = -1;
 extern int my_battery_id_voltage;
 static int adc_cali_slop[14] = {
@@ -139,6 +140,9 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT,
 	POWER_SUPPLY_PROP_BATT_ID,
 	POWER_SUPPLY_PROP_BATTERY_TYPE,
+	POWER_SUPPLY_PROP_BATTERY_VENDOR,
+    POWER_SUPPLY_PROP_CHARGING_ENABLED,
+    POWER_SUPPLY_PROP_BATTERY_ID_VOLTAGE,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_REVERSE_LIMIT,
 };
@@ -589,6 +593,15 @@ static int battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_BATTERY_TYPE:
 		val->intval = gm.battery_id;
 		break;
+	case POWER_SUPPLY_PROP_BATTERY_VENDOR:
+		val->intval = gm.battery_id;
+		break;
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		val->intval = g_chg_en_flag;
+		break;
+	case POWER_SUPPLY_PROP_BATTERY_ID_VOLTAGE:
+		val->intval = my_battery_id_voltage;
+		break;
 	case POWER_SUPPLY_PROP_REVERSE_LIMIT:
 		val->intval = otg_limit;
 		break;
@@ -605,6 +618,8 @@ static int battery_set_property(struct power_supply *psy,
 			const union power_supply_propval *val)
 {
 	int rc = 0;
+	static struct charger_device *chg_dev_enable;
+	chg_dev_enable = get_charger_by_name("primary_chg");
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_INPUT_SUSPEND:
@@ -620,6 +635,19 @@ static int battery_set_property(struct power_supply *psy,
 		otg_limit = val->intval;
 		otg_thermal_limit();
 		break;
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		g_chg_en_flag = val->intval;
+		switch (g_chg_en_flag) {
+		case 0:
+			charger_dev_enable(chg_dev_enable, false);
+			break;
+		case 1:
+			charger_dev_enable(chg_dev_enable, true);
+			break;
+		default:
+			bm_err("%s: Unkonwn value(%d) to set cherger enale\n", __func__, g_chg_en_flag);
+			break;
+		}
 	default:
 		rc = -EINVAL;
 		break;
@@ -640,6 +668,8 @@ static int battery_prop_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TEMP:
 		return 1;
 	case POWER_SUPPLY_PROP_REVERSE_LIMIT:
+		return 1;
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
 		return 1;
 	default:
 		break;

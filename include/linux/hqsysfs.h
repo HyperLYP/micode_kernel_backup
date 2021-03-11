@@ -89,6 +89,7 @@ enum hardware_id{
 
 	HWID_SUMMARY = 0xF0,
 	HWID_VER,
+	HWID_PMIC_VERSION,
 	HWID_END
 };
 

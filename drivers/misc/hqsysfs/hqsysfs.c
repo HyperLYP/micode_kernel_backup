@@ -43,6 +43,7 @@ static HW_INFO(HWID_NFC, nfc);
 static HW_INFO(HWID_FP, fingerprint);
 //static HW_INFO(HWID_TEE,tee);
 static HW_INFO(HWID_PCBA, pcba_config);
+static HW_INFO(HWID_PMIC_VERSION, pmic_version);
 
 #if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
 struct pcba_info pcba[] = {
@@ -168,6 +169,7 @@ static struct attribute *huaqin_attrs[] = {
 	&hw_info_nfc.attr,
 	&hw_info_fingerprint.attr,
 	&hw_info_pcba_config.attr,
+	&hw_info_pmic_version.attr,
 //	&hw_info_tee.attr,
 	NULL
 };
@@ -216,6 +218,8 @@ static ssize_t huaqin_show(struct kobject *kobj, struct attribute *a, char *buf)
 		}
 
 		count = sprintf(buf, "%s\n", "PCBA_UNKONW");
+		} else if (HWID_PMIC_VERSION == hw->hw_id) {
+			count = sprintf(buf, "%s\n", "PMIC: MTK6358");
 		} else{
 
 		if (0 == hw->hw_exist) {

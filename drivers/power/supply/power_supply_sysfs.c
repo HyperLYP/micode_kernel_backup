@@ -70,6 +70,10 @@ static const char * const power_supply_battery_type_text[] = {
 	"NVT_68k", "COSMX_100K", "Unknown"
 };
 
+static const char * const power_supply_battery_vendor_text[] = {
+    "0,NVT_68k", "1,COSMX_100K", "2,Unknown"
+};
+
 static const char * const power_supply_capacity_level_text[] = {
 	"Unknown", "Critical", "Low", "Normal", "High", "Full"
 };
@@ -134,6 +138,9 @@ static ssize_t power_supply_show_property(struct device *dev,
 	else if (off == POWER_SUPPLY_PROP_BATTERY_TYPE)
 		return sprintf(buf, "%s\n",
 			       power_supply_battery_type_text[value.intval]);
+	else if (off == POWER_SUPPLY_PROP_BATTERY_VENDOR)
+		return sprintf(buf, "%s\n",
+				   power_supply_battery_vendor_text[value.intval]);
 	else if (off >= POWER_SUPPLY_PROP_MODEL_NAME)
 		return sprintf(buf, "%s\n", value.strval);
 
@@ -274,6 +281,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(reverse_chg_cc),
 	POWER_SUPPLY_ATTR(reverse_chg_status),
 	POWER_SUPPLY_ATTR(reverse_limit),
+	POWER_SUPPLY_ATTR(charging_enabled),
 	/* Local extensions */
 	POWER_SUPPLY_ATTR(usb_hc),
 	POWER_SUPPLY_ATTR(usb_otg),
@@ -282,6 +290,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(typec_cc_orientation),
 	POWER_SUPPLY_ATTR(resistance),
 	POWER_SUPPLY_ATTR(resistance_id),
+	POWER_SUPPLY_ATTR(battery_id_voltage),
 	POWER_SUPPLY_ATTR(input_suspend),
 	POWER_SUPPLY_ATTR(ra_detected),
 	POWER_SUPPLY_ATTR(tx_adapter),
@@ -295,6 +304,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(manufacturer),
 	POWER_SUPPLY_ATTR(serial_number),
 	POWER_SUPPLY_ATTR(battery_type),
+	POWER_SUPPLY_ATTR(battery_vendor),
 };
 
 static struct attribute *
