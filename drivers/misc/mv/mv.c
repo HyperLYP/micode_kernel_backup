@@ -35,23 +35,24 @@ static int mv_proc_show(struct seq_file *file, void*data)
 	int status;
 	char RAM_size[8];
 	char emmc_size[8];
+	char emmc_ssize[8];
 	uint32_t manfidd;
 	char manfid[32];
 	char *product_version;
 
 	status = hq_emmcinfo(emmc_size);
-
+	snprintf(emmc_ssize, strlen(emmc_size)-1,"%s", emmc_size);
 	if (round_kbytes_to_readable_mbytes(K(i.totalram)) >= 1024) {
-		status = sprintf(RAM_size, "%dGB", round_kbytes_to_readable_mbytes(K(i.totalram))/1024);
+		status = sprintf(RAM_size, "%d", round_kbytes_to_readable_mbytes(K(i.totalram))/1024);
 	} else{
-		status = sprintf(RAM_size, "%dMB", round_kbytes_to_readable_mbytes(K(i.totalram)));
+		status = sprintf(RAM_size, "%d", round_kbytes_to_readable_mbytes(K(i.totalram)));
 	}
 
 	manfidd = mmc_get_manfid();
 	snprintf(manfid, 5,"0x%x", manfidd);
 
 	seq_printf(file,"D: %s %s\n", manfid, RAM_size);
-	seq_printf(file,"U: %s %s %s 0x%x\n", manfid, emmc_size, part_num, kernel_fwrew[0]);
+	seq_printf(file,"U: %s %s %s 0x%x\n", manfid, emmc_ssize, part_num, kernel_fwrew[0]);
 
 	return 0;
 }
