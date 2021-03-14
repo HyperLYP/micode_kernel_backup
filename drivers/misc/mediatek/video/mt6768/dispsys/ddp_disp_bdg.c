@@ -227,6 +227,7 @@ void bdg_tx_pull_6382_reset_pin(void)
 }
 void bdg_tx_set_6382_reset_pin(unsigned int value)
 {
+	DISPMSG("[DENNIS][%s][%d]\n", __func__, __LINE__);
 	if (value)
 		disp_dts_gpio_select_state(DTS_GPIO_STATE_6382_RST_OUT1);
 	else
@@ -235,8 +236,10 @@ void bdg_tx_set_6382_reset_pin(unsigned int value)
 
 void bdg_tx_set_test_pattern(void)
 {
-	DSI_OUTREG32(NULL, TX_REG[0]->DSI_TX_SELF_PAT_CON0, 0x11);
-	DSI_OUTREG32(NULL, TX_REG[0]->DSI_TX_INTSTA, 0x0);
+	//[DENNIS] TEST PATTERN
+		DSI_OUTREG32(NULL, TX_REG[0]->DSI_TX_SELF_PAT_CON0, 0x11);
+		DSI_OUTREG32(NULL, TX_REG[0]->DSI_TX_INTSTA, 0x0);
+	//[DENNIS] TEST PATTERN
 
 }
 

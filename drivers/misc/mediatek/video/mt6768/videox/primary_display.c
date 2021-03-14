@@ -179,6 +179,7 @@ DECLARE_WAIT_QUEUE_HEAD(decouple_update_rdma_wq);
 atomic_t decouple_trigger_event = ATOMIC_INIT(0);
 DECLARE_WAIT_QUEUE_HEAD(decouple_trigger_wq);
 wait_queue_head_t primary_display_present_fence_wq;
+static bool pf_thread_init;
 atomic_t primary_display_pt_fence_update_event = ATOMIC_INIT(0);
 static unsigned int _need_lfr_check(void);
 struct Layer_draw_info *draw;
@@ -3589,32 +3590,17 @@ static int _present_fence_release_worker_thread(void *data)
 
 	sched_setscheduler(current, SCHED_RR, &param);
 
-	dpmgr_enable_event(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC);
-
 	while (1) {
 		int fence_increment = 0;
 		int timeline_id;
 		struct disp_sync_info *layer_info;
+		unsigned int pf_idx = 0;
 
 		wait_event_interruptible(primary_display_present_fence_wq,
 			atomic_read(&primary_display_pt_fence_update_event));
 		mmprofile_log_ex(ddp_mmp_get_events()->present_fence_release,
 			MMPROFILE_FLAG_PULSE, 0, 0);
 		atomic_set(&primary_display_pt_fence_update_event, 0);
-
-		if (!islcmconnected && !primary_display_is_video_mode()) {
-			DISPCHECK("LCM Not Connected && CMD Mode\n");
-			msleep(20);
-		} else if (disp_helper_get_option(DISP_OPT_ARR_PHASE_1)) {
-			dpmgr_wait_event_timeout(pgc->dpmgr_handle,
-				DISP_PATH_EVENT_FRAME_START, HZ/10);
-		} else {
-			dpmgr_wait_event_timeout(pgc->dpmgr_handle,
-				DISP_PATH_EVENT_IF_VSYNC, HZ/10);
-			mmprofile_log_ex(
-				ddp_mmp_get_events()->present_fence_release,
-				MMPROFILE_FLAG_PULSE, 1, 1);
-		}
 
 		timeline_id = disp_sync_get_present_timeline_id();
 		layer_info = _get_sync_info(primary_session_id, timeline_id);
@@ -3626,19 +3612,22 @@ static int _present_fence_release_worker_thread(void *data)
 		}
 
 		_primary_path_lock(__func__);
-		fence_increment =
-			gPresentFenceIndex - layer_info->timeline->value;
+		cmdqBackupReadSlot(pgc->cur_config_fence,
+			disp_sync_get_present_timeline_id(),
+			&pf_idx);
+		fence_increment = pf_idx - layer_info->timeline->value;
+
 		if (fence_increment > 0) {
 			timeline_inc(layer_info->timeline, fence_increment);
 			DISPPR_FENCE("R+/%s%d/L%d/id%d\n",
 				disp_session_mode_spy(primary_session_id),
 				DISP_SESSION_DEV(primary_session_id),
 				timeline_id,
-				gPresentFenceIndex);
+				pf_idx);
 		}
 		mmprofile_log_ex(ddp_mmp_get_events()->present_fence_release,
 				 MMPROFILE_FLAG_PULSE,
-				 gPresentFenceIndex, fence_increment);
+				 pf_idx, fence_increment);
 		_primary_path_unlock(__func__);
 
 		if (atomic_read(&od_trigger_kick)) {
@@ -3728,7 +3717,7 @@ static int update_primary_intferface_module(void)
 
 static void replace_fb_addr_to_mva(void)
 {
-#if (defined CONFIG_MTK_M4U) || (defined CONFIG_MTK_IOMMU_V2)
+#if (defined CONFIG_MTK_M4U)
 	struct ddp_fb_info fb_info;
 	int i;
 
@@ -3755,7 +3744,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 
 	DISPCHECK("primary_display_init begin lcm=%s, inited=%d\n",
 		lcm_name, is_lcm_inited);
-        bdg_tx_pull_6382_reset_pin();
+	bdg_tx_pull_6382_reset_pin();
 	dprec_init();
 	dpmgr_init();
 
@@ -3973,8 +3962,10 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 
 	data_config->fps = lcm_fps;
 	data_config->dst_dirty = 1;
-        bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
-	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
+
+//	bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+//	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
+
 	ret = dpmgr_path_config(pgc->dpmgr_handle, data_config,
 		pgc->cmdq_handle_config);
 
@@ -4001,8 +3992,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 			_cmdq_flush_config_handle(1, NULL, 0);
 			_cmdq_reset_config_handle();
 		}
-
-		//FIXME[MT6382]
+//FIXME[MT6382]
 		//ret = disp_lcm_init(pgc->plcm, 1);
 	}
 	if (!ret)
@@ -4085,6 +4075,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 			kthread_create(_present_fence_release_worker_thread,
 				NULL, "present_fence_worker");
 		wake_up_process(present_fence_release_worker_task);
+		pf_thread_init = true;
 	}
 #endif
 
@@ -4899,8 +4890,7 @@ int primary_display_resume(void)
 	DISPCHECK("primary_display_resume begin\n");
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 		MMPROFILE_FLAG_START, 0, 0);
-
-        bdg_tx_pull_6382_reset_pin();
+	bdg_tx_pull_6382_reset_pin();
 	_primary_path_lock(__func__);
 	if (pgc->state == DISP_ALIVE) {
 		primary_display_lcm_power_on_state(1);
@@ -4934,6 +4924,11 @@ int primary_display_resume(void)
 		if (dsi_force_config)
 			DSI_ForceConfig(1);
 	}
+//FIXME[MT6382]
+	data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+	DISPERR("[DENNIS][%s][%d]\n", __func__, __LINE__);
+	bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
 
 //FIXME[MT6382]
 	data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
@@ -5509,11 +5504,23 @@ done:
 	return ret;
 }
 
-void primary_display_update_present_fence(unsigned int fence_idx)
+void primary_display_update_present_fence(struct cmdqRecStruct *cmdq_handle,
+	unsigned int fence_idx)
 {
+	cmdqRecBackupUpdateSlot(cmdq_handle,
+				pgc->cur_config_fence,
+				disp_sync_get_present_timeline_id(),
+				fence_idx);
 	gPresentFenceIndex = fence_idx;
-	mmprofile_log_ex(ddp_mmp_get_events()->present_fence_set,
-		MMPROFILE_FLAG_PULSE, fence_idx, 1);
+}
+
+void primary_display_wakeup_pf_thread(void)
+{
+	if (!pf_thread_init)
+		return;
+
+	//mmprofile_log_ex(ddp_mmp_get_events()->present_fence_set,
+		//MMPROFILE_FLAG_PULSE, fence_idx, 1);
 	atomic_set(&primary_display_pt_fence_update_event, 1);
 	if (disp_helper_get_option(DISP_OPT_PRESENT_FENCE))
 		wake_up_interruptible(&primary_display_present_fence_wq);
@@ -6997,6 +7004,16 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	primary_frame_cfg_input(cfg);
 	dprec_done(input_event, cfg->overlap_layer_num, 0);
 
+	if (cfg->present_fence_idx != (unsigned int)-1) {
+		struct cmdqRecStruct *cmdq_handle;
+
+		if (primary_display_is_decouple_mode())
+			cmdq_handle = pgc->cmdq_handle_ovl1to2_config;
+		else
+			cmdq_handle = pgc->cmdq_handle_config;
+		primary_display_update_present_fence(cmdq_handle, cfg->present_fence_idx);
+	}
+
 	if (cfg->output_en) {
 		dprec_start(output_event, cfg->present_fence_idx,
 			cfg->output_cfg.buff_idx);
@@ -7014,9 +7031,6 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	}
 
 	primary_display_trigger_nolock(0, NULL, 0);
-
-	if (cfg->present_fence_idx != (unsigned int)-1)
-		primary_display_update_present_fence(cfg->present_fence_idx);
 
 	dprec_done(trigger_event, 0, 0);
 
@@ -8452,78 +8466,6 @@ static int _screen_cap_by_cpu(unsigned int mva, enum UNIFIED_COLOR_FMT ufmt,
 	return 0;
 }
 
-#ifdef CONFIG_MTK_IOMMU_V2
-int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
-	enum UNIFIED_COLOR_FMT ufmt)
-{
-	int ret = 0;
-	struct ion_client *ion_display_client = NULL;
-	struct ion_handle *ion_display_handle = NULL;
-	unsigned long mva = 0;
-	unsigned int w_xres = primary_display_get_width();
-	unsigned int h_yres = primary_display_get_height();
-	unsigned int pixel_byte = primary_display_get_bpp() / 8;
-	int buffer_size = h_yres * w_xres * pixel_byte;
-	enum DISP_MODULE_ENUM after_eng = DISP_MODULE_OVL0;
-	int tmp;
-
-	DISPMSG("primary capture: begin\n");
-
-	disp_sw_mutex_lock(&(pgc->capture_lock));
-
-	if (primary_display_is_sleepd()) {
-		memset((void *)pbuf, 0, buffer_size);
-		DISPMSG("primary capture: Fail black End\n");
-		goto out;
-	}
-
-	ion_display_client = disp_ion_create("disp_cap_ovl");
-	if (ion_display_client == NULL) {
-		DISPMSG("primary capture:Fail to create ion\n");
-		ret = -1;
-		goto out;
-	}
-
-	ion_display_handle = disp_ion_alloc(ion_display_client,
-					    ION_HEAP_MULTIMEDIA_MAP_MVA_MASK,
-					    pbuf, buffer_size);
-	if (!ion_display_handle) {
-		DISPMSG("primary capture:Fail to allocate buffer\n");
-		ret = -1;
-		goto out;
-	}
-
-	disp_ion_get_mva(ion_display_client, ion_display_handle,
-		&mva, 0, DISP_M4U_PORT_DISP_WDMA0);
-	disp_ion_cache_flush(ion_display_client, ion_display_handle,
-		ION_CACHE_INVALID_BY_RANGE);
-
-	tmp = disp_helper_get_option(DISP_OPT_SCREEN_CAP_FROM_DITHER);
-	if (tmp == 0)
-		after_eng = DISP_MODULE_OVL0;
-
-	if (primary_display_cmdq_enabled())
-		_screen_cap_by_cmdq((unsigned int)mva, ufmt, after_eng);
-	else
-		_screen_cap_by_cpu((unsigned int)mva, ufmt, after_eng);
-
-	disp_ion_cache_flush(ion_display_client, ion_display_handle,
-		ION_CACHE_INVALID_BY_RANGE);
-
-out:
-	if (ion_display_client)
-		disp_ion_free_handle(ion_display_client, ion_display_handle);
-
-	if (ion_display_client)
-		disp_ion_destroy(ion_display_client);
-
-	disp_sw_mutex_unlock(&(pgc->capture_lock));
-	DISPMSG("primary capture: end\n");
-	return ret;
-}
-
-#else
-
 int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
 	enum UNIFIED_COLOR_FMT ufmt)
 {
@@ -8595,7 +8537,6 @@ out:
 	DISPMSG("primary capture: end\n");
 	return ret;
 }
-#endif
 
 int primary_display_capture_framebuffer(unsigned long pbuf)
 {

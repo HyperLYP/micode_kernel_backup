@@ -197,6 +197,7 @@ static inline void bio_crypt_advance(struct bio *bio, unsigned int bytes)
 		return;
 
 	inc = bytes >> bc->bc_key->data_unit_size_bits;
+
 	/* eMMC + F2FS OTA only */
 #ifdef CONFIG_MMC_CRYPTO_LEGACY
 	if (fscrypt_force_iv_ino_lblk_32() && !bc->hie_ext4 &&

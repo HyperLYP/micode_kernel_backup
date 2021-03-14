@@ -528,19 +528,6 @@
 	status = "okay";
 };
 
-&spi1 {
-	#address-cells = <1>;
-	#size-cells = <0>;
-	spislv@2 {
-		compatible = "mediatek,hifi4dsp-spi";
-		spi-max-frequency = <1000000>;
-		spi-pin-mode = <0>;
-		/*tick-dly = <1>;*/
-		ick-dly = <0>;
-		reg = <0>;
-		status = "okay";
-	};
-};
 
 /* TOUCH end */
 &i2c3 {
@@ -1439,6 +1426,19 @@
 
 };
 
+&spi1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	spislv@2 {
+		compatible = "mediatek,hifi4dsp-spi";
+		spi-max-frequency = <1000000>;
+		spi-pin-mode = <0>;
+		/*tick-dly = <1>;*/
+		ick-dly = <0>;
+		reg = <0>;
+		status = "okay";
+	};
+};
 /* DISPSYS GPIO standardization end*/
 
 #include <merlin/cust.dtsi>
