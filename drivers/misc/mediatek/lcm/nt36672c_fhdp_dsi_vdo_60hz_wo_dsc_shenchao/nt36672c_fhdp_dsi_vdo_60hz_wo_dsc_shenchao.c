@@ -103,6 +103,8 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #define FALSE 0
 #endif
 
+#define DSC_ENABLE
+//#define DSC_ENABLE
 
 /* i2c control start */
 

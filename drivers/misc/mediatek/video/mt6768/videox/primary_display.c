@@ -3744,10 +3744,11 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 
 	DISPCHECK("primary_display_init begin lcm=%s, inited=%d\n",
 		lcm_name, is_lcm_inited);
-	bdg_tx_pull_6382_reset_pin();
+	
 	dprec_init();
 	dpmgr_init();
 
+	//bdg_tx_pull_6382_reset_pin();
 	init_cmdq_slots(&(pgc->ovl_config_time), 3, 0);
 	init_cmdq_slots(&(pgc->cur_config_fence),
 		DISP_SESSION_TIMELINE_COUNT, 0);
@@ -3992,6 +3993,10 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 			_cmdq_flush_config_handle(1, NULL, 0);
 			_cmdq_reset_config_handle();
 		}
+		bdg_tx_pull_6382_reset_pin();
+		bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+	        mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
+
 //FIXME[MT6382]
 		//ret = disp_lcm_init(pgc->plcm, 1);
 	}
@@ -4120,7 +4125,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 	pgc->lcm_refresh_rate = 60;
 	/* keep lowpower init after setting lcm_fps */
 	primary_display_lowpower_init();
-        check_stopstate(NULL);
+        //check_stopstate(NULL);
 	primary_set_state(DISP_ALIVE);
 #if 0 //def CONFIG_TRUSTONIC_TRUSTED_UI
 	disp_switch_data.name = "disp";
@@ -4786,6 +4791,7 @@ done:
 	primary_display_request_dvfs_perf(0,
 		HRT_LEVEL_DEFAULT);
 #endif
+	bdg_tx_set_6382_reset_pin(0);
 	return ret;
 }
 
@@ -4890,7 +4896,7 @@ int primary_display_resume(void)
 	DISPCHECK("primary_display_resume begin\n");
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 		MMPROFILE_FLAG_START, 0, 0);
-	bdg_tx_pull_6382_reset_pin();
+		bdg_tx_set_6382_reset_pin(1);
 	_primary_path_lock(__func__);
 	if (pgc->state == DISP_ALIVE) {
 		primary_display_lcm_power_on_state(1);
