@@ -52,7 +52,7 @@
                 <varName>TOUCH</varName>
                 <debounce_time>0</debounce_time>
                 <polarity>Low</polarity>
-                <sensitive_level>Edge</sensitive_level>
+                <sensitive_level>Level</sensitive_level>
                 <debounce_en>Disable</debounce_en>
             </eint1>
             <eint8>
@@ -1085,11 +1085,12 @@
             </gpio91>
             <gpio92>
                 <eint_mode>false</eint_mode>
-                <def_mode>0</def_mode>
+                <def_mode>1</def_mode>
                 <inpull_en>true</inpull_en>
                 <inpull_selhigh>false</inpull_selhigh>
                 <def_dir>OUT</def_dir>
-                <out_high>false</out_high>
+                <out_high>true</out_high>
+                <varName0>GPIO_CTP_RSTB_PIN</varName0>
                 <smt>false</smt>
                 <ies>true</ies>
             </gpio92>
