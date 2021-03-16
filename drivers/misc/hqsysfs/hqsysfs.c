@@ -219,7 +219,7 @@ static ssize_t huaqin_show(struct kobject *kobj, struct attribute *a, char *buf)
 
 		count = sprintf(buf, "%s\n", "PCBA_UNKONW");
 		} else if (HWID_PMIC_VERSION == hw->hw_id) {
-			count = sprintf(buf, "%s\n", "PMIC: MTK6358");
+			count = sprintf(buf, "%s\n", "PMIC: MT6358 V1.0");
 		} else{
 
 		if (0 == hw->hw_exist) {
