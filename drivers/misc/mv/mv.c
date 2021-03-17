@@ -19,12 +19,14 @@
 #include "../hqsysfs/hqsys_misc.h"
 #include "../../mmc/core/card.h"
 
+#define PROC_MEMTYPE_FILE "memory_type"
 #define PROC_MV_FILE "mv"
 #define K(x) ((x) << (PAGE_SHIFT - 10))
 extern  round_kbytes_to_readable_mbytes(unsigned int k);
 extern	ssize_t hq_emmcinfo(char *buf);
 extern char kernel_fwrew[10];
 static struct proc_dir_entry *mv_proc;
+static struct proc_dir_entry *memory_type;
 char part_num[30];
 
 
@@ -94,6 +96,45 @@ void proc_mv_exit(void)
 	 remove_proc_entry(PROC_MV_FILE,NULL);
 }
 
+static int memtype_proc_show(struct seq_file *file, void*data)
+{
+	seq_printf(file,"%s\n", "EMMC");
+	return 0;
+}
+
+static int memtype_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, memtype_proc_show, NULL);
+}
+
+static const struct file_operations memtype_proc_fops = {
+	.open		= memtype_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+
+int proc_memtype_init(void)
+{
+	memory_type = proc_create(PROC_MEMTYPE_FILE, 0644, NULL, &memtype_proc_fops);
+	if (memory_type == NULL)
+	{
+		pr_info("create memory type node failed:%d\n",memory_type);
+	}
+	return 0;
+}
+
+
+void proc_memtype_exit(void)
+{
+	 pr_info("exit memory type !\n");
+	 remove_proc_entry(PROC_MEMTYPE_FILE,NULL);
+}
+
+
 MODULE_LICENSE("GPL");
 module_init(proc_mv_init);
 module_exit(proc_mv_exit);
+module_init(proc_memtype_init);
+module_exit(proc_memtype_exit);
