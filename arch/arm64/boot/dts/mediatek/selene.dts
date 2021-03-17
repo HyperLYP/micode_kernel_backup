@@ -90,6 +90,10 @@
 		vib_limit = <9>;
 		vib_vol= <11>;
 	};
+    alspsldoen:alspsldoen@0{
+        compatible = "mediatek,alsps-ldoen";
+        ldoen-gpios = <&pio 178 0>;
+    };
 };
 
 &board_id {
@@ -171,7 +175,7 @@
 
 };
 
-&spi5 {
+&spi1 {
 	#address-cells = <1>;
 	#size-cells = <0>;
 	p61@31 {
