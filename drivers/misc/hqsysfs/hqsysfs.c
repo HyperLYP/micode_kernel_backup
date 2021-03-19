@@ -44,7 +44,9 @@ static HW_INFO(HWID_FP, fingerprint);
 //static HW_INFO(HWID_TEE,tee);
 static HW_INFO(HWID_PCBA, pcba_config);
 static HW_INFO(HWID_PMIC_VERSION, pmic_version);
-
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+static HW_INFO(HWID_AUDIO, audio_PA);
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 #if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
 struct pcba_info pcba[] = {
 	{PCBA_J19_P0_1_CN, "PCBA_J19_P0-1_CN"},
@@ -171,6 +173,9 @@ static struct attribute *huaqin_attrs[] = {
 	&hw_info_pcba_config.attr,
 	&hw_info_pmic_version.attr,
 //	&hw_info_tee.attr,
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+	&hw_info_audio_PA.attr,
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 	NULL
 };
 
@@ -363,7 +368,9 @@ err:
 
 }
 
-
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+static char *audio_pa;
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 int hq_regiser_hw_info(enum hardware_id id, char *device_name)
 {
 	int ret = 0;
@@ -372,7 +379,6 @@ int hq_regiser_hw_info(enum hardware_id id, char *device_name)
 
 	struct hw_info *hw = NULL;
 	struct attribute *attr = huaqin_attrs[iterator];
-
 	if (NULL == device_name) {
 		pr_err("[%s]: device_name does not allow empty\n", __func__);
 		ret = -2;
@@ -400,6 +406,13 @@ int hq_regiser_hw_info(enum hardware_id id, char *device_name)
 				ret = -4;
 				goto err;
 			}
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+			switch (id) {
+			case HWID_AUDIO:
+				audio_pa = device_name;
+				break;
+			}
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 
 			switch (hw->hw_id) {
 				/*
@@ -519,6 +532,13 @@ static int __init hq_harware_init(void)
 	return 0;
 }
 
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+char *get_audio_pa_vendor(void)
+{
+	return audio_pa;
+}
+EXPORT_SYMBOL(get_audio_pa_vendor);
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 core_initcall(hq_harware_init);
 MODULE_AUTHOR("KaKa Ni <nigang@huaqin.com>");
 MODULE_DESCRIPTION("Huaqin Hardware Info Driver");

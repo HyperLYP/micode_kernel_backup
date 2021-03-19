@@ -49,6 +49,9 @@ enum hardware_id{
 	HWID_SUB_LCM,
 	HWID_BIAS_IC,
 	HWID_CTP,
+/* K19A BSP.Audio bring up second PA by zhagpeng at 2021/3/5 start*/
+	HWID_AUDIO,
+/* K19A BSP.Audio bring up second PA by zhagpeng at 2021/3/5 end*/
 
 	HWID_MAIN_CAM = 0x30,
 	HWID_MAIN_CAM_2,

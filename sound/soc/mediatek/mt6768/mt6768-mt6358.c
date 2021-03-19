@@ -15,7 +15,9 @@
 #include "mt6768-afe-gpio.h"
 #include "../../codecs/mt6358.h"
 #include "../common/mtk-sp-spk-amp.h"
-
+/* K19A BSP.Audio bring up second PA by zhagpeng at 2021/3/5 start*/
+#include "../fs1815n/fsm_public.h"
+/* K19A BSP.Audio bring up second PA by zhagpeng at 2021/3/5 end*/
 /*
  * if need additional control for the ext spk amp that is connected
  * after Lineout Buffer / HP Buffer on the codec, put the control in
@@ -25,6 +27,12 @@
 /*K19A code for HQ-123483 by zhangpeng at 2021.3.22 start*/
 #define EXT_RCV_AMP_W_NAME "Ext_Reciver_Amp"    // ALPS05007528
 /*K19A code for HQ-123483 by zhangpeng at 2021.3.22 end*/
+
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+static const char *awinic = "awinic";
+static const char *foursemi = "foursemi";
+extern char *get_audio_pa_vendor(void);
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 
 static const char *const mt6768_spk_type_str[] = {MTK_SPK_NOT_SMARTPA_STR,
 						  MTK_SPK_RICHTEK_RT5509_STR,
@@ -173,8 +181,7 @@ static int mt6768_spk_i2s_in_type_get(struct snd_kcontrol *kcontrol,
 }
 
 static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
-				       struct snd_kcontrol *kcontrol,
-				       int event)
+					struct snd_kcontrol *kcontrol, int event)
 {
 	struct snd_soc_dapm_context *dapm = w->dapm;
 	struct snd_soc_card *card = dapm->card;
@@ -185,19 +192,35 @@ static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMU:
 		/* spk amp on control */
 /*K19A code for HQ-123483 by zhangpeng at 2021.3.22 start*/
-		#if defined(CONFIG_SND_SOC_AW87559)
-		pr_info("%s(), aw87559_audio_kspk()\n", __func__);// ALPS05007528
-		aw87xxx_audio_scene_load(AW87XXX_MUSIC_MODE, AW87XXX_LEFT_CHANNEL);
-		#endif
+		if (strcmp((const char *)get_audio_pa_vendor(), awinic) == 0) {
+#if defined(CONFIG_SND_SOC_AW87559)
+			pr_info("%s(), aw87559_audio_kspk()\n", __func__);// ALPS05007528
+			aw87xxx_audio_scene_load(AW87XXX_MUSIC_MODE, AW87XXX_LEFT_CHANNEL);
+#endif
+		} else if (strcmp((const char *)get_audio_pa_vendor(), foursemi) == 0) {
+#ifdef CONFIG_SND_SOC_FS16XX
+			fsm_speaker_onn();
+#endif
+		} else {
+			pr_err("Please check out start PA");
+		}
 /*K19A code for HQ-123483 by zhangpeng at 2021.3.22 end*/
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		/* spk amp off control */
 /*K19A code for HQ-123483 by zhangpeng at 2021.3.22 start*/
-		#if defined(CONFIG_SND_SOC_AW87559)
-		pr_info("%s(), aw87559_audio_off()\n", __func__);// ALPS05007528
-		aw87xxx_audio_scene_load(AW87XXX_OFF_MODE, AW87XXX_LEFT_CHANNEL);
-		#endif
+		if (strcmp((const char *)get_audio_pa_vendor(), awinic) == 0) {
+			#if defined(CONFIG_SND_SOC_AW87559)
+			pr_info("%s(), aw87559_audio_off()\n", __func__);// ALPS05007528
+			aw87xxx_audio_scene_load(AW87XXX_OFF_MODE, AW87XXX_LEFT_CHANNEL);
+			#endif
+		} else if (strcmp((const char *)get_audio_pa_vendor(), foursemi) == 0) {
+#ifdef CONFIG_SND_SOC_FS16XX
+			fsm_speaker_off();
+#endif
+		} else {
+			pr_err("Please check out off PA");
+		}
 /*K19A code for HQ-123483 by zhangpeng at 2021.3.22 end*/
 		break;
 	default:
@@ -220,21 +243,25 @@ static int mt6768_mt6358_rcv_amp_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		/* spk amp on control */
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+#ifdef CONFIG_SND_SOC_AW87559
 		if (rcv_amp_mode) {
 			pr_info("%s(), aw87389_audio_drcv()\n", __func__);
 			aw87xxx_audio_scene_load(AW87XXX_RCV_MODE, AW87XXX_LEFT_CHANNEL);
 		} else {
 			pr_info("%s(), aw87389_audio_dspk()\n", __func__);
 			aw87xxx_audio_scene_load(AW87XXX_MUSIC_MODE, AW87XXX_LEFT_CHANNEL);
-		}
+		};
+#endif
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		/* spk amp off control */
-/*K19A code for WXYFB-991 by zhangpeng at 2021.3.18 start */
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
 #ifdef CONFIG_SND_SOC_AW87559
-	aw87xxx_audio_scene_load(AW87XXX_OFF_MODE, AW87XXX_LEFT_CHANNEL);
+		aw87xxx_audio_scene_load(AW87XXX_OFF_MODE, AW87XXX_LEFT_CHANNEL);
 #endif
-/*K19A code for WXYFB-991 by zhangpeng at 2021.3.18 end */
+/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 		break;
 	default:
 		break;

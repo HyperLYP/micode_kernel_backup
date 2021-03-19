@@ -1342,7 +1342,7 @@ static int aw87xxx_i2c_probe(struct i2c_client *client,
 	struct device_node *np = client->dev.of_node;
 	struct aw87xxx *aw87xxx = NULL;
 	int ret = -1;
-	//char *awinic = "awinic";
+	char *awinic = "awinic";
 
 	pr_info("%s enter , i2c%d@0x%02x\n", __func__,
 		client->adapter->nr, client->addr);
@@ -1426,7 +1426,7 @@ static int aw87xxx_i2c_probe(struct i2c_client *client,
 	aw87xxx_monitor_init(&aw87xxx->monitor);
 
 	aw87xxx->open_dsp_en = aw87xx_platform_init();
-	//hq_regiser_hw_info(HWID_AUDIO, awinic);
+	hq_regiser_hw_info(HWID_AUDIO, awinic);
 	return 0;
 
  exit_i2c_check_id_failed:
