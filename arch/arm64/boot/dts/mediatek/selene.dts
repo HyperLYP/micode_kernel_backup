@@ -303,12 +303,12 @@
 	};
 };
 /* AWINIC AW87519 Smart PA End */
-
-&i2c7 {
-	fusb303@21 {
-		status = "ok";
+/*K19A WXYFB-996 K19A charger bq25890 bring up by miaozhichao at 2021/3/20 start*/
+&i2c5 {
+	fusb303@42 {
+		status = "okay";
 		compatible = "on,fusb303";
-		reg = <0x21>;
+		reg = <0x42>;
 		interrupt-parent = <&pio>;
 		interrupts = <41 0x2>;
 		fusb303,int-gpio = <&pio 41 0>;
@@ -320,7 +320,7 @@
 		fusb303,cc-debounce-time = <3>;			/* 150ms */
 	};
 };
-
+/*K19A WXYFB-996 K19A charger bq25890 bring up by miaozhichao at 2021/3/20 end*/
 
 &i2c7 {
 	smb1351-charger@55 {
@@ -344,7 +344,19 @@
 		/* en_te; */
 		en_wdt;
 	};
-
+/*K19A WXYFB-996 K19A charger bq25890 bring up by miaozhichao at 2021/3/20 start*/
+	bq2589x-charger@6A {
+		status = "okay";
+		compatible = "ti,bq25890";
+		reg = <0x6A>;
+		interrupt-parent = <&pio>;
+		interrupts = <20 IRQ_TYPE_EDGE_FALLING 20 0>;
+		ti,irq-gpio = <&pio 20 0>;
+		ti,chg-en-gpio = <&pio 152 0>;
+		ti,bq2589x,charge-detect-enable;
+		interrupt-names = "chr_stat";
+	};
+/*K19A WXYFB-996 K19A charger bq25890 bring up by miaozhichao at 2021/3/20 end*/
 };
 &lk_charger  {
 	/* charging current */
