@@ -294,16 +294,20 @@
 };
 /* add goodix fingerprint end*/
 
-/* AWINIC AW87519 Smart PA */
-&i2c7 {
-	aw87519@58 {
-			compatible = "awinic,aw87519_pa";
-			reg = <0x58>;
-			reset-gpio = <&pio 22 0>;
-			status = "okay";
+/*K19A code for WXYFB-991 by zhangpeng at 2021.3.18 start*/
+&i2c6 {
+	aw87559_pa_58@58 {
+		compatible = "awinic,aw87559_pa_58";
+		reg = <0x58>;
+		reset-gpio = <&pio 22 0>;
+		monitor-flag = <1>;
+		pa-channel = < 0 >;
+		monitor-timer-val = <3000>;
+		monitor-timer-count-max = <5>;
+		status = "okay";
 	};
 };
-/* AWINIC AW87519 Smart PA End */
+/*K19A code for WXYFB-991 by zhangpeng at 2021.3.18 end*/
 
 /*K19A WXYFB-996 K19A charger bq25890 bring up by miaozhichao at 2021/3/20 start*/
 &i2c5 {
