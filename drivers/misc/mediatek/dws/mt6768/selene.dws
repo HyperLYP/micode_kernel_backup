@@ -2127,7 +2127,7 @@
             </device11>
             <device12>
                 <varName>USB_TYPE_C</varName>
-                <channel>I2C_CHANNEL_7</channel>
+                <channel>I2C_CHANNEL_5</channel>
                 <address>0x60</address>
             </device12>
             <device13>
