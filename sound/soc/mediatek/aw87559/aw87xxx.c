@@ -1469,6 +1469,9 @@ static const struct i2c_device_id aw87xxx_i2c_id[] = {
 
 static const struct of_device_id extpa_of_match[] = {
 	{.compatible = "awinic,aw87559_pa_58"},
+/*K19A code for HQ-123483 by zhangpeng at 2021.3.22 start*/
+	{.compatible = "awinic,aw87359_pa_59"},
+/*K19A code for HQ-123483 by zhangpeng at 2021.3.22 end*/
 	{},
 };
 
