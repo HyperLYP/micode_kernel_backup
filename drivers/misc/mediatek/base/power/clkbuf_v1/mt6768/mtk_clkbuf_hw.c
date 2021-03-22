@@ -780,6 +780,33 @@ bool clk_buf_ctrl(enum clk_buf_id id, bool onoff)
 }
 EXPORT_SYMBOL(clk_buf_ctrl);
 
+void clk_buf_disp_ctrl(bool onoff)
+{
+	if (onoff) {
+		pmic_config_interface(PMIC_DCXO_CW00_CLR,
+			      PMIC_XO_EXTBUF4_MODE_MASK,
+			      PMIC_XO_EXTBUF4_MODE_MASK,
+			      PMIC_XO_EXTBUF4_MODE_SHIFT);
+		pmic_config_interface(PMIC_DCXO_CW00_SET,
+			PMIC_XO_EXTBUF4_EN_M_MASK,
+			PMIC_XO_EXTBUF4_EN_M_MASK,
+			PMIC_XO_EXTBUF4_EN_M_SHIFT);
+		pmic_clk_buf_swctrl[XO_EXT] = 1;
+	} else {
+		pmic_config_interface(PMIC_DCXO_CW00_CLR,
+			PMIC_XO_EXTBUF4_MODE_MASK,
+			PMIC_XO_EXTBUF4_MODE_MASK,
+			PMIC_XO_EXTBUF4_MODE_SHIFT);
+		pmic_config_interface(PMIC_DCXO_CW00_CLR,
+			PMIC_XO_EXTBUF4_EN_M_MASK,
+			PMIC_XO_EXTBUF4_EN_M_MASK,
+			PMIC_XO_EXTBUF4_EN_M_SHIFT);
+		pmic_clk_buf_swctrl[XO_EXT] = 0;
+	}
+}
+EXPORT_SYMBOL(clk_buf_disp_ctrl);
+
+
 void clk_buf_dump_dts_log(void)
 {
 	pr_info("%s: PMIC_CLK_BUF?_STATUS=%d %d %d %d %d %d %d\n", __func__,

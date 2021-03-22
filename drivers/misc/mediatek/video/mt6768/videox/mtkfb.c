@@ -2576,7 +2576,7 @@ static int __parse_tag_videolfb(struct device_node *node)
 {
 	struct tag_video_lfb *videolfb_tag = NULL;
 	unsigned long size = 0;
-
+	printk("__parse_tag_videolfb begin\n");
 	videolfb_tag = (struct tag_video_lfb *)of_get_property(node,
 		"atag,videolfb", (int *)&size);
 	if (videolfb_tag) {
@@ -2641,7 +2641,7 @@ static int _parse_tag_videolfb(void)
 	int ret;
 	struct device_node *chosen_node;
 
-	DISPCHECK("[DT][videolfb]isvideofb_parse_done = %d\n",
+	printk("[DT][videolfb]isvideofb_parse_done = %d\n",
 		is_videofb_parse_done);
 
 	if (is_videofb_parse_done)
@@ -3141,10 +3141,10 @@ static void mtkfb_late_resume(void)
 	DISPMSG("[FB Driver] enter late_resume\n");
 
 	ret = primary_display_resume();
-//	msleep(10);
-//	primary_display_suspend();
-//	msleep(10);
-//	primary_display_resume();
+	//msleep(10);
+	//primary_display_suspend();
+	//msleep(10);
+	//primary_display_resume();
 	if (ret) {
 		DISPERR("primary display resume failed\n");
 		return;

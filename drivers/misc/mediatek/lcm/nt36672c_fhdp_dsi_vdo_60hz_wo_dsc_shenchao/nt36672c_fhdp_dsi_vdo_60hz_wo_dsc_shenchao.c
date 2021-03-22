@@ -17,7 +17,7 @@
 #  include <linux/string.h>
 #  include <linux/kernel.h>
 #endif
-
+#include <linux/gpio.h>
 #ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
 #include "data_hw_roundedpattern.h"
 #endif
@@ -103,7 +103,7 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #define FALSE 0
 #endif
 
-#define DSC_ENABLE
+//#define DSC_ENABLE
 //#define DSC_ENABLE
 
 /* i2c control start */
@@ -111,6 +111,14 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #define LCM_I2C_ADDR 0x3E
 #define LCM_I2C_BUSNUM  1	/* for I2C channel 0 */
 #define LCM_I2C_ID_NAME "I2C_LCD_BIAS"
+
+
+static unsigned ENP = 494; //gpio169
+static unsigned ENN = 490; //gpio165
+
+#define GPIO_LCD_BIAS_ENP   ENP
+#define GPIO_LCD_BIAS_ENN   ENN
+
 
 
 /*****************************************************************************
@@ -422,6 +430,25 @@ static void push_table(void *cmdq, struct LCM_setting_table *table,
 	}
 }
 
+static void lcm_set_gpio_output(unsigned GPIO, unsigned int output)
+{
+	int ret;
+
+	ret = gpio_request(GPIO, "GPIO");
+	if (ret < 0) {
+		pr_err("[%s]: GPIO requset fail!\n", __func__);
+	}
+
+	if (gpio_is_valid(GPIO)) {
+		ret = gpio_direction_output(GPIO, output);
+			if (ret < 0) {
+				pr_err("[%s]: failed to set output", __func__);
+			}
+	}
+
+	gpio_free(GPIO);
+}
+
 static void lcm_set_util_funcs(const struct LCM_UTIL_FUNCS *util)
 {
 	memcpy(&lcm_util, util, sizeof(struct LCM_UTIL_FUNCS));
@@ -544,9 +571,21 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 }
 
 /* turn on gate ic & control voltage to 5.5V */
+
+
+
 static void lcm_init_power(void)
 {
-	display_bias_enable();
+	//display_bias_enable();
+	LCM_LOGI("[nt36672D] %s enter\n", __func__);
+
+	lcm_set_gpio_output(GPIO_LCD_BIAS_ENP, 1);
+	MDELAY(3);
+
+	lcm_set_gpio_output(GPIO_LCD_BIAS_ENN, 1);
+	MDELAY(5);
+
+	LCM_LOGI("[nt36672D] %s exit\n", __func__);
 #if 0
 	if (lcm_util.set_gpio_lcd_enp_bias) {
 		lcm_util.set_gpio_lcd_enp_bias(1);
@@ -637,7 +676,7 @@ static unsigned int lcm_ata_check(unsigned char *buffer)
 
 static void lcm_setbacklight_cmdq(void *handle, unsigned int level)
 {
-	LCM_LOGI("%s,nt36672c backlight: level = %d\n", __func__, level);
+	pr_err("%s,nt36672c backlight: level = %d\n", __func__, level);
 
 	bl_level[0].para_list[0] = level;
 

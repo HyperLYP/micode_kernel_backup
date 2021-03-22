@@ -904,6 +904,7 @@ void charger_manager_set_prop_system_temp_level(int temp_level)
 
 	if (pinfo == NULL)
 		return ;
+	return;
 	pcba_to_thermal = get_huaqin_pcba_config();
 
 #if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)

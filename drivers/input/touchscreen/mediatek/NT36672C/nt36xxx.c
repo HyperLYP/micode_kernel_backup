@@ -718,6 +718,8 @@ void get_tp_info(void)
 		sprintf(tp_version_info, "[Vendor]Dijing,[TP-IC]:NT36672D,[FW]0x%x,PID=%04X\n", tp_fw_version, ts->nvt_pid);
 	} else if (is_ft_lcm == 4) {
 		sprintf(tp_version_info, "[Vendor]Tianma,[TP-IC]:NT36672C,[FW]0x%x,PID=%04X\n", tp_fw_version, ts->nvt_pid);
+	} else if (is_ft_lcm == 5) {
+		sprintf(tp_version_info, "[Vendor]Tianma,[TP-IC]:NT36672C,[FW]0x%x,PID=%04X\n", tp_fw_version, ts->nvt_pid);
 	}
 
 	printk("[%s]: tp_version %s\n", __func__, tp_version_info);
@@ -1879,10 +1881,15 @@ int tp_compare_ic(void)
 		MP_UPDATE_FIRMWARE_NAME = "nvt_dj_mp.bin";
 		NVT_LOG("match nt36672A_fhdp_dsi_vdo_dijing_j19_lcm_drv");
 		return 0;
-	}else if (is_ft_lcm == 3) {
+	} else if (is_ft_lcm == 3) {
 		BOOT_UPDATE_FIRMWARE_NAME = "nvt_dj_72d_fw.bin";
 		MP_UPDATE_FIRMWARE_NAME = "nvt_dj_72d_mp.bin";
 		NVT_LOG("match nt36672D_fhdp_dsi_vdo_dijing_j19_lcm_drv");
+		return 0;
+	} else if (is_ft_lcm == 5) {
+		BOOT_UPDATE_FIRMWARE_NAME = "nt36672c_tm_01_ts_fw.bin";
+		MP_UPDATE_FIRMWARE_NAME = "nt36672c_tm_01_ts_mp.bin";
+		NVT_LOG("match nt36672c_fhdp_dsi_vdo_60hz_wo_dsc_shenchao_lcm_drv");
 		return 0;
 	} else {
 		NVT_ERR("failed to compare firmware\n");
@@ -2837,6 +2844,9 @@ int __init is_lcm_detect(char *str)
 		NVT_LOG("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
 	}else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_j19_lcm_drv"))) {
 		is_ft_lcm = 0;
+		NVT_LOG("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
+	}else if (!(strcmp(str, "nt36672c_fhdp_dsi_vdo_60hz_wo_dsc_shenchao_lcm_drv"))) {
+		is_ft_lcm = 5;
 		NVT_LOG("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
 	}
 	printk("Func:%s is_lcm_detect:%s", __func__, str);

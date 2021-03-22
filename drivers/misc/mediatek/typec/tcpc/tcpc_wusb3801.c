@@ -352,7 +352,7 @@ static void wusb3801_irq_work_handler(struct kthread_work *work)
 static irqreturn_t wusb3801_intr_handler(int irq, void *data)
 {
 	struct wusb3801_chip *chip = data;
-
+	pr_err("szw:wusb3801 irq \n");
 	__pm_wakeup_event(&chip->irq_wake_lock, WUSB3801_IRQ_WAKE_TIME);
 
 	kthread_queue_work(&chip->irq_worker, &chip->irq_work);
@@ -959,12 +959,13 @@ static int wusb3801_i2c_probe(struct i2c_client *client,
 		pr_info("I2C functionality check : failuare...\n");
 
 	chip_id = wusb3801_check_revision(client);
+	pr_err("szw:chip_id=%d\n",chip_id);
 	if (chip_id < 0) {
 		chip_id = wusb3801_check_revision(client);
 		if (chip_id < 0)
 			return chip_id;
 	}
-
+pr_err("szw:chip_id2=%d\n",chip_id);
 	chip = devm_kzalloc(&client->dev, sizeof (*chip), GFP_KERNEL);
 	if (!chip)
 		return -ENOMEM;

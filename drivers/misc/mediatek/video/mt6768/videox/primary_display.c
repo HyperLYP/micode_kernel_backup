@@ -3749,6 +3749,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 	dpmgr_init();
 
 	//bdg_tx_pull_6382_reset_pin();
+
 	init_cmdq_slots(&(pgc->ovl_config_time), 3, 0);
 	init_cmdq_slots(&(pgc->cur_config_fence),
 		DISP_SESSION_TIMELINE_COUNT, 0);
@@ -3993,10 +3994,12 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 			_cmdq_flush_config_handle(1, NULL, 0);
 			_cmdq_reset_config_handle();
 		}
+//#if 0
 		bdg_tx_pull_6382_reset_pin();
 		bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
 	        mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
 
+//#endif
 //FIXME[MT6382]
 		//ret = disp_lcm_init(pgc->plcm, 1);
 	}
@@ -4935,12 +4938,12 @@ int primary_display_resume(void)
 	DISPERR("[DENNIS][%s][%d]\n", __func__, __LINE__);
 	bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
 	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
-
+/*
 //FIXME[MT6382]
 	data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
 	bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
 	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
-
+*/
 	DISPDBG("dpmanager path power on[begin]\n");
 	dpmgr_path_power_on(pgc->dpmgr_handle, CMDQ_DISABLE);
 
