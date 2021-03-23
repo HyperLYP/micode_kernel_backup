@@ -19,7 +19,8 @@ obj-$(CONFIG_CUSTOM_KERNEL_SITUATION) += situation/
 obj-$(CONFIG_CUSTOM_KERNEL_SENSOR_FUSION)	+= sensorfusion/
 #obj-$(CONFIG_MTK_KERNEL_GEOFENCE) += geofence/
 obj-$(CONFIG_CUSTOM_KERNEL_BIOMETRIC_SENSOR) += biometric/
-obj-y +=ldo_alsps.o 
 else
+#add psensor vdd3 compile by luozeng at 2021.3.24 start#
 obj-y += dummy.o
+#add psensor vdd3 compile by luozeng at 2021.3.24 end#
 endif

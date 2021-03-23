@@ -445,3 +445,6 @@ CONFIG_BLK_WBT_SQ=y
 CONFIG_TEE=y
 CONFIG_MICROTRUST_DELAY_KEY=y
 CONFIG_CHARGER_BQ2589X_CHARGER=y
+#add psensor vdd3 compile by luozeng at 2021.3.24 start#
+CONFIG_GPIO_SYSFS=y
+#add psensor vdd3 compile by luozeng at 2021.3.24 end#
