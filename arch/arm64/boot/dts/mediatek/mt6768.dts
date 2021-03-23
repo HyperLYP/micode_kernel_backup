@@ -2257,6 +2257,10 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 		reg = <0 0x11c90000 0 0x1000>;
 	};
 
+	msdc1_ins:msdc1_ins@0 {
+		compatible = "mediatek,mt6768-sdcard-ins";
+	};
+
 	usb1p_sif@11210000 {
 		compatible = "mediatek,usb1p_sif";
 		reg = <0 0x11210000 0 0x10000>;

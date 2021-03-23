@@ -69,6 +69,13 @@
                 <sensitive_level>Level</sensitive_level>
                 <debounce_en>Disable</debounce_en>
             </eint9>
+            <eint18>
+                <varName>MSDC1_INS</varName>
+                <debounce_time>0</debounce_time>
+                <polarity>High</polarity>
+                <sensitive_level>Edge</sensitive_level>
+                <debounce_en>Disable</debounce_en>
+            </eint18>
             <eint20>
                 <varName>SUBPMIC_PMU_EINT</varName>
                 <debounce_time>0</debounce_time>
@@ -2233,7 +2240,7 @@
         <module name="kpd">
             <row>8</row>
             <column>9</column>
-            <keyMatrix>POWER NC NC NC NC NC NC NC NC
+            <keyMatrix>VOLUMEDOWN NC NC NC NC NC NC NC NC
 				NC NC NC NC NC NC NC NC NC
 				NC NC NC NC NC NC NC NC NC
 				NC NC NC NC NC NC NC NC NC
@@ -2242,8 +2249,8 @@
 				NC NC NC NC NC NC NC NC NC
 				NC NC NC NC NC NC NC NC NC</keyMatrix>
             <keyMatrix_ext></keyMatrix_ext>
-            <downloadKey>VOLUMEUP NC POWER</downloadKey>
-            <modeKey>NC VOLUMEUP NC</modeKey>
+            <downloadKey>VOLUMEUP VOLUMEDOWN POWER</downloadKey>
+            <modeKey>NC VOLUMEUP VOLUMEDOWN</modeKey>
             <pwrKeyEint_gpioNum>0</pwrKeyEint_gpioNum>
             <pwrKeyUtility>POWER</pwrKeyUtility>
             <home_key>VOLUMEUP</home_key>
