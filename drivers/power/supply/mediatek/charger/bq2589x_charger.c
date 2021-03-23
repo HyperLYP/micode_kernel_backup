@@ -777,6 +777,11 @@ static int bq2589x_get_charger_type(struct bq2589x *bq, enum charger_type *type)
 	case BQ2589X_VBUS_TYPE_DCP:
 		chg_type = STANDARD_CHARGER;
 		break;
+/*K19A WXYFB-996 K19A quick charger bq25890 bring up by miaozhichao at 2021/3/23 start*/
+	case BQ2589X_VBUS_TYPE_HVDCP:
+		chg_type = STANDARD_CHARGER;
+		break;
+/*K19A WXYFB-996 K19A quick charger bq25890 bring up by miaozhichao at 2021/3/23 end*/
 	case BQ2589X_VBUS_TYPE_UNKNOWN:
 		chg_type = NONSTANDARD_CHARGER;
 		break;
