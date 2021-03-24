@@ -501,7 +501,7 @@
 	reg = <0x37>;
 	status = "okay";
 	/*ktd,pwm-mode; */
-	ktd,using-lsb = <1>;
+
 	ktd,pwm-frequency = <100>;
 	ktd,bl-fscal-led = <0x98>;/*default 20.2mA*/
 	ktd,turn-on-ramp = <0>;
@@ -679,7 +679,7 @@
 	spislv@2 {
 		compatible = "mediatek,hifi4dsp-spi";
 		spi-max-frequency = <1000000>;
-		spi-pin-mode = <2>;
+		spi-pin-mode = <0>;
 		/*tick-dly = <1>;*/
 		ick-dly = <0>;
 		reg = <0>;
