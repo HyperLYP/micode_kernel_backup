@@ -92,24 +92,6 @@ static long alsps_factory_unlocked_ioctl(struct file *file, unsigned int cmd,
 			return -EINVAL;
 		}
 		return 0;
-	/*get alsps lux by luozeng at 2021.3.24 start*/
-        case ALSPS_GET_ALS_DATA:
-                if (alsps_factory.fops != NULL &&
-                    alsps_factory.fops->als_get_data != NULL) {
-                        err = alsps_factory.fops->als_get_data(&data);
-                        if (err < 0) {
-                                pr_err(
-                                        "ALSPS_GET_ALS_DATA read data fail!\n");
-                                return -EINVAL;
-                        }
-                        if (copy_to_user(ptr, &data, sizeof(data)))
-                                return -EFAULT;
-                } else {
-                        pr_err("ALSPS_GET_ALS_DATA NULL\n");
-                        return -EINVAL;
-                }
-                return 0;
-       /*get alsps lux by luozeng at 2021.3.24 start*/
 	case ALSPS_SET_ALS_MODE:
 		if (copy_from_user(&enable, ptr, sizeof(enable)))
 			return -EFAULT;
