@@ -470,3 +470,8 @@ CONFIG_CHARGER_BQ2589X_CHARGER=y
 #add psensor vdd3 compile by luozeng at 2021.3.24 start#
 CONFIG_GPIO_SYSFS=y
 #add psensor vdd3 compile by luozeng at 2021.3.24 end#
+#/*K19A WXYFB-996 K19A secret battery bring up by miaozhichao at 2021/3/26 start*/
+CONFIG_MEDIA_POWER_SUPPLY=y
+CONFIG_ONEWIRE_GPIO=y
+CONFIG_BATT_VERIFY_BY_DS28E16=y
+#/*K19A WXYFB-996 K19A secret battery bring up by miaozhichao at 2021/3/26 end*/

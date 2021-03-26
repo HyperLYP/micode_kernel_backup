@@ -194,6 +194,26 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_CONNECTOR_TEMP,
 	POWER_SUPPLY_PROP_VBUS_DISABLE,
 	POWER_SUPPLY_PROP_CHIP_OK,
+/*K19A WXYFB-996 K19A secret battery bring up by miaozhichao at 2021/3/26 start*/
+/* BSP.Charge - 2021.03.02 - add batterysecrete - start*/
+	/* battery verify properties */
+	POWER_SUPPLY_PROP_ROMID,
+	POWER_SUPPLY_PROP_DS_STATUS,
+	POWER_SUPPLY_PROP_PAGENUMBER,
+	POWER_SUPPLY_PROP_PAGEDATA,
+	POWER_SUPPLY_PROP_AUTHEN_RESULT,
+	POWER_SUPPLY_PROP_SESSION_SEED,
+	POWER_SUPPLY_PROP_S_SECRET,
+	POWER_SUPPLY_PROP_CHALLENGE,
+	POWER_SUPPLY_PROP_AUTH_ANON,
+	POWER_SUPPLY_PROP_AUTH_BDCONST,
+	POWER_SUPPLY_PROP_PAGE0_DATA,
+	POWER_SUPPLY_PROP_PAGE1_DATA,
+	POWER_SUPPLY_PROP_VERIFY_MODEL_NAME,
+	POWER_SUPPLY_PROP_CHIP_OK_DS28E16,
+	POWER_SUPPLY_PROP_MAXIM_BATT_CYCLE_COUNT,
+/* BSP.Charge - 2021.03.02 - add batterysecrete - end*/
+/*K19A WXYFB-996 K19A secret battery bring up by miaozhichao at 2021/3/26 end*/
 	/* Local extensions of type int64_t */
 	POWER_SUPPLY_PROP_CHARGE_COUNTER_EXT,
 	/* Properties of type `const char *' */
@@ -223,6 +243,9 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_APPLE_BRICK_ID,	/* Apple Charging Method */
 	POWER_SUPPLY_TYPE_PARALLEL,	/* Parallel Path */
 	POWER_SUPPLY_TYPE_BMS,          /* Battery Monitor System */
+/*K19A WXYFB-996 K19A secret battery bring up by miaozhichao at 2021/3/26 start*/
+	POWER_SUPPLY_TYPE_BATT_VERIFY,		/* Batterysercet */
+/*K19A WXYFB-996 K19A secret battery bring up by miaozhichao at 2021/3/26 end*/
 };
 
 enum power_supply_notifier_events {
@@ -233,6 +256,9 @@ union power_supply_propval {
 	int intval;
 	const char *strval;
 	int64_t int64val;
+/*K19A WXYFB-996 K19A secret battery bring up by miaozhichao at 2021/3/26 start*/
+	unsigned char arrayval[50];
+/*K19A WXYFB-996 K19A secret battery bring up by miaozhichao at 2021/3/26 end*/
 };
 
 struct device_node;
