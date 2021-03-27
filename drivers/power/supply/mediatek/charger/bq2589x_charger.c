@@ -1182,11 +1182,17 @@ static int bq2589x_kick_wdt(struct charger_device *chg_dev)
 	return bq2589x_reset_watchdog_timer(bq);
 }
 
+/*K19A WXYFB-588 K19A charger usb_otg by wangqi at 2021/3/27 start*/
+extern bool usb_otg;
+/*K19A WXYFB-588 K19A charger usb_otg by wangqi at 2021/3/27 end*/
 static int bq2589x_set_otg(struct charger_device *chg_dev, bool en)
 {
 	int ret;
 	struct bq2589x *bq = dev_get_drvdata(&chg_dev->dev);
 
+/*K19A WXYFB-588 K19A charger usb_otg by wangqi at 2021/3/27 start*/
+	usb_otg = en;
+/*K19A WXYFB-588 K19A charger usb_otg by wangqi at 2021/3/27 end*/
 	if (en)
 		ret = bq2589x_enable_otg(bq);
 	else
