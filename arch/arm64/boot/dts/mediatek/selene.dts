@@ -513,7 +513,9 @@
 	reg = <0x37>;
 	status = "okay";
 	/*ktd,pwm-mode; */
-
+/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 start*/
+	ktd,using-lsb = <1>;
+/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 end*/
 	ktd,pwm-frequency = <100>;
 	ktd,bl-fscal-led = <0x98>;/*default 20.2mA*/
 	ktd,turn-on-ramp = <0>;
