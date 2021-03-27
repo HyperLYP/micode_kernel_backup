@@ -41,11 +41,14 @@
 #define BATTERY_ID_CHANNEL_NUM 2
 #define BATTERY_PROFILE_ID 0
 #define TOTAL_BATTERY_NUMBER 4
-
-#define NVT_MIN_VOLTAGE		492000
-#define NVT_MAX_VOLTAGE		544500
-#define COSMX_MIN_VOLTAGE	570000
-#define COSMX_MAX_VOLTAGE	630000
+/*K19A WXYFB-996 K19A charger battery id and informs by miaozhichao at 2021/3/28 start*/
+#define SWD_MIN_VOLTAGE   715869
+#define SWD_MAX_VOLTAGE   731543
+#define COSMX_MIN_VOLTAGE      884466
+#define COSMX_MAX_VOLTAGE      902334
+#define NVT_MIN_VOLTAGE                1350360
+#define NVT_MAX_VOLTAGE                1377640
+/*K19A WXYFB-996 K19A charger battery id and informs by miaozhichao at 2021/3/28 end*/
 
 /*
  * if ACTIVE_TABLE == 0 , use DTSI table
