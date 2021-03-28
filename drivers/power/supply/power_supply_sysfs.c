@@ -69,11 +69,11 @@ static const char * const power_supply_technology_text[] = {
 static const char * const power_supply_battery_type_text[] = {
 	"NVT_68k", "COSMX_100K", "Unknown"
 };
-
+/*K19A WXYFB-996 K19A charger battery id and informs by miaozhichao at 2021/3/28 start*/
 static const char * const power_supply_battery_vendor_text[] = {
-    "0,NVT_68k", "1,COSMX_100K", "2,Unknown"
+    "SWD_330K", "COSMX_100K","NVT_68k","secret"
 };
-
+/*K19A WXYFB-996 K19A charger battery id and informs by miaozhichao at 2021/3/28 end*/
 static const char * const power_supply_capacity_level_text[] = {
 	"Unknown", "Critical", "Low", "Normal", "High", "Full"
 };
