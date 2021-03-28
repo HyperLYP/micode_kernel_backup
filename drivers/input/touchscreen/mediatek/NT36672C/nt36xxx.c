@@ -1889,7 +1889,9 @@ int tp_compare_ic(void)
 	} else if (is_ft_lcm == 5) {
 		BOOT_UPDATE_FIRMWARE_NAME = "nt36672c_tm_01_ts_fw.bin";
 		MP_UPDATE_FIRMWARE_NAME = "nt36672c_tm_01_ts_mp.bin";
-		NVT_LOG("match nt36672c_fhdp_dsi_vdo_60hz_wo_dsc_shenchao_lcm_drv");
+/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 start*/
+		NVT_LOG("match dsi_panel_k19a_36_02_0a_dsc_vdo_lcm_drv");
+/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 end*/
 		return 0;
 	} else {
 		NVT_ERR("failed to compare firmware\n");
@@ -2826,7 +2828,7 @@ static struct spi_driver nvt_spi_driver = {
 #endif
 	},
 };
-
+/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 start*/
 /*BSP.TP - Add for tp detect - 2021.03.10 - Start*/
 int __init is_lcm_detect(char *str)
 {
@@ -2845,7 +2847,7 @@ int __init is_lcm_detect(char *str)
 	}else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_j19_lcm_drv"))) {
 		is_ft_lcm = 0;
 		NVT_LOG("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
-	}else if (!(strcmp(str, "nt36672c_fhdp_dsi_vdo_60hz_wo_dsc_shenchao_lcm_drv"))) {
+	}else if (!(strcmp(str, "dsi_panel_k19a_36_02_0a_dsc_vdo_lcm_drv"))) {
 		is_ft_lcm = 5;
 		NVT_LOG("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
 	}
@@ -2853,7 +2855,7 @@ int __init is_lcm_detect(char *str)
 	return 0;
 }
  __setup("LCM_name=", is_lcm_detect);
-
+/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 end*/
 /*BSP.TP - Add for tp detect - 2021.03.10 - End*/
 
 /*BSP.Tp - 2020.11.05 -add NVT_LOCKDOWN - start*/
