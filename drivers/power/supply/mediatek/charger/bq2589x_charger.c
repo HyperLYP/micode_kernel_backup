@@ -103,7 +103,9 @@ struct bq2589x {
 
 	struct power_supply *psy;
 };
-
+/* Huaqin modify for WXYFB-592 by miaozhichao at 2021/3/29 start */
+extern enum hvdcp_status hvdcp_type_tmp;
+/* Huaqin modify for WXYFB-592 by miaozhichao at 2021/3/29 end */
 static const struct charger_properties bq2589x_chg_props = {
 	.alias_name = "bq2589x",
 };
@@ -791,6 +793,9 @@ static int bq2589x_get_charger_type(struct bq2589x *bq, enum charger_type *type)
 /*K19A WXYFB-996 K19A quick charger bq25890 bring up by miaozhichao at 2021/3/29 start*/
 	case BQ2589X_VBUS_TYPE_HVDCP:
 		chg_type = HVDCP_CHARGER;
+/* Huaqin modify for WXYFB-592 by miaozhichao at 2021/3/29 start */
+		hvdcp_type_tmp = HVDCP;
+/* Huaqin modify for WXYFB-592 by miaozhichao at 2021/3/29 end */
 		break;
 /*K19A WXYFB-996 K19A quick charger bq25890 bring up by miaozhichao at 2021/3/29 end*/
 	case BQ2589X_VBUS_TYPE_UNKNOWN:
@@ -860,9 +865,12 @@ static irqreturn_t bq2589x_irq_handler(int irq, void *data)
 
 	if (!prev_pg && bq->power_good)
 		pr_notice("adapter/usb inserted\n");
-	else if (prev_pg && !bq->power_good)
+/* Huaqin modify for WXYFB-592 by miaozhichao at 2021/3/29 start */
+	else if (prev_pg && !bq->power_good){
+		hvdcp_type_tmp = HVDCP_NULL;
 		pr_notice("adapter/usb removed\n");
-
+	}
+/* Huaqin modify for WXYFB-592 by miaozhichao at 2021/3/29 end */
 	prev_chg_type = bq->chg_type;
 
 	ret = bq2589x_get_charger_type(bq, &bq->chg_type);
