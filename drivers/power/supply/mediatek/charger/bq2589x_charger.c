@@ -201,7 +201,18 @@ static int bq2589x_disable_otg(struct bq2589x *bq)
 	return bq2589x_update_bits(bq, BQ2589X_REG_03,
 				   BQ2589X_OTG_CONFIG_MASK, val);
 }
+/* Huaqin add/modify/del for WXYFB-996 by miaozhichao at 2021/3/29 start */
+static int bq2589x_disable_maxcen(struct bq2589x *bq)
+{
+	int ret;
+	u8 val = BQ2589X_MAXC_DISABLE << BQ2589X_MAXCEN_SHIFT;
 
+	ret = bq2589x_update_bits(bq, BQ2589X_REG_02,
+				BQ2589X_MAXCEN_MASK, val);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(bq2589x_disable_maxcen);
+/* Huaqin add/modify/del for WXYFB-996 by miaozhichao at 2021/3/29 end */
 static int bq2589x_enable_hvdcp(struct bq2589x *bq)
 {
 	int ret;
@@ -777,11 +788,11 @@ static int bq2589x_get_charger_type(struct bq2589x *bq, enum charger_type *type)
 	case BQ2589X_VBUS_TYPE_DCP:
 		chg_type = STANDARD_CHARGER;
 		break;
-/*K19A WXYFB-996 K19A quick charger bq25890 bring up by miaozhichao at 2021/3/23 start*/
+/*K19A WXYFB-996 K19A quick charger bq25890 bring up by miaozhichao at 2021/3/29 start*/
 	case BQ2589X_VBUS_TYPE_HVDCP:
-		chg_type = STANDARD_CHARGER;
+		chg_type = HVDCP_CHARGER;
 		break;
-/*K19A WXYFB-996 K19A quick charger bq25890 bring up by miaozhichao at 2021/3/23 end*/
+/*K19A WXYFB-996 K19A quick charger bq25890 bring up by miaozhichao at 2021/3/29 end*/
 	case BQ2589X_VBUS_TYPE_UNKNOWN:
 		chg_type = NONSTANDARD_CHARGER;
 		break;
@@ -903,7 +914,11 @@ static int bq2589x_init_device(struct bq2589x *bq)
 	ret = bq2589x_set_boost_current(bq, bq->platform_data->boosti);
 	if (ret)
 		pr_err("Failed to set boost current, ret = %d\n", ret);
-
+/* Huaqin add/modify/del for WXYFB-996 by miaozhichao at 2021/3/29 start */
+	ret = bq2589x_disable_maxcen(bq);
+	if (ret)
+		pr_err("Failed to set disable maxcen, ret = %d\n", ret);
+/* Huaqin add/modify/del for WXYFB-996 by miaozhichao at 2021/3/29 end */
 	return 0;
 }
 
