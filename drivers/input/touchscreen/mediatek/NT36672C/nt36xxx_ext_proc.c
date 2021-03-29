@@ -1840,6 +1840,8 @@ Description:
 return:
 	Executive outcomes. 0---succeed.
 *******************************************************/
+
+/* Huaqin modify for HQ-123470 by shujiawang at 2021/03/29 start */
 static int32_t c_tp_info_show(struct seq_file *m, void *v)
 {
 	if (is_ft_lcm == 0) {
@@ -1851,11 +1853,12 @@ static int32_t c_tp_info_show(struct seq_file *m, void *v)
 	} else if (is_ft_lcm == 4) {
 		seq_printf(m, "[Vendor]Tianma, [TP-IC]:nt36672C,[FW]0x%x,PID=%04X\n", ts->fw_ver, ts->nvt_pid);
 	} else if (is_ft_lcm == 5) {
-		seq_printf(m, "[Vendor]Tianma, [TP-IC]:nt36672C,[FW]0x%x,PID=%04X\n", ts->fw_ver, ts->nvt_pid);
+		seq_printf(m, "[Vendor]Xinli, [TP-IC]:nt36672C,[FW]0x%x,PID=%04X\n", ts->fw_ver, ts->nvt_pid);
 	}
-	
+
 	return 0;
 }
+/* Huaqin modify for HQ-123470 by shujiawang at 2021/03/29 end */
 
 const struct seq_operations nvt_tp_info_seq_ops = {
 	.start  = c_start,
