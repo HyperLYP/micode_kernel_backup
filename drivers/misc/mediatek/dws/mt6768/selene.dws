@@ -2079,7 +2079,9 @@
                 <pullPushEn>false</pullPushEn>
             </i2c_bus4>
             <i2c_bus5>
-                <speed_kbps>3400</speed_kbps>
+               	<!--Huaqin add for WXYFB-996 by wangqi at 2021.3.30 start-->
+                <speed_kbps>400</speed_kbps>
+		<!--Huaqin add for WXYFB-996 by wangqi at 2021.3.30 end-->
                 <pullPushEn>true</pullPushEn>
             </i2c_bus5>
             <i2c_bus6>
