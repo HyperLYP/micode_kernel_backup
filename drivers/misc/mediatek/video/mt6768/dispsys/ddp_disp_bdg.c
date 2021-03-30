@@ -4712,11 +4712,16 @@ int bdg_common_deinit(enum DISP_BDG_ENUM module, void *cmdq)
 
 	// DSI-TX setting
 	bdg_tx_deinit(module, NULL);
-
+/* Huaqin add for HQ-123491 by caogaojie at 2021/3/30 start */
+	clk_buf_disp_ctrl(true);
+/* Huaqin add for HQ-123491 by caogaojie at 2021/3/30 end */
 	set_subsys_off(cmdq);
 	ana_macro_off(cmdq);
 	set_mtcmos_off(cmdq);
 	set_LDO_off(cmdq);
+/* Huaqin add for HQ-123491 by caogaojie at 2021/3/30 start */
+	clk_buf_disp_ctrl(false);
+/* Huaqin add for HQ-123491 by caogaojie at 2021/3/30 end */
 
 	DISPFUNCEND();
 
@@ -4747,7 +4752,6 @@ int bdg_common_init(enum DISP_BDG_ENUM module,
 	EFUSE = (struct BDG_EFUSE_REGS *)DISPSYS_BDG_EFUSE_BASE;
 	GPIO = (struct BDG_GPIO_REGS *)DISPSYS_BDG_GPIO_BASE;
 	TX_CMDQ_REG[0] = (struct DSI_TX_CMDQ_REGS *)(DISPSYS_BDG_TX_DSI0_BASE + 0xd00);
-
 	clk_buf_disp_ctrl(true);
 	set_LDO_on(cmdq);
 	set_mtcmos_on(cmdq);

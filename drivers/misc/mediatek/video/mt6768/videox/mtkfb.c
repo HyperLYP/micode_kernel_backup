@@ -3141,11 +3141,12 @@ static void mtkfb_late_resume(void)
 	DISPMSG("[FB Driver] enter late_resume\n");
 
 	ret = primary_display_resume();
-	msleep(10);
-	primary_display_suspend();
-	msleep(10);
-	primary_display_resume();
-
+/* Huaqin add for HQ-123491 by caogaojie at 2021/3/29 start */
+	//msleep(10);
+	//primary_display_suspend();
+	//msleep(10);
+	//primary_display_resume();
+/* Huaqin add for HQ-123491 by caogaojie at 2021/3/29 end */
 	if (ret) {
 		DISPERR("primary display resume failed\n");
 		return;
