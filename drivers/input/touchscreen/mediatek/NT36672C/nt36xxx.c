@@ -705,7 +705,8 @@ info_retry:
 
 	return ret;
 }
-/*BSP.Touch - 2020.11.13 - add for hw_info start*/
+
+/* Huaqin modify for HQ-123470 by shujiawang at 2021/03/29 start */
 void get_tp_info(void)
 {
 	nvt_get_fw_info();
@@ -719,7 +720,7 @@ void get_tp_info(void)
 	} else if (is_ft_lcm == 4) {
 		sprintf(tp_version_info, "[Vendor]Tianma,[TP-IC]:NT36672C,[FW]0x%x,PID=%04X\n", tp_fw_version, ts->nvt_pid);
 	} else if (is_ft_lcm == 5) {
-		sprintf(tp_version_info, "[Vendor]Tianma,[TP-IC]:NT36672C,[FW]0x%x,PID=%04X\n", tp_fw_version, ts->nvt_pid);
+		sprintf(tp_version_info, "[Vendor]Xinli,[TP-IC]:NT36672C,[FW]0x%x,PID=%04X\n", tp_fw_version, ts->nvt_pid);
 	}
 
 	printk("[%s]: tp_version %s\n", __func__, tp_version_info);
@@ -727,7 +728,7 @@ void get_tp_info(void)
 	hq_regiser_hw_info(HWID_CTP, tp_version_info);
 
 }
-/*BSP.Touch - 2020.11.13 - add for hw_info end*/
+/* Huaqin modify for HQ-123470 by shujiawang at 2021/03/29 end */
 
 /*******************************************************
   Create Device Node (Proc Entry)
@@ -1862,16 +1863,11 @@ int nvt_remove_sysfs(struct spi_device *client)
 }
 /*BSP.TP add nvt_irq - 2020.11.11 - End*/
 
-/*BSP.TP add tp.compare - 2020.11.16 - Start*/
+/* Huaqin modify for HQ-123470 by shujiawang at 2021/03/29 start */
 int tp_compare_ic(void)
 {
 	NVT_LOG("tp_compare_ic in!!");
-	if (is_ft_lcm == 4) {
-		BOOT_UPDATE_FIRMWARE_NAME = "nt36672c_tm_01_ts_fw.bin";
-		MP_UPDATE_FIRMWARE_NAME = "nt36672c_tm_01_ts_mp.bin";
-		NVT_LOG("match nt36672c_fhdp_dsi_vdo_tianma_k19A");
-		return 0;
-	} else if (is_ft_lcm == 0) {
+	if (is_ft_lcm == 0) {
 		BOOT_UPDATE_FIRMWARE_NAME = "nvt_tm_fw.bin";
 		MP_UPDATE_FIRMWARE_NAME = "nvt_tm_mp.bin";
 		NVT_LOG("match nt36672A_fhdp_dsi_vdo_tianma_j19_lcm_drv");
@@ -1886,19 +1882,23 @@ int tp_compare_ic(void)
 		MP_UPDATE_FIRMWARE_NAME = "nvt_dj_72d_mp.bin";
 		NVT_LOG("match nt36672D_fhdp_dsi_vdo_dijing_j19_lcm_drv");
 		return 0;
-	} else if (is_ft_lcm == 5) {
+	} else if (is_ft_lcm == 4) {
 		BOOT_UPDATE_FIRMWARE_NAME = "nt36672c_tm_01_ts_fw.bin";
-		MP_UPDATE_FIRMWARE_NAME = "nt36672c_tm_01_ts_mp.bin";
-/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 start*/
+		MP_UPDATE_FIRMWARE_NAME = "nt36672c_tm_01_ts_mp.BIN";
 		NVT_LOG("match dsi_panel_k19a_36_02_0a_dsc_vdo_lcm_drv");
-/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 end*/
+		return 0;
+	} else if (is_ft_lcm == 5) {
+		BOOT_UPDATE_FIRMWARE_NAME = "nt36672c_tr_02_ts_fw.bin";
+		MP_UPDATE_FIRMWARE_NAME = "nt36672c_tr_02_ts_mp.BIN";
+		NVT_LOG("match dsi_panel_k19a_43_02_0b_dsc_vdo_lcm_drv");
 		return 0;
 	} else {
 		NVT_ERR("failed to compare firmware\n");
 		return -1;
 	}
 }
-/*BSP.TP add tp.compare - 2020.11.16 - End*/
+/* Huaqin modify for HQ-123470 by shujiawang at 2021/03/29 end */
+
 /*******************************************************
 Description:
 	Novatek touchscreen driver probe function.
@@ -2828,35 +2828,34 @@ static struct spi_driver nvt_spi_driver = {
 #endif
 	},
 };
-/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 start*/
-/*BSP.TP - Add for tp detect - 2021.03.10 - Start*/
+
+/* Huaqin modify for HQ-123470 by shujiawang at 2021/03/29 start */
 int __init is_lcm_detect(char *str)
 {
-	if (!(strcmp(str, "nt36672c_fhdp_dsi_vdo_tianma_k19A"))) {
-		is_ft_lcm = 4;
-		NVT_LOG("Func:%s is_ft 2:%d", __func__, is_ft_lcm);
+	if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_j19_lcm_drv"))) {
+		is_ft_lcm = 0;
+		NVT_LOG("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
+	}else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_dijing_j19_lcm_drv"))) {
+		is_ft_lcm = 1;
+		NVT_LOG("Func:%s is_ft 1:%d", __func__, is_ft_lcm);
 	}else if (!(strcmp(str, "ft8719_fhdp_dsi_vdo_huaxing_j19_lcm_drv"))) {
 		is_ft_lcm = 2;
 		NVT_LOG("Func:%s is_ft 2:%d", __func__, is_ft_lcm);
 	}else if (!(strcmp(str, "nt36672D_fhdp_dsi_vdo_dijing_j19_lcm_drv"))) {
 		is_ft_lcm = 3;
-		NVT_LOG("Func:%s is_ft 1:%d", __func__, is_ft_lcm);
-	}else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_dijing_j19_lcm_drv"))) {
-		is_ft_lcm = 1;
-		NVT_LOG("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
-	}else if (!(strcmp(str, "nt36672A_fhdp_dsi_vdo_tianma_j19_lcm_drv"))) {
-		is_ft_lcm = 0;
-		NVT_LOG("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
+		NVT_LOG("Func:%s is_ft 3:%d", __func__, is_ft_lcm);
 	}else if (!(strcmp(str, "dsi_panel_k19a_36_02_0a_dsc_vdo_lcm_drv"))) {
+		is_ft_lcm = 4;
+		NVT_LOG("Func:%s is_ft 4:%d", __func__, is_ft_lcm);
+	}else if (!(strcmp(str, "dsi_panel_k19a_43_02_0b_dsc_vdo_lcm_drv"))) {
 		is_ft_lcm = 5;
-		NVT_LOG("Func:%s is_ft 0:%d", __func__, is_ft_lcm);
+		NVT_LOG("Func:%s is_ft 5:%d", __func__, is_ft_lcm);
 	}
 	printk("Func:%s is_lcm_detect:%s", __func__, str);
 	return 0;
 }
  __setup("LCM_name=", is_lcm_detect);
-/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 end*/
-/*BSP.TP - Add for tp detect - 2021.03.10 - End*/
+/* Huaqin modify for HQ-123470 by shujiawang at 2021/03/29 end */
 
 /*BSP.Tp - 2020.11.05 -add NVT_LOCKDOWN - start*/
 int __init is_lockdown_info_detect(char *str)
