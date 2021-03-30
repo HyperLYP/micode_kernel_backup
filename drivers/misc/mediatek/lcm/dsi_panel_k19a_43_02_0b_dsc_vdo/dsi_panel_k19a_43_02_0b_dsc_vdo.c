@@ -676,7 +676,7 @@ static void lcm_setbacklight_cmdq(void *handle, unsigned int level)
 
 static void lcm_set_hw_info(void)
 {
-	hq_regiser_hw_info(HWID_LCM, "incell,vendor:TianMa,IC:nt36672(novatek)");
+	hq_regiser_hw_info(HWID_LCM, "incell,vendor:Truly,IC:nt36672C(novatek)");
 }
 
 static void lcm_update(unsigned int x, unsigned int y, unsigned int width,
@@ -743,8 +743,8 @@ static unsigned int lcm_compare_id(void)
 
 }
 
-struct LCM_DRIVER dsi_panel_k19a_36_02_0a_dsc_vdo_lcm_drv = {
-	.name = "dsi_panel_k19a_36_02_0a_dsc_vdo_lcm_drv",
+struct LCM_DRIVER dsi_panel_k19a_43_02_0b_dsc_vdo_lcm_drv = {
+	.name = "dsi_panel_k19a_43_02_0b_dsc_vdo_lcm_drv",
 	.set_util_funcs = lcm_set_util_funcs,
 	.get_params = lcm_get_params,
 	.init = lcm_init,
