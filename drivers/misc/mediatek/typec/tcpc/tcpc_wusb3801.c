@@ -352,7 +352,6 @@ static void wusb3801_irq_work_handler(struct kthread_work *work)
 static irqreturn_t wusb3801_intr_handler(int irq, void *data)
 {
 	struct wusb3801_chip *chip = data;
-
 	__pm_wakeup_event(&chip->irq_wake_lock, WUSB3801_IRQ_WAKE_TIME);
 
 	kthread_queue_work(&chip->irq_worker, &chip->irq_work);
@@ -418,9 +417,11 @@ static int wusb3801_init_alert(struct tcpc_device *tcpc)
 		pr_err("wusb3801 [%s]enter error recovery :0x%x\n", __func__, ret);
 		wusb3801_i2c_write8(chip->tcpc, WUSB3801_REG_TEST_02, 0x00);
 	}
+	/*K19A WXYFB-996 K19A charger cclogic bring up by miaozhichao at 2021/3/23 start*/
 	ret = request_irq(chip->irq, wusb3801_intr_handler,
-		IRQF_TRIGGER_FALLING | IRQF_NO_THREAD |
+		IRQF_TRIGGER_LOW | IRQF_NO_THREAD |
 		IRQF_NO_SUSPEND, name, chip);
+  	/*K19A WXYFB-996 K19A charger cclogic bring up by miaozhichao at 2021/3/23 end*/
 	if (ret < 0) {
 		pr_err("Error: failed to request irq%d (gpio = %d, ret = %d)\n",
 			chip->irq, chip->irq_gpio, ret);
@@ -964,7 +965,6 @@ static int wusb3801_i2c_probe(struct i2c_client *client,
 		if (chip_id < 0)
 			return chip_id;
 	}
-
 	chip = devm_kzalloc(&client->dev, sizeof (*chip), GFP_KERNEL);
 	if (!chip)
 		return -ENOMEM;

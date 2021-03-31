@@ -119,6 +119,7 @@ int situation_data_report(int handle, uint32_t one_sample_data)
 {
 	return situation_data_report_t(handle, one_sample_data, 0);
 }
+
 int sar_data_report_t(int32_t value[3], int64_t time_stamp)
 {
 	int err = 0, index = -1;
@@ -144,10 +145,38 @@ int sar_data_report_t(int32_t value[3], int64_t time_stamp)
 		__pm_wakeup_event(&cxt->ws[index], 250);
 	return err;
 }
+
 int sar_data_report(int32_t value[3])
 {
 	return sar_data_report_t(value, 0);
 }
+/*k19a modify the way of sar get data by luozeng at 2021.3.18 start*/
+int sar_cal_report_t(int32_t value[3], int64_t time_stamp)
+{
+	int err = 0, index = -1;
+	struct sensor_event event;
+	struct situation_context *cxt = situation_context_obj;
+
+	memset(&event, 0, sizeof(struct sensor_event));
+
+	index = handle_to_index(ID_SAR);
+	if (index < 0) {
+		pr_err("[%s] invalid index\n", __func__);
+		return -1;
+	}
+	event.time_stamp = time_stamp;
+	event.handle = ID_SAR;
+	event.flush_action = CALI_ACTION;
+	event.word[0] = value[0];
+	event.word[1] = value[1];
+	event.word[2] = value[2];
+	err = sensor_input_event(situation_context_obj->mdev.minor, &event);
+	if (cxt->ctl_context[index].situation_ctl.open_report_data != NULL &&
+		cxt->ctl_context[index].situation_ctl.is_support_wake_lock)
+		__pm_wakeup_event(&cxt->ws[index], 250);
+	return err;
+}
+/*k19a modify the way of sar get data by luozeng at 2021.3.18 end*/
 int situation_notify_t(int handle, int64_t time_stamp)
 {
 	return situation_data_report_t(handle, 1, time_stamp);

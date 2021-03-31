@@ -43,6 +43,8 @@ ifeq ($(TARGET_PRODUCT),$(filter $(TARGET_PRODUCT),merlin merlinin merlinnfc))
 KBUILD_CFLAGS += -DMERLIN_MSM_CAMERA_HW_INFO
 else ifeq ($(TARGET_PRODUCT),$(filter $(TARGET_PRODUCT),lancelot lanclotin lancelotnfc))
 KBUILD_CFLAGS += -DLANCELOT_MSM_CAMERA_HW_INFO
+else ifeq ($(TARGET_PRODUCT),$(filter $(TARGET_PRODUCT),selene selenein selenenfc))
+KBUILD_CFLAGS += -DSELENE_MSM_CAMERA_HW_INFO
 else ifeq ($(TARGET_PRODUCT),$(filter $(TARGET_PRODUCT),galahad galahadin galahadnfc))
 KBUILD_CFLAGS += -DGALAHAD_MSM_CAMERA_HW_INFO
 else ifeq ($(TARGET_PRODUCT),$(filter $(TARGET_PRODUCT),shiva))

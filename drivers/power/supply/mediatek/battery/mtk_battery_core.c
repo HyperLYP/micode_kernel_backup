@@ -408,14 +408,17 @@ void fgauge_get_profile_id(void)
 	pr_err("[%s]battery_id_voltage is %d\n", __func__, id_volt);
 
 	my_battery_id_voltage = id_volt;
-	if (id_volt >= NVT_MIN_VOLTAGE && id_volt <= NVT_MAX_VOLTAGE) {
+/*K19A WXYFB-996 K19A charger battery id and informs by miaozhichao at 2021/3/28 start*/
+	if (id_volt >= SWD_MIN_VOLTAGE && id_volt <= SWD_MAX_VOLTAGE) {
 		gm.battery_id = 0;
-	} else if (id_volt >= COSMX_MIN_VOLTAGE && id_volt <= COSMX_MAX_VOLTAGE) {
+	}else if (id_volt >= COSMX_MIN_VOLTAGE && id_volt <= COSMX_MAX_VOLTAGE) {
 		gm.battery_id = 1;
-	} else {
+	} else if (id_volt >= NVT_MIN_VOLTAGE && id_volt <= NVT_MAX_VOLTAGE) {
 		gm.battery_id = 2;
+	}else {
+		gm.battery_id = 3;
 	}
-
+/*K19A WXYFB-996 K19A charger battery id and informs by miaozhichao at 2021/3/28 end*/
 	pr_err("[%s]Battery id (%d) volt (%d)\n",
 		__func__, gm.battery_id, id_volt);
 

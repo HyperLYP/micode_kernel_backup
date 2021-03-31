@@ -36,7 +36,7 @@
 
 #define DEFAULT_CMD6_TIMEOUT_MS	500
 #define MIN_CACHE_EN_TIMEOUT_MS 1600
-
+char kernel_fwrew[10];
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -138,7 +138,16 @@ uint32_t mmc_get_serial(void)
 		return 0;
 	}
 }
-
+//add for part_num
+uint32_t mmc_get_manfid(void)
+{
+	if (NULL != emmc_cid) {
+		return emmc_cid->manfid;
+	} else {
+		pr_err("pointer emmc_cid is NULL \n");
+		return 0;
+	}
+}
 static void mmc_set_erase_size(struct mmc_card *card)
 {
 	if (card->ext_csd.erase_group_def & 1)
@@ -682,6 +691,8 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 
 		memcpy(card->ext_csd.fwrev, &ext_csd[EXT_CSD_FIRMWARE_VERSION],
 		       MMC_FIRMWARE_LEN);
+
+		sprintf(kernel_fwrew,"%*phN",MMC_FIRMWARE_LEN,card->ext_csd.fwrev);//add for product version
 		card->ext_csd.ffu_capable =
 			(ext_csd[EXT_CSD_SUPPORTED_MODE] & 0x1) &&
 			!(ext_csd[EXT_CSD_FW_CONFIG] & 0x1);

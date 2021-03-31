@@ -41,11 +41,14 @@
 #define BATTERY_ID_CHANNEL_NUM 2
 #define BATTERY_PROFILE_ID 0
 #define TOTAL_BATTERY_NUMBER 4
-
-#define NVT_MIN_VOLTAGE		492000
-#define NVT_MAX_VOLTAGE		544500
-#define COSMX_MIN_VOLTAGE	570000
-#define COSMX_MAX_VOLTAGE	630000
+/*K19A WXYFB-996 K19A charger battery id and informs by miaozhichao at 2021/3/28 start*/
+#define SWD_MIN_VOLTAGE   715869
+#define SWD_MAX_VOLTAGE   731543
+#define COSMX_MIN_VOLTAGE      884466
+#define COSMX_MAX_VOLTAGE      902334
+#define NVT_MIN_VOLTAGE                1350360
+#define NVT_MAX_VOLTAGE                1377640
+/*K19A WXYFB-996 K19A charger battery id and informs by miaozhichao at 2021/3/28 end*/
 
 /*
  * if ACTIVE_TABLE == 0 , use DTSI table
@@ -107,6 +110,20 @@ int g_FG_PSEUDO1[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 };
 
 #if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
+int g_FG_PSEUDO100[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
+	/*bat1,   bat2,   bat3,    bat4*/
+	{ 99, 99, 99, 99},/*T0*/
+	{ 99, 96, 99, 99},/*T1*/
+	{ 90, 80, 80, 80},/*T2*/
+	{ 90, 80, 80, 80},/*T3*/
+	{ 100, 100, 100, 100},/*T4*/
+	{ 100, 100, 100, 100},/*T5*/
+	{ 100, 100, 100, 100},/*T6*/
+	{ 100, 100, 100, 100},/*T7*/
+	{ 100, 100, 100, 100},/*T8*/
+	{ 100, 100, 100, 100} /*T9*/
+};
+#elif defined(TARGET_PRODUCT_SELENE)
 int g_FG_PSEUDO100[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	/*bat1,   bat2,   bat3,    bat4*/
 	{ 99, 99, 99, 99},/*T0*/
@@ -200,6 +217,22 @@ int g_QMAX_SYS_VOL[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	{34000, 34000, 34000, 34000},/*T8*/
 	{34000, 34000, 34000, 34000} /*T9*/
 };
+#elif defined(TARGET_PRODUCT_SELENE)
+
+/* Q_MAX_SYS_VOLTAGE by temp ,control by MULTI_TEMP_GAUGE0=1, */
+int g_QMAX_SYS_VOL[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
+	/*bat1,   bat2,   bat3,    bat4*/
+	{34000, 34000, 34000, 34000},/*T0*/
+	{34000, 34000, 34000, 34000},/*T1*/
+	{34500, 35000, 34300, 34300},/*T2*/
+	{33700, 34300, 34100, 34100},/*T3*/
+	{34300, 33800, 34300, 34300},/*T4*/
+	{34000, 34000, 34000, 34000},/*T5*/
+	{34000, 34000, 34000, 34000},/*T6*/
+	{34000, 34000, 34000, 34000},/*T7*/
+	{34000, 34000, 34000, 34000},/*T8*/
+	{34000, 34000, 34000, 34000} /*T9*/
+};
 #else
 
 /* Q_MAX_SYS_VOLTAGE by temp ,control by MULTI_TEMP_GAUGE0=1, */
@@ -257,6 +290,36 @@ int g_temperature[MAX_TABLE] = {
 
 #if (BAT_NTC_100 == 1)
 #if defined(TARGET_PRODUCT_LANCELOT) || defined(TARGET_PRODUCT_SHIVA)
+struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[27] = {
+		{-40, 4251000},
+		{-35, 3005000},
+		{-30, 2149000},
+		{-25, 1554000},
+		{-20, 1135000},
+		{-15, 837800},
+		{-10, 624100},
+		{-5, 469100},
+		{0, 355600},
+		{5, 271800},
+		{10, 209400},
+		{15, 162500},
+		{20, 127000},
+		{25, 100000},
+		{30, 79230},
+		{35, 63180},
+		{40, 50680},
+		{45, 40900},
+		{50, 33190},
+		{55, 27090},
+		{60, 22220},
+		{65, 18320},
+		{70, 15180},
+		{75, 12640},
+		{80, 10580},
+		{85, 8887},
+		{90, 7500}
+};
+#elif defined(TARGET_PRODUCT_SELENE)
 struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[27] = {
 		{-40, 4251000},
 		{-35, 3005000},
