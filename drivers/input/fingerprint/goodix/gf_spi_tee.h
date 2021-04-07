@@ -28,7 +28,7 @@ extern u8 g_debug_level;
 
 #define gf_debug(level, fmt, args...) do { \
 			if (g_debug_level >= level) {\
-				pr_warn("[gf] " fmt, ##args); \
+				pr_err("[gf] " fmt, ##args); \
 			} \
 		} while (0)
 
@@ -219,7 +219,7 @@ struct gf_device {
 #ifdef CONFIG_OF
 	struct pinctrl *pinctrl_gpios;
 	struct pinctrl_state *pins_irq;
-	struct pinctrl_state *pins_miso_spi, *pins_miso_pullhigh, *pins_miso_pulllow, *pins_spi_cs_high, *pins_spi_cs_low;
+	struct pinctrl_state *pins_miso_spi, *pins_miso_pullhigh, *pins_miso_pulllow, *pins_spi_cs_high, *pins_spi_cs_low, *pins_spi_mode;
 	struct pinctrl_state *pins_reset_high, *pins_reset_low;
 #endif
 };

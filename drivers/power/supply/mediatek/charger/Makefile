@@ -38,6 +38,7 @@ obj-$(CONFIG_CHARGER_RT9467) += rt9467.o
 obj-$(CONFIG_CHARGER_RT9471) += rt9471.o
 obj-$(CONFIG_CHARGER_HL7005) += hl7005.o
 obj-$(CONFIG_CHARGER_BQ25601) += bq25601.o
+obj-$(CONFIG_CHARGER_BQ2589X_CHARGER) += bq2589x_charger.o
 #obj-$(CONFIG_SMB1351_USB_CHARGER) += smb1351-charger.o
 obj-y += smb1351-charger.o
 

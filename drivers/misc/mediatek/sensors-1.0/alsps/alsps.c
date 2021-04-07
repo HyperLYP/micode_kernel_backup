@@ -1407,11 +1407,17 @@ static int alsps_remove(void)
 
 	return 0;
 }
+/*add psensor vdd3 compile by luozeng at 2021.3.24 start*/
+extern int alsps_ldo3_driver_init(void);
+/*add psensor vdd3 compile by luozeng at 2021.3.24 end*/
 
 static int __init alsps_init(void)
 {
 	pr_debug("%s\n", __func__);
-
+/*add psensor vdd3 compile by luozeng at 2021.3.24 start*/
+  	pr_debug("%s: call alsps_ldo3_driver_init\n", __func__);
+    	alsps_ldo3_driver_init();
+/*add psensor vdd3 compile by luozeng at 2021.3.24 end*/
 	if (alsps_probe()) {
 		pr_err("failed to register alsps driver\n");
 		return -ENODEV;

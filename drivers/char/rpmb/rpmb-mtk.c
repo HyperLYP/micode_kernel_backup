@@ -2075,6 +2075,42 @@ int ut_rpmb_req_set_key(struct mmc_card *card, struct s_rpmb *param)
     return ret;
 }
 EXPORT_SYMBOL(ut_rpmb_req_set_key);
+
+
+#ifdef CONFIG_MTK_UFS_SUPPORT
+int ut_rpmb_req_set_key_ufs(u8 *frame)
+{
+    struct rpmb_data data;
+    struct rpmb_dev *rawdev_ufs_rpmb;
+    int ret;
+    rawdev_ufs_rpmb = ufs_mtk_rpmb_get_raw_dev();
+    data.ocmd.frames = rpmb_alloc_frames(1);
+    if (data.ocmd.frames == NULL)
+	return RPMB_ALLOC_ERROR;
+    data.ocmd.nframes = 1;
+    data.req_type = RPMB_PROGRAM_KEY;
+    data.icmd.nframes = 1;
+    data.icmd.frames = (struct rpmb_frame *)frame;
+    ret = rpmb_cmd_req(rawdev_ufs_rpmb, &data);
+    if (ret)
+	MSG(ERR, "%s: rpmb_cmd_req IO error, ret %d (0x%x)\n",
+	    __func__, ret, ret);
+    /*
+     *   * Microtrust TEE will check write counter in the first frame,
+     *	 * thus we copy response frame to the first frame.
+     *	     */
+    memcpy(frame, data.ocmd.frames, 512);
+    if (data.ocmd.frames->result) {
+	MSG(ERR, "%s, result error!!! (%x)\n", __func__,
+	    cpu_to_be16(data.ocmd.frames->result));
+	ret = RPMB_RESULT_ERROR;
+    }
+    kfree(data.ocmd.frames);
+    MSG(DBG_INFO, "%s: ret 0x%x\n", __func__, ret);
+    return ret;
+}
+EXPORT_SYMBOL(ut_rpmb_req_set_key_ufs);
+#endif /* CONFIG_MTK_UFS_SUPPORT */
 #endif /* CONFIG_MICROTRUST_TEE_SUPPORT */
 
 /*

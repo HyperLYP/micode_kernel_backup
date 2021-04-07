@@ -28,6 +28,17 @@ enum LCM_DSI_MODE_CON lcm_dsi_mode;
 #define LCD_HW_ID_STATUS_ERROR  0x03
 
 struct LCM_DRIVER *lcm_driver_list[] = {
+/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 start*/
+#if defined(DSI_PANEL_K19A_36_02_0A_DSC_VDO)
+	&dsi_panel_k19a_36_02_0a_dsc_vdo_lcm_drv,
+#endif
+/*K19A HQ-123492 K19A LCD bring up by caogaojie at 2021/3/27 end*/
+
+/* Huaqin add for HQ-123491 by caogaojie at 2021/3/29 start */
+#if defined(DSI_PANEL_K19A_43_02_0B_DSC_VDO)
+        &dsi_panel_k19a_43_02_0b_dsc_vdo_lcm_drv,
+#endif
+/* Huaqin add for HQ-123491 by caogaojie at 2021/3/29 end */
 #if defined(FT8719_FHDP_DSI_VDO_HUAXING_J19)
 	&ft8719_fhdp_dsi_vdo_huaxing_j19_lcm_drv,
 #endif

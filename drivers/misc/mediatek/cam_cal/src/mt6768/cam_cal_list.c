@@ -29,7 +29,7 @@ extern unsigned int gc02m1_sunny_read_otp_info(struct i2c_client *client,
 	unsigned int size);
 #endif
 
-#ifdef CONFIG_TARGET_PRODUCT_LANCELOTCOMMON
+#ifdef CONFIG_TARGET_PRODUCT_SELENECOMMON
 #if defined(OV8856_QTECH_FRONT_MIPI_RAW)
 extern unsigned int ov8856_qtech_front_read_otp_info(struct i2c_client *client, unsigned int addr, unsigned char *data, unsigned int size);
 #endif
@@ -43,7 +43,7 @@ extern unsigned int ov8856_qtech_front_read_otp_info(struct i2c_client *client, 
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	/*Below is commom sensor */
-#ifdef CONFIG_TARGET_PRODUCT_LANCELOTCOMMON
+#ifdef CONFIG_TARGET_PRODUCT_SELENECOMMON
 	{OV13B10_OFILM_SENSOR_ID, 0xA2, Common_read_region},
 	{OV13B10_QTECH_SENSOR_ID, 0xA2, Common_read_region},
 	{S5K3L6_QTECH_SENSOR_ID, 0xA2, Common_read_region},
@@ -52,7 +52,7 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{S5K4H7YX_QTECH_FRONT_SENSOR_ID, 0x20, Common_read_region},
 	{S5K4H7YX_QTECH_ULTRA_SENSOR_ID, 0x5A, Common_read_region},
 	{OV8856_QTECH_ULTRA_SENSOR_ID, 0xA8, Common_read_region},
-	{OV8856_QTECH_FRONT_SENSOR_ID, 0x6C, ov8856_qtech_front_read_otp_info},
+	{OV8856_QTECH_FRONT_SENSOR_ID, 0x6C, Common_read_region},
 	{GC5035_OFILM_SENSOR_ID, 0xA4, Common_read_region},
 	{GC5035_QTECH_SENSOR_ID, 0xA4, Common_read_region},
 #endif

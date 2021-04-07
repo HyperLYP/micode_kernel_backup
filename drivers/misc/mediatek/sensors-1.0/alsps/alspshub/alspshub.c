@@ -35,6 +35,8 @@ struct alspshub_ipi_data {
 
 	/*data */
 	u16		als;
+	/*add psensor vdd3 compile by luozeng at 2021.3.24 start*/
+  	u32		als_data_action_data_cpy;
 	u8		ps;
 	int		ps_cali;
 	atomic_t	als_cali;
@@ -357,10 +359,15 @@ static int als_recv_data(struct data_unit_t *event, void *reserved)
 		err = als_flush_report();
 	else if ((event->flush_action == DATA_ACTION) &&
 			READ_ONCE(obj->als_android_enable) == true)
+	{
 		err = als_data_report_t(event->light,
 				SENSOR_STATUS_ACCURACY_MEDIUM,
 				(int64_t)event->time_stamp);
-	else if (event->flush_action == CALI_ACTION) {
+
+        spin_lock(&calibration_lock);
+        obj->als_data_action_data_cpy = event->light;
+        spin_unlock(&calibration_lock);
+	}else if (event->flush_action == CALI_ACTION) {
 		spin_lock(&calibration_lock);
 		atomic_set(&obj->als_cali, event->data[0]);
 		spin_unlock(&calibration_lock);
@@ -388,9 +395,9 @@ static int alshub_factory_enable_sensor(bool enable_disable,
 	struct alspshub_ipi_data *obj = obj_ipi_data;
 
 	if (enable_disable == true)
-		WRITE_ONCE(obj->als_factory_enable, true);
+		WRITE_ONCE(obj->als_android_enable, true);
 	else
-		WRITE_ONCE(obj->als_factory_enable, false);
+		WRITE_ONCE(obj->als_android_enable, false);
 
 	if (enable_disable == true) {
 		err = sensor_set_delay_to_hub(ID_LIGHT, sample_periods_ms);
@@ -414,6 +421,22 @@ static int alshub_factory_enable_sensor(bool enable_disable,
 }
 static int alshub_factory_get_data(int32_t *data)
 {
+    struct alspshub_ipi_data *obj = obj_ipi_data;
+
+    if (!obj)
+        return 0;
+
+    spin_lock(&calibration_lock);
+    if (NULL != data){
+        *data = obj->als_data_action_data_cpy;
+    }
+    spin_unlock(&calibration_lock);
+
+    return 0;
+}
+/*add psensor vdd3 compile by luozeng at 2021.3.24 end*/
+static int alshub_factory_get_raw_data(int32_t *data)
+{
 	int err = 0;
 	struct data_unit_t data_t;
 
@@ -422,10 +445,6 @@ static int alshub_factory_get_data(int32_t *data)
 		return -1;
 	*data = data_t.light;
 	return 0;
-}
-static int alshub_factory_get_raw_data(int32_t *data)
-{
-	return alshub_factory_get_data(data);
 }
 static int alshub_factory_enable_calibration(void)
 {

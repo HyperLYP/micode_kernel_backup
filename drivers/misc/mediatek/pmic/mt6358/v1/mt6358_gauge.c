@@ -1060,9 +1060,9 @@ static int fgauge_read_current(
 		bm_debug("[%s] final current=%d (ratio=%d)\n",
 			__func__,
 			 dvalue, gauge_dev->fg_cust_data->car_tune_value);
-
-		*data = dvalue;
-
+/* Huaqin modify for WXYFB-592 by miaozhichao at 2021/3/29 start */
+		*data = dvalue *2;
+/* Huaqin modify for WXYFB-592 by miaozhichao at 2021/3/29 end */
 	return 0;
 }
 

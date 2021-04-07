@@ -998,6 +998,11 @@ KBUILD_CFLAGS += -DTARGET_PRODUCT_SHIVA
 else
 endif
 
+ifeq ($(strip $(TARGET_PRODUCT)) , selene)
+# Define macros here only for selene project
+KBUILD_CFLAGS += -DTARGET_PRODUCT_SELENE
+endif
+
 ifneq (,$(filter merlin merlinin merlinnfc, $(TARGET_PRODUCT)))
 # Define macros here only for merlin common project
 KBUILD_CFLAGS += -DTARGET_PRODUCT_MERLINCOMMON

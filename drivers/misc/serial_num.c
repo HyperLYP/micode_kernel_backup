@@ -9,75 +9,51 @@
 #include <asm/uaccess.h>
 #include <mt-plat/mtk_devinfo.h>
 #include <linux/mmc/mmc.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 
 #define HRID0 12
 #define HRID1 13
 #define HRID2 14
 #define HRID3 15
 
-
 #define PROC_SERIAL_NUM_FILE "serial_num"
+#define PROC_CHIPID_FILE "chip_id"
+
 static struct proc_dir_entry *entry;
+static char dev_id[40], emmc_id_hash[32];
 
-#if 0  // Need root to read emmc id node
-#define EMMC_ID_PATH "sys/class/mmc_host/mmc0/mmc0:0001/block/mmcblk0/device/serial"
+struct device_node *of_chosen_s;
 
-int read_file(char *file_path, char *buf, int size)
+static void init_ids(void)
 {
-
-	struct file *file_p = NULL;
-	mm_segment_t old_fs;
-	loff_t pos;
-	int ret;
-	file_p = filp_open(file_path, O_RDONLY, 0);
-	if (IS_ERR (file_p)) {
-			pr_err("%s fail to open file \n", __func__);
-			return -1;
-	} else {
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		pos = 0;
-		ret = vfs_read(file_p, buf, size, &pos);
-		filp_close(file_p, NULL);
-		set_fs(old_fs);
-		file_p = NULL;
-	}
-
-	return ret;
-}
-
-static void read_emmc_id(char *emmc_id_buf)
-{
-	char buf[16] = {0};
-	read_file(EMMC_ID_PATH, buf, sizeof(buf));
-	sprintf(emmc_id_buf, "%s", buf);
-
-}
-#endif
-
-static int serial_num_proc_show(struct seq_file *file, void *data)
-{
-	char temp[60] = {0};
-
-	unsigned int temp0, temp1, temp2, temp3, emmc_id;
+	unsigned int temp0, temp1, temp2, temp3;
 
 	temp0 = get_devinfo_with_index(HRID0);
 	temp1 = get_devinfo_with_index(HRID1);
 	temp2 = get_devinfo_with_index(HRID2);
 	temp3 = get_devinfo_with_index(HRID3);
 
-	pr_err("[HR_ID] temp0=0x%x, temp1=0x%x, temp2=0x%x, temp2=0x%x\n",
-							temp0, temp1, temp2, temp3);
+	sprintf(dev_id, "%08x%08x%08x%08x", temp0, temp1, temp2, temp3);
+	printk("dev_id is %s\n", dev_id);
 
-	//read_emmc_id(emmc_id_buf);
-	emmc_id = mmc_get_serial();
-	if (0 == emmc_id) {
-	pr_err("fail to get emmc id ");
-	return 0;
+	of_chosen_s = of_find_node_by_path("/chosen");
+	if (of_chosen_s == NULL)
+		of_chosen_s = of_find_node_by_path("/chosen@0");
+
+	if (of_chosen_s) {
+		const char *name = NULL;
+
+		if (!of_property_read_string(of_chosen_s, "emmc_id,hash", &name)) {
+			sprintf(emmc_id_hash, "%s", name);
+			printk("emmc_id_hash is : %s\n", emmc_id_hash);
+		}
 	}
-	pr_err("emmc id = 0x%08x", emmc_id);
-	sprintf(temp, "0x%08x%08x%08x%08x%08x\n", temp0, temp1, temp2, temp3, emmc_id);
-	seq_printf(file, "%s\n", temp);
+}
+
+static int serial_num_proc_show(struct seq_file *file, void *data)
+{
+	seq_printf(file, "0x%s%s", dev_id, emmc_id_hash);
 	return 0;
 }
 
@@ -91,12 +67,32 @@ static const struct file_operations serial_num_proc_fops = {
 	.read = seq_read,
 };
 
+static int chip_id_proc_show(struct seq_file *file, void *data)
+{
+	seq_printf(file, "0x%s", dev_id);
+	return 0;
+}
+
+static int chip_id_proc_open (struct inode *inode, struct file *file)
+{
+	return single_open(file, chip_id_proc_show, inode->i_private);
+}
+
+static const struct file_operations chip_id_proc_fops = {
+	.open = chip_id_proc_open,
+	.read = seq_read,
+};
+
 static int __init sn_fuse_init(void)
 {
+	init_ids();
+
 	entry = proc_create(PROC_SERIAL_NUM_FILE, 0644, NULL, &serial_num_proc_fops);
 	if (entry == NULL)	{
 		pr_err("[%s]: create_proc_entry entry failed\n", __func__);
 	}
+
+	entry = proc_create(PROC_CHIPID_FILE, 0644, NULL, &chip_id_proc_fops);
 
 	return 0;
 }

@@ -85,6 +85,7 @@
 #include "mtk_vcorefs_manager.h"
 #endif
 
+#include "ddp_disp_bdg.h"
 #include "disp_lowpower.h"
 #include "disp_recovery.h"
 /* #include "mt_spm_sodi_cmdq.h" */
@@ -3716,9 +3717,10 @@ static int update_primary_intferface_module(void)
 
 static void replace_fb_addr_to_mva(void)
 {
-#if (defined CONFIG_MTK_M4U) || (defined CONFIG_MTK_IOMMU_V2)
+#if (defined CONFIG_MTK_M4U)
 	struct ddp_fb_info fb_info;
 	int i;
+
 	fb_info.fb_mva = pgc->framebuffer_mva;
 	fb_info.fb_pa = pgc->framebuffer_pa;
 	fb_info.fb_size = DISP_GetFBRamSize();
@@ -3742,9 +3744,11 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 
 	DISPCHECK("primary_display_init begin lcm=%s, inited=%d\n",
 		lcm_name, is_lcm_inited);
-
+	
 	dprec_init();
 	dpmgr_init();
+
+	//bdg_tx_pull_6382_reset_pin();
 
 	init_cmdq_slots(&(pgc->ovl_config_time), 3, 0);
 	init_cmdq_slots(&(pgc->cur_config_fence),
@@ -3960,6 +3964,10 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 
 	data_config->fps = lcm_fps;
 	data_config->dst_dirty = 1;
+
+//	bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+//	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
+
 	ret = dpmgr_path_config(pgc->dpmgr_handle, data_config,
 		pgc->cmdq_handle_config);
 
@@ -3986,8 +3994,14 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 			_cmdq_flush_config_handle(1, NULL, 0);
 			_cmdq_reset_config_handle();
 		}
+//#if 0
+		bdg_tx_pull_6382_reset_pin();
+		bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+	        mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
 
-		ret = disp_lcm_init(pgc->plcm, 1);
+//#endif
+//FIXME[MT6382]
+		//ret = disp_lcm_init(pgc->plcm, 1);
 	}
 	if (!ret)
 		primary_display_set_lcm_power_state_nolock(LCM_ON);
@@ -4114,7 +4128,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 	pgc->lcm_refresh_rate = 60;
 	/* keep lowpower init after setting lcm_fps */
 	primary_display_lowpower_init();
-
+        //check_stopstate(NULL);
 	primary_set_state(DISP_ALIVE);
 #if 0 //def CONFIG_TRUSTONIC_TRUSTED_UI
 	disp_switch_data.name = "disp";
@@ -4472,8 +4486,8 @@ int primary_display_wait_for_vsync(void *config)
 #endif
 
 	if (!islcmconnected || !has_vsync) {
-		DISPCHECK("use fake vsync: lcm_connect=%d, has_vsync=%d\n",
-			  islcmconnected, has_vsync);
+//		DISPCHECK("use fake vsync: lcm_connect=%d, has_vsync=%d\n",
+//			  islcmconnected, has_vsync);
 		msleep(20);
 		return 0;
 	}
@@ -4583,7 +4597,6 @@ int suspend_to_full_roi(void)
 int primary_display_suspend(void)
 {
 	enum DISP_STATUS ret = DISP_STATUS_OK;
-
 	DISPCHECK("%s begin\n", __func__);
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_suspend,
 		MMPROFILE_FLAG_START, 0, 0);
@@ -4781,6 +4794,7 @@ done:
 	primary_display_request_dvfs_perf(0,
 		HRT_LEVEL_DEFAULT);
 #endif
+	bdg_tx_set_6382_reset_pin(0);
 	return ret;
 }
 
@@ -4876,16 +4890,16 @@ int primary_display_resume(void)
 	enum DISP_STATUS ret = DISP_STATUS_OK;
 	struct ddp_io_golden_setting_arg gset_arg;
 	int i, skip_update = 0;
+	struct disp_ddp_path_config *data_config;
 #ifdef MTK_FB_MMDVFS_SUPPORT
 	unsigned long long bandwidth;
 	unsigned int in_fps = 60;
 	unsigned int out_fps = 60;
 #endif
-
 	DISPCHECK("primary_display_resume begin\n");
 	mmprofile_log_ex(ddp_mmp_get_events()->primary_resume,
 		MMPROFILE_FLAG_START, 0, 0);
-
+		bdg_tx_set_6382_reset_pin(1);
 	_primary_path_lock(__func__);
 	if (pgc->state == DISP_ALIVE) {
 		primary_display_lcm_power_on_state(1);
@@ -4919,7 +4933,17 @@ int primary_display_resume(void)
 		if (dsi_force_config)
 			DSI_ForceConfig(1);
 	}
-
+//FIXME[MT6382]
+	data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+	DISPERR("[DENNIS][%s][%d]\n", __func__, __LINE__);
+	bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
+/*
+//FIXME[MT6382]
+	data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+	bdg_common_init(DISP_BDG_DSI0, data_config, NULL);
+	mipi_dsi_rx_mac_init(DISP_BDG_DSI0, data_config, NULL);
+*/
 	DISPDBG("dpmanager path power on[begin]\n");
 	dpmgr_path_power_on(pgc->dpmgr_handle, CMDQ_DISABLE);
 
@@ -8451,78 +8475,6 @@ static int _screen_cap_by_cpu(unsigned int mva, enum UNIFIED_COLOR_FMT ufmt,
 	return 0;
 }
 
-#ifdef CONFIG_MTK_IOMMU_V2
-int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
-	enum UNIFIED_COLOR_FMT ufmt)
-{
-	int ret = 0;
-	struct ion_client *ion_display_client = NULL;
-	struct ion_handle *ion_display_handle = NULL;
-	unsigned long mva = 0;
-	unsigned int w_xres = primary_display_get_width();
-	unsigned int h_yres = primary_display_get_height();
-	unsigned int pixel_byte = primary_display_get_bpp() / 8;
-	int buffer_size = h_yres * w_xres * pixel_byte;
-	enum DISP_MODULE_ENUM after_eng = DISP_MODULE_OVL0;
-	int tmp;
-
-	DISPMSG("primary capture: begin\n");
-
-	disp_sw_mutex_lock(&(pgc->capture_lock));
-
-	if (primary_display_is_sleepd()) {
-		memset((void *)pbuf, 0, buffer_size);
-		DISPMSG("primary capture: Fail black End\n");
-		goto out;
-	}
-
-	ion_display_client = disp_ion_create("disp_cap_ovl");
-	if (ion_display_client == NULL) {
-		DISPMSG("primary capture:Fail to create ion\n");
-		ret = -1;
-		goto out;
-	}
-
-	ion_display_handle = disp_ion_alloc(ion_display_client,
-					    ION_HEAP_MULTIMEDIA_MAP_MVA_MASK,
-					    pbuf, buffer_size);
-	if (!ion_display_handle) {
-		DISPMSG("primary capture:Fail to allocate buffer\n");
-		ret = -1;
-		goto out;
-	}
-
-	disp_ion_get_mva(ion_display_client, ion_display_handle,
-		&mva, 0, DISP_M4U_PORT_DISP_WDMA0);
-	disp_ion_cache_flush(ion_display_client, ion_display_handle,
-		ION_CACHE_INVALID_BY_RANGE);
-
-	tmp = disp_helper_get_option(DISP_OPT_SCREEN_CAP_FROM_DITHER);
-	if (tmp == 0)
-		after_eng = DISP_MODULE_OVL0;
-
-	if (primary_display_cmdq_enabled())
-		_screen_cap_by_cmdq((unsigned int)mva, ufmt, after_eng);
-	else
-		_screen_cap_by_cpu((unsigned int)mva, ufmt, after_eng);
-
-	disp_ion_cache_flush(ion_display_client, ion_display_handle,
-		ION_CACHE_INVALID_BY_RANGE);
-
-out:
-	if (ion_display_client)
-		disp_ion_free_handle(ion_display_client, ion_display_handle);
-
-	if (ion_display_client)
-		disp_ion_destroy(ion_display_client);
-
-	disp_sw_mutex_unlock(&(pgc->capture_lock));
-	DISPMSG("primary capture: end\n");
-	return ret;
-}
-
-#else
-
 int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
 	enum UNIFIED_COLOR_FMT ufmt)
 {
@@ -8594,7 +8546,6 @@ out:
 	DISPMSG("primary capture: end\n");
 	return ret;
 }
-#endif
 
 int primary_display_capture_framebuffer(unsigned long pbuf)
 {
