@@ -1399,7 +1399,9 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 
 	swtp: swtp {
 		compatible = "mediatek, swtp-eint";
-		ant_sw_gpios = <&pio 72 0>;
+/*Huaqin modify for HQ-123513 by shiwenlong at 2021.4.01 start*/
+		swtp-gpio = <&pio 56 0>;
+/*Huaqin modify for HQ-123513 by shiwenlong at 2021.4.01 end*/
 	};
 
 	mt6358_gauge {
@@ -3256,8 +3258,9 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 			"CLK_MIPI_ANA_2A_CG",
 			"CLK_MIPI_ANA_2B_CG",
 			"CLK_TOP_CAMTM_SEL_CG",
-			"CLK_TOP_CAMTM_208_CG",
-			"CLK_SCP_SYS_CAM";
+            "CLK_TOP_CAMTM_208_CG",
+            "CLK_SCP_SYS_CAM";
+
 	};
 
 	flashlight_core: flashlight_core {
@@ -5108,9 +5111,7 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 #ifdef CONFIG_CHARGER_RT9471
 #include "mediatek/rt9471.dtsi"
 #endif
-#ifdef CONFIG_TCPC_RT1711H
 #include "mediatek/tcpc_config.dtsi"
-#endif
 #ifdef CONFIG_MTK_ENABLE_GENIEZONE
 #include "mediatek/trusty.dtsi"
 #endif

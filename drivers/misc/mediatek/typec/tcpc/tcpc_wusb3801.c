@@ -51,7 +51,6 @@
 #include "inc/tcpci_timer.h"
 #include "inc/tcpci_typec.h"
 
-
 #if 1 /*  #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0))*/
 #include <linux/sched/rt.h>
 #endif /* #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)) */
@@ -417,11 +416,11 @@ static int wusb3801_init_alert(struct tcpc_device *tcpc)
 		pr_err("wusb3801 [%s]enter error recovery :0x%x\n", __func__, ret);
 		wusb3801_i2c_write8(chip->tcpc, WUSB3801_REG_TEST_02, 0x00);
 	}
-	/*K19A WXYFB-996 K19A charger cclogic bring up by miaozhichao at 2021/3/23 start*/
+	/*K19A-108 mdify by wangchao at 2021/4/12 start*/
 	ret = request_irq(chip->irq, wusb3801_intr_handler,
-		IRQF_TRIGGER_LOW | IRQF_NO_THREAD |
+		IRQF_TRIGGER_FALLING | IRQF_NO_THREAD |
 		IRQF_NO_SUSPEND, name, chip);
-  	/*K19A WXYFB-996 K19A charger cclogic bring up by miaozhichao at 2021/3/23 end*/
+	/*K19A-108 mdify by wangchao at 2021/4/12 end*/
 	if (ret < 0) {
 		pr_err("Error: failed to request irq%d (gpio = %d, ret = %d)\n",
 			chip->irq, chip->irq_gpio, ret);
@@ -952,7 +951,7 @@ static int wusb3801_i2c_probe(struct i2c_client *client,
 	int i, rc;
 	bool use_dt = client->dev.of_node;
 
-	pr_info("%s\n", __func__);
+	pr_err("ljj124 %s\n", __func__);
 	if (i2c_check_functionality(client->adapter,
 			I2C_FUNC_SMBUS_I2C_BLOCK | I2C_FUNC_SMBUS_BYTE_DATA))
 		pr_info("I2C functionality : OK...\n");
@@ -960,11 +959,13 @@ static int wusb3801_i2c_probe(struct i2c_client *client,
 		pr_info("I2C functionality check : failuare...\n");
 
 	chip_id = wusb3801_check_revision(client);
+	pr_err("szw:chip_id=%d\n",chip_id);
 	if (chip_id < 0) {
 		chip_id = wusb3801_check_revision(client);
 		if (chip_id < 0)
 			return chip_id;
 	}
+pr_err("szw:chip_id2=%d\n",chip_id);
 	chip = devm_kzalloc(&client->dev, sizeof (*chip), GFP_KERNEL);
 	if (!chip)
 		return -ENOMEM;

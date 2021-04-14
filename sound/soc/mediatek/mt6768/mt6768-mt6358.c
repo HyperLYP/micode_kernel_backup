@@ -18,6 +18,9 @@
 /* K19A BSP.Audio bring up second PA by zhagpeng at 2021/3/5 start*/
 #include "../fs1815n/fsm_public.h"
 /* K19A BSP.Audio bring up second PA by zhagpeng at 2021/3/5 end*/
+/*K19A code for HQ-128766 by zhangpeng at 2021.4.3 start*/
+#include "../fs1815n/fsm-dev.h"
+/*K19A code for HQ-128766 by zhangpeng at 2021.4.3 end*/
 /*
  * if need additional control for the ext spk amp that is connected
  * after Lineout Buffer / HP Buffer on the codec, put the control in
@@ -65,7 +68,7 @@ enum aw87xxx_scene_mode {
 };
 enum {
 	AW87XXX_LEFT_CHANNEL = 0,
-	AW87XXX_RIRHT_CHANNEL = 1,
+	AW87XXX_RIGHT_CHANNEL = 1,
 };
 
 extern unsigned char aw87xxx_show_current_mode(int32_t channel);
@@ -101,7 +104,7 @@ static int aw87389_mode_get(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
 	unsigned char current_mode;
-	current_mode = aw87xxx_show_current_mode(AW87XXX_LEFT_CHANNEL);
+	current_mode = aw87xxx_show_current_mode(AW87XXX_RIGHT_CHANNEL);
 	ucontrol->value.integer.value[0] = current_mode;
 	pr_info("%s: get mode:%d\n", __func__, current_mode);
 	return 0;
@@ -113,7 +116,7 @@ static int aw87389_mode_set(struct snd_kcontrol *kcontrol,
 	int ret = 0;
 	unsigned char set_mode;
 	set_mode = ucontrol->value.integer.value[0];
-	ret = aw87xxx_audio_scene_load(set_mode, AW87XXX_LEFT_CHANNEL);
+	ret = aw87xxx_audio_scene_load(set_mode, AW87XXX_RIGHT_CHANNEL);
 	if (ret < 0) {
 		pr_err("%s: mode:%d set failed\n", __func__, set_mode);
 		return -EPERM;
@@ -194,12 +197,13 @@ static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
 /*K19A code for HQ-123483 by zhangpeng at 2021.3.22 start*/
 		if (strcmp((const char *)get_audio_pa_vendor(), awinic) == 0) {
 #if defined(CONFIG_SND_SOC_AW87559)
-			pr_info("%s(), aw87559_audio_kspk()\n", __func__);// ALPS05007528
+			pr_info("%s(), aw87559_audio_kspk()\n", __func__);
 			aw87xxx_audio_scene_load(AW87XXX_MUSIC_MODE, AW87XXX_LEFT_CHANNEL);
 #endif
 		} else if (strcmp((const char *)get_audio_pa_vendor(), foursemi) == 0) {
 #ifdef CONFIG_SND_SOC_FS16XX
-			fsm_speaker_onn();
+			pr_info("%s(), fsm audio spk:music\n", __func__);
+			fsm_speaker_onn(FSM_SCENE_MUSIC);
 #endif
 		} else {
 			pr_err("Please check out start PA");
@@ -211,11 +215,12 @@ static int mt6768_mt6358_spk_amp_event(struct snd_soc_dapm_widget *w,
 /*K19A code for HQ-123483 by zhangpeng at 2021.3.22 start*/
 		if (strcmp((const char *)get_audio_pa_vendor(), awinic) == 0) {
 			#if defined(CONFIG_SND_SOC_AW87559)
-			pr_info("%s(), aw87559_audio_off()\n", __func__);// ALPS05007528
+			pr_info("%s(), aw87559_audio_off()\n", __func__);
 			aw87xxx_audio_scene_load(AW87XXX_OFF_MODE, AW87XXX_LEFT_CHANNEL);
 			#endif
 		} else if (strcmp((const char *)get_audio_pa_vendor(), foursemi) == 0) {
 #ifdef CONFIG_SND_SOC_FS16XX
+			pr_info("%s(), fsm_audio_off\n", __func__);
 			fsm_speaker_off();
 #endif
 		} else {
@@ -244,23 +249,47 @@ static int mt6768_mt6358_rcv_amp_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMU:
 		/* spk amp on control */
 /*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+		if (strcmp((const char *)get_audio_pa_vendor(), awinic) == 0) {
 #ifdef CONFIG_SND_SOC_AW87559
-		if (rcv_amp_mode) {
-			pr_info("%s(), aw87389_audio_drcv()\n", __func__);
-			aw87xxx_audio_scene_load(AW87XXX_RCV_MODE, AW87XXX_LEFT_CHANNEL);
-		} else {
-			pr_info("%s(), aw87389_audio_dspk()\n", __func__);
-			aw87xxx_audio_scene_load(AW87XXX_MUSIC_MODE, AW87XXX_LEFT_CHANNEL);
-		};
+			if (rcv_amp_mode) {
+				pr_info("%s(), aw87xxx_audio_rcv \n", __func__);
+				aw87xxx_audio_scene_load(AW87XXX_RCV_MODE, AW87XXX_RIGHT_CHANNEL);
+			} else {
+				pr_info("%s(), aw87xxx_audio_spk \n", __func__);
+				aw87xxx_audio_scene_load(AW87XXX_MUSIC_MODE, AW87XXX_RIGHT_CHANNEL);
+			};
 #endif
+		} else if (strcmp((const char *)get_audio_pa_vendor(), foursemi) == 0) {
+#ifdef CONFIG_SND_SOC_FS16XX
+			if (rcv_amp_mode) {
+				pr_err("%s(), fsm_audio rcv()\n", __func__);
+				fsm_speaker_onn(FSM_SCENE_RCV);
+			} else {
+				pr_err("%s(), fsm_audio spk:music\n", __func__);
+				fsm_speaker_onn(FSM_SCENE_MUSIC);
+			};
+#endif
+		} else {
+			pr_err("Please check out off PA");
+		}
 /*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		/* spk amp off control */
 /*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+		if (strcmp((const char *)get_audio_pa_vendor(), awinic) == 0) {
 #ifdef CONFIG_SND_SOC_AW87559
-		aw87xxx_audio_scene_load(AW87XXX_OFF_MODE, AW87XXX_LEFT_CHANNEL);
+			pr_info("%s(), aw87xxx_audio_off \n", __func__);
+			aw87xxx_audio_scene_load(AW87XXX_OFF_MODE, AW87XXX_RIGHT_CHANNEL);
 #endif
+		} else if (strcmp((const char *)get_audio_pa_vendor(), foursemi) == 0) {
+#ifdef CONFIG_SND_SOC_FS16XX
+			pr_info("%s(), fsm audio off()\n", __func__);
+			fsm_speaker_off();
+#endif
+		} else {
+			pr_err("Please check out off PA");
+		}
 /*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
 		break;
 	default:
