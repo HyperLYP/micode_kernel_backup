@@ -109,60 +109,68 @@ typedef enum {
 	PCBA_END,
 } PCBA_CONFIG;
 #elif defined(TARGET_PRODUCT_SELENE)
+/* Huaqin modify for K19A-131 by liunianliang at 2021/04/13 start */
 typedef enum
 {
 	PCBA_UNKNOW = 0,
 
-	PCBA_K19A_P0_GLOBAL,
+	PCBA_K19A_P0_GLOBAL = 1,
 	PCBA_K19A_P0_LA,
 	PCBA_K19B_P0_IN,
 	PCBA_K19B_P0_CN,
 	PCBA_K19D_P0_GLOBAL,
 	PCBA_K19C_P0_GLOBAL,
 	PCBA_K19C_P0_IN,
+	PCBA_K19L_P0_LA,
 
-	PCBA_K19A_P0_1_GLOBAL,
+	PCBA_K19A_P0_1_GLOBAL = 9,
 	PCBA_K19A_P0_1_LA,
 	PCBA_K19B_P0_1_IN,
 	PCBA_K19B_P0_1_CN,
 	PCBA_K19D_P0_1_GLOBAL,
 	PCBA_K19C_P0_1_GLOBAL,
 	PCBA_K19C_P0_1_IN,
+	PCBA_K19L_P0_1_LA,
 
-	PCBA_K19A_P1_GLOBAL,
+	PCBA_K19A_P1_GLOBAL = 17,
 	PCBA_K19A_P1_LA,
 	PCBA_K19B_P1_IN,
 	PCBA_K19B_P1_CN,
 	PCBA_K19D_P1_GLOBAL,
 	PCBA_K19C_P1_GLOBAL,
 	PCBA_K19C_P1_IN,
+	PCBA_K19L_P1_LA,
 
-	PCBA_K19A_P1_1_GLOBAL,
+	PCBA_K19A_P1_1_GLOBAL = 25,
 	PCBA_K19A_P1_1_LA,
 	PCBA_K19B_P1_1_IN,
 	PCBA_K19B_P1_1_CN,
 	PCBA_K19D_P1_1_GLOBAL,
 	PCBA_K19C_P1_1_GLOBAL,
 	PCBA_K19C_P1_1_IN,
+	PCBA_K19L_P1_1_LA,
 
-	PCBA_K19A_P2_GLOBAL,
+	PCBA_K19A_P2_GLOBAL = 33,
 	PCBA_K19A_P2_LA,
 	PCBA_K19B_P2_IN,
 	PCBA_K19B_P2_CN,
 	PCBA_K19D_P2_GLOBAL,
 	PCBA_K19C_P2_GLOBAL,
 	PCBA_K19C_P2_IN,
+	PCBA_K19L_P2_LA,
 
-	PCBA_K19A_MP_GLOBAL,
+	PCBA_K19A_MP_GLOBAL = 41,
 	PCBA_K19A_MP_LA,
 	PCBA_K19B_MP_IN,
 	PCBA_K19B_MP_CN,
 	PCBA_K19D_MP_GLOBAL,
 	PCBA_K19C_MP_GLOBAL,
 	PCBA_K19C_MP_IN,
+	PCBA_K19L_MP_LA,
 
 	PCBA_END,
 } PCBA_CONFIG;
+/* Huaqin modify for K19A-131 by liunianliang at 2021/04/13 end */
 #else
 typedef enum {
 	PCBA_UNKNOW = 0,
@@ -860,12 +868,16 @@ int charger_manager_set_input_suspend(int suspend)
 
 	if (suspend) {
 		charger_dev_set_suspend(pinfo->chg1_dev, true);
-//		charger_dev_enable(pinfo->chg2_dev, false);
+/*K19A WXYFB-604 K19A charger by wangqi at 2021/4/6 start*/
+		charger_dev_enable(pinfo->chg1_dev, false);
+/*K19A WXYFB-604 K19A charger by wangqi at 2021/4/6 end*/
 //		charger_dev_enable_powerpath(pinfo->chg1_dev, false);
 		pinfo->is_input_suspend = true;
 	} else {
 		charger_dev_set_suspend(pinfo->chg1_dev, false);
-//		charger_dev_enable(pinfo->chg2_dev, true);
+/*K19A WXYFB-604 K19A charger by wangqi at 2021/4/6 start*/
+		charger_dev_enable(pinfo->chg1_dev, true);
+/*K19A WXYFB-604 K19A charger by wangqi at 2021/4/6 end*/
 //		charger_dev_enable_powerpath(pinfo->chg1_dev, true);
 		pinfo->is_input_suspend = false;
 	}

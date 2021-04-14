@@ -324,32 +324,56 @@
 		reg = <0x59>;
 		//reset-gpio = <&pio 22 0>;
 		monitor-flag = <1>;
-		pa-channel = < 0 >;
+		pa-channel = < 1 >;
 		monitor-timer-val = <3000>;
 		monitor-timer-count-max = <5>;
 		status = "okay";
 	};
 */
+/*K19A code for HQ-128768 by zhangpeng at 2021.4.9 start*/
+	aw87559_pa_5B@5B {
+		compatible = "awinic,aw87559_pa_5B";
+		reg = <0x5B>;
+		reset-gpio = <&pio 22 0>;
+		monitor-flag = <1>;
+		pa-channel = < 1 >;
+		monitor-timer-val = <3000>;
+		monitor-timer-count-max = <5>;
+		status = "okay";
+	};
+/*K19A code for HQ-128768 by zhangpeng at 2021.4.9 end*/
 };
 /*K19A code for WXYFB-991 by zhangpeng at 2021.3.18 end*/
 
-/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 start*/
+/*K19A code for HQ-128766 by zhangpeng at 2021.4.3 start*/
 &i2c6 {
 	fs16xx@34 {
-		compatible = "foursemi,fs16xx";
+		compatible = "foursemi,fs16xx_34";
 		reg = <0x34>;
-		fsm,rst-gpio = <&pio 22 1>;
+		status = "okay";
+	};
+	fs16xx@35 {
+		compatible = "foursemi,fs16xx_35";
+		reg = <0x35>;
 		status = "okay";
 	};
 };
-/*K19A code for WXYFB-1001 by zhangpeng at 2021.3.19 end*/
+/*K19A code for HQ-128766 by zhangpeng at 2021.4.3 end*/
 
-/*K19A WXYFB-996 K19A charger bq25890 bring up by miaozhichao at 2021/3/20 start*/
+/*K19A WXYFB-996 K19A charger bring up by miaozhichao at 2021/3/20 start*/
 &i2c5 {
-	fusb303@42 {
+/*K19A-104 fusb302 bring up by wangchao at 2021/4/8 start*/
+	fusb302@22 {
+		status = "okay";
+		compatible = "fairchild,fusb302";
+		reg = <0x22>;
+		fairchild,int_n = <&pio 41 0>;
+	};
+/*K19A-104 fusb302 bring up by wangchao at 2021/4/8 end*/
+	fusb303@21 {
 		status = "okay";
 		compatible = "on,fusb303";
-		reg = <0x42>;
+		reg = <0x21>;
 		interrupt-parent = <&pio>;
 		interrupts = <41 0x2>;
 		fusb303,int-gpio = <&pio 41 0>;
@@ -360,10 +384,43 @@
 		fusb303,autosink-threshold = <1>;		/* 3P1V */
 		fusb303,cc-debounce-time = <3>;			/* 150ms */
 	};
+	usb_type_c_mtk@4e {
+		compatible = "mediatek,usb_type_c_mtk";
+		reg = <0x4e>;
+		status = "okay";
+	};
 };
-/*K19A WXYFB-996 K19A charger bq25890 bring up by miaozhichao at 2021/3/20 end*/
+/*K19A WXYFB-996 K19A charger bring up by miaozhichao at 2021/3/20 end*/
 
 &i2c7 {
+	sc8551-charger@66{
+		compatible = "sc,sc8551-standalone";
+		reg = <0x66>;
+		sc,sc8551,interrupt_gpios = <&pio 30 0>;
+		/*sc,sc8551,bat-ovp-disable = <0>;
+		sc,sc8551,bat-ocp_disable = <0>;
+		sc,sc8551,bat-ovp-alarm-disable = <0>;
+		sc,sc8551,bus-ocp-disable = <0>;
+		sc,sc8551,bus-ovp-alarm-disable = <0>;
+		sc,sc8551,bus-ocp-alarm-disable = <0>;
+		sc,sc8551,bat-ucp-alarm-disable = <0>;*/
+		sc,sc8551,bat-therm-disable = <0>;
+		sc,sc8551,bus-therm-disable = <0>;
+		sc,sc8551,bat-ovp-threshold = <4500>;
+		sc,sc8551,bat-ovp-alarm-threshold = <4450>;
+		sc,sc8551,bat-ocp-threshold = <8000>;
+		sc,sc8551,bat-ocp-alarm-threshold = <7500>;
+		sc,sc8551,bus-ovp-threshold = <12000>;
+		sc,sc8551,bus-ovp-alarm-threshold = <11000>;
+		sc,sc8551,bus-ocp-threshold = <3750>;
+		sc,sc8551,bus-ocp-alarm-threshold = <3500>;
+		sc,sc8551,bat-ucp-alarm-threshold = <2000>;
+		sc,sc8551,bat-therm-threshold = <0x15>;
+		sc,sc8551,bus-therm-threshold = <0x15>;
+		sc,sc8551,die-therm-threshold = <125>;
+		sc,sc8551,ac-ovp-threshold = <17>;
+		sc,sc8551,sense-resistor-mohm = <5>;
+	};
 	smb1351-charger@55 {
 		compatible = "qcom,smb1351_charger";
 		reg = <0x55>;
@@ -391,6 +448,7 @@
 		status = "okay";
 		compatible = "ti,bq25890";
 		reg = <0x6A>;
+		charger_name = "primary_chg";
 		interrupt-parent = <&pio>;
 		interrupts = <20 IRQ_TYPE_EDGE_FALLING 20 0>;
 		ti,irq-gpio = <&pio 20 0>;
@@ -399,6 +457,44 @@
 		interrupt-names = "chr_stat";
 	};
 /*K19A WXYFB-996 K19A charger bq25890 bring up by miaozhichao at 2021/3/20 end*/
+/*K19A-104 ln8000 bringup by wangchao at 2021/4/10 start*/
+	ln8000_charger@51 {
+		compatible = "lionsemi,ln8000";
+		reg = <0x51>;
+		/* bank <bit-idx> <flags: active-low> */
+
+		interrupt-parent = <&pio>;
+		interrupts = <20 IRQ_TYPE_EDGE_FALLING 20 0>;
+		ti,irq-gpio = <&pio 20 0>;
+
+		/* device configuration */
+		ln8000_charger,bat-ovp-threshold = <4550>;
+		ln8000_charger,bat-ovp-alarm-threshold = <4525>;
+		ln8000_charger,bus-ovp-threshold = <13000>;
+		ln8000_charger,bus-ovp-alarm-threshold = <11000>;
+		ln8000_charger,bus-ocp-threshold = <3750>;
+		ln8000_charger,bus-ocp-alarm-threshold = <3500>;
+		ln8000_charger,ntc-alarm-cfg  = <226>;
+		/* protection enable/disable flags
+		 *   vbat-ovp-disable
+		 *   vbat-reg-disable
+		 *   iin-ocp-disable
+		 *   iin-reg-disable
+		 *   tbus-mon-disable
+		 *   tbat-mon-disable
+		 *   tdie-prot-disable
+		 *   tdie-reg-disable
+		 *   revcurr-prot-disable
+		 */
+		ln8000_charger,tdie-prot-disable;
+		ln8000_charger,tbus-mon-disable;
+		ln8000_charger,tbat-mon-disable;
+		ln8000_charger,iin-ocp-disable;
+		ln8000_charger,iin-reg-disable;
+		ln8000_charger,tdie-reg-disable;
+		ln8000_charger,vbat-reg-disable;
+	};
+/*K19A-104 ln8000 bringup by wangchao at 2021/4/10 end*/
 };
 &lk_charger  {
 	/* charging current */
@@ -412,7 +508,7 @@
 };
 
 &charger {
-	algorithm_name = "SwitchCharging";
+	algorithm_name = "DualSwitchCharging";
 
 	set_cap_delay = <10>;
 	enable_sw_jeita;
@@ -573,12 +669,6 @@
 	mt6370,intr_gpio_num = <20>; /* direct defined GPIO num */
 	mt6370,intr_gpio = <&pio 20 0x0>;
 };
-&mt6370_typec {
-	mt6370pd,intr_gpio_num = <41>; /* direct defined GPIO num */
-	mt6370pd,intr_gpio = <&pio 41 0x0>;
-	mt6370pd,usb_switch_gpio_num = <91>; /* direct defined GPIO num */
-	mt6370pd,usb_switch_gpio = <&pio 91 0x0>;
-};
 
 /* CONSYS GPIO standardization */
 &pio {
@@ -724,5 +814,6 @@
 /* DISPSYS GPIO standardization end*/
 
 #include <selene/cust.dtsi>
+#include "mediatek/tcpc_config.dtsi"
 #include "mediatek/cust_mt6768_selene_camera.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/
