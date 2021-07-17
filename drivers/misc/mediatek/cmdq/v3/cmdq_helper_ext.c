@@ -5107,7 +5107,6 @@ static s32 cmdq_pkt_flush_async_ex_impl(struct cmdqRecStruct *handle,
 	struct cmdqRecStruct **pmqos_handle_list = NULL;
 	struct ContextStruct *ctx;
 	u32 handle_count;
-	int32_t thread;
 
 	if (!handle->finalized) {
 		CMDQ_ERR("handle not finalized:0x%p scenario:%d\n",
@@ -5217,14 +5216,14 @@ static s32 cmdq_pkt_flush_async_ex_impl(struct cmdqRecStruct *handle,
 		CMDQ_LOG("cl:%p not same client:%p\n", handle->pkt->cl, client);
 		handle->pkt->cl = client;
 	}
-	thread = handle->thread;
 	err = cmdq_pkt_flush_async(handle->pkt, cmdq_pkt_flush_handler,
 		(void *)handle);
 	CMDQ_SYSTRACE_END();
-	if (err < 0) {
-		CMDQ_ERR("pkt flush failed err:%d handle:%p thread:%d\n",
-			err, handle, thread);
 
+	if (err < 0) {
+		CMDQ_ERR("pkt flush failed err:%d pkt:0x%p\n",
+			err, handle->pkt);
+		cmdq_pkt_release_handle(handle);
 		return err;
 	}
 
